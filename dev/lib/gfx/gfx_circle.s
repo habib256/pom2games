@@ -3,7 +3,7 @@
 ; Private seven-byte frame: x,y,dlo,dhi,yc,xclo,xchi. Backend scratch is free.
 .export _gfx_circle
 .import _gfx_plot, _gfx_width, _gfx_height, pushax, incsp3, incsp7
-.importzp sp, tmp1, tmp2, tmp3, tmp4
+.importzp sp, tmp1, tmp2, tmp4
 .code
 _gfx_circle:
         sta tmp4
@@ -209,7 +209,7 @@ advance:
         rol
         sta tmp2
         lda (sp),y
-        sec
+        ; ROL of $ff left carry set, so this decrement needs no SEC.
         sbc #1
         sta (sp),y
         ldx #5
@@ -224,10 +224,10 @@ inside:
         sta tmp2
         ldx #3
 delta:
-        stx tmp3
+        ; The constant is already in X; add it directly to the low delta.
+        txa
         clc
-        lda tmp1
-        adc tmp3
+        adc tmp1
         sta tmp1
         lda tmp2
         adc #0

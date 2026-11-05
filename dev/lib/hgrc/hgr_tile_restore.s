@@ -1,23 +1,25 @@
 ; VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root).
 ; Native tile-background restoration. cc65 fastcall height=A, other args
 ; on software stack. Main RAM/ZP, D=0; non-reentrant, never call from IRQ.
+; A/X/Y, flags, ptr1-ptr4 and tmp1-tmp4 destroyed. The initial popa/popax
+; helpers preserve these temporaries; all later calls stay within this file.
 .export _hgr_tile_restore
 .import popa,popax,hgr_fixed_rowlo,hgr_fixed_rowhi
-.importzp ptr1,ptr2,ptr3
+.importzp ptr1,ptr2,ptr3,ptr4,tmp1,tmp2,tmp3,tmp4
 .macpack longbranch
+base = ptr4
+col = ptr4+1
+width = tmp1
+height = tmp2
+count = tmp3                  ; no longer needed once ID validation succeeds
+rowhi = tmp3
+row = tmp4                   ; origin uses the tile row before scan is set
+scan = tmp4
 .bss
-base: .res 1
-col: .res 1
-row: .res 1
-width: .res 1
-height: .res 1
 map: .res 2
 tiles: .res 2
-count: .res 1                  ; 256 is validated from A, never stored here
 left: .res 1
 rows: .res 1
-scan: .res 1
-rowhi: .res 1
 .rodata
 maplo: .repeat 24,I
  .byte <(I*40)

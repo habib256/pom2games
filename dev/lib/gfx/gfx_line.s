@@ -77,24 +77,26 @@ vertical:
 :       lda tmp4
         jmp _gfx_vline
 
-; 14-byte frame: err(2), dx(2), -dy(2), sx, sy, ye, xe(2), y, x(2).
+; 13-byte frame: err(2), dx(2), -dy low, sx, sy, ye, xe(2), y, x(2).
+; Both endpoints have byte y coordinates, and axes were dispatched already:
+; -abs(dy) is nonzero with an implicit $ff high byte.
 prepare:
         lda tmp4
         jsr pusha
         sec
         lda sp
-        sbc #8
+        sbc #7
         sta sp
         bcs :+
         dec sp+1
 :
-        ldy #12
+        ldy #11
         lda (sp),y
         sta tmp1
         iny
         lda (sp),y
         sta tmp2
-        ldy #9
+        ldy #8
         sec
         lda (sp),y
         sbc tmp1
@@ -120,13 +122,13 @@ dx_ready:
         iny
         lda tmp2
         sta (sp),y
-        ldy #6
+        ldy #5
         txa
         sta (sp),y
-        ldy #11
+        ldy #10
         lda (sp),y
         sta tmp1
-        ldy #8
+        ldy #7
         sec
         lda (sp),y
         sbc tmp1
@@ -142,10 +144,7 @@ dy_ready:
         sta tmp1
         ldy #4
         sta (sp),y
-        iny
-        lda #$ff
-        sta (sp),y
-        ldy #7
+        ldy #6
         txa
         sta (sp),y
         ldy #2
@@ -162,33 +161,33 @@ dy_ready:
         lda tmp1
         sta (sp),y
 plot:
-        ldy #13
+        ldy #12
         lda (sp),y
         tax
         dey
         lda (sp),y
         jsr pushax
-        ldy #13                ; y at 11, plus the pushed x word
+        ldy #12                ; y at 10, plus the pushed x word
         lda (sp),y
         jsr _gfx_plot
-        ldy #12
-        lda (sp),y
-        ldy #9
-        cmp (sp),y
-        bne advance
-        ldy #13
-        lda (sp),y
-        ldy #10
-        cmp (sp),y
-        bne advance
         ldy #11
         lda (sp),y
         ldy #8
         cmp (sp),y
         bne advance
+        ldy #12
+        lda (sp),y
+        ldy #9
+        cmp (sp),y
+        bne advance
+        ldy #10
+        lda (sp),y
+        ldy #7
+        cmp (sp),y
+        bne advance
         clc
         lda sp
-        adc #14
+        adc #13
         sta sp
         bcc :+
         inc sp+1
@@ -207,28 +206,27 @@ advance:
         sec
         lda (sp),y
         sbc tmp1
-        iny
-        lda (sp),y
+        lda #$ff
         sbc tmp2
         bvc :+
         eor #$80
 :       bpl step_y
         ldy #4
         lda (sp),y
-        sta tmp3
+        tax
         ldy #0
         clc
-        lda (sp),y
-        adc tmp3
+        txa
+        adc (sp),y
         sta (sp),y
         iny
         lda (sp),y
         adc #$ff
         sta (sp),y
-        ldy #6
+        ldy #5
         lda (sp),y
         bmi x_left
-        ldy #12
+        ldy #11
         clc
         lda (sp),y
         adc #1
@@ -240,7 +238,7 @@ advance:
         sta (sp),y
         jmp step_y
 x_left:
-        ldy #12
+        ldy #11
         sec
         lda (sp),y
         sbc #1
@@ -267,19 +265,19 @@ step_y:
         sta tmp3
         iny
         lda (sp),y
-        sta tmp4
+        tax
         ldy #0
         clc
         lda (sp),y
         adc tmp3
         sta (sp),y
         iny
-        lda (sp),y
-        adc tmp4
+        txa
+        adc (sp),y
         sta (sp),y
-        ldy #7
+        ldy #6
         lda (sp),y
-        ldy #11
+        ldy #10
         clc
         adc (sp),y
         sta (sp),y

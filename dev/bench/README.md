@@ -1,5 +1,16 @@
 # Current cc65 measurements
 
+The thirteenth-session gate passes **707 cases and 16 frame budgets**.
+Tile restoration, DHGR span scratch and GFX arithmetic shrink **108 clients**
+by 4..37 loaded bytes; 94 use less RAM and fourteen diagonals save one
+C-stack byte. **84 timings improve**, 23 affected timings are unchanged,
+and one monochrome circle rises by 28 cycles (+0.076%). The other **599
+result dictionaries are identical**, with unchanged zero page and hardware
+stack. A full tile page takes **268,169 instead of 271,192 cycles**; a
+monochrome diagonal takes **296,767 instead of 300,683**. All 407 reference
+updates tighten limits. Pixel, bank, IRQ and stack oracles pass, as do
+library and game integration checks. See [the thirteenth-session audit](HISTORY.md#audit-de-la-treizième-session-du-5-novembre-2026--tuiles-remplissages-et-géométrie).
+
 The twelfth-session gate passes **707 cases**, including ten text alignments
 measured before optimization. Reusing existing cc65 scratch shrinks all
 **20 affected clients**: twelve compact-text clients save **19 loaded bytes

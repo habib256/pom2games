@@ -1134,6 +1134,11 @@ column at every store: `dhgr_rect` (70×16 pixels) 15,034 → 12,267 cycles,
 `dhgr_span` (a 560-dot line) 3,279 → 2,796; +50 bytes of code and 6 of
 BSS. `test_dhgr_spans.py` covers single and adjacent edges, odd and even
 interiors in both banks, the full width and clipping.
+The row/count and bank start/pair counters now reuse `ptr2..ptr4`, which
+the auxiliary-read trampoline preserves. This saves 15 loaded bytes and
+six RAM bytes in isolated span clients, without increasing zero page or
+stack use. The span kernel destroys all four cc65 scratch pointers.
+Tall-rectangle tests also check clipping, holes, display state and IRQ masks.
 
 The host reference `hgr_inflate_x2` (`hgr_x2.c`) and the target version
 (`hgr_x2_target.s` + `hgr_inflate_x2_asm.s`) compute the enlarged strides
@@ -1402,6 +1407,13 @@ in tile coordinates, clipped at right/bottom, without changing the drawing
 page or the display. Validation of all IDs precedes any write;
 a rejection leaves the image intact. Map and bank must stay valid outside
 video memory; an invalid initialisation keeps the old context.
+
+Restoration keeps its bounds in `ptr4` and `tmp1..tmp4`; tile-row/scanline
+and validation-count/row-address storage have disjoint lifetimes. This saves
+37 loaded bytes and eight RAM bytes without adding zero page or stack use.
+A full page takes 268,169 instead of 271,192 cycles; one tile takes 946
+instead of 989. Tests include high tile IDs and unaligned map/tile pointers
+crossing page boundaries on both NMOS 6502 and 65C02.
 
 The native initializer scans three 256-byte blocks and a 192-byte tail.
 It keeps `count-1` in A and compares each ID directly through the map

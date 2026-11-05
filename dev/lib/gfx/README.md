@@ -179,6 +179,10 @@ assembler kernel of `hgr_line`. `HGRC_GENERIC_VECTOR_SRCS` selects
 `gfx_line.s` for generic/DHGR backends, retaining state on the C stack across
 calls to `gfx_plot`. Both native files define the same symbol:
 pick one implementation at link time. No function pointer is added.
+Generic diagonals use a 13-byte private frame: after axis dispatch,
+the negative byte-sized vertical delta has an implicit `$ff` high byte.
+Transient additions use X between backend calls. The circle update also
+adds its constant directly from X and reuses the known carry after a rotate.
 The two HGR APIs are compared on 464 lines; generic lines are tested in both
 DHGR modes, on both pages and banks, with exact ordered traces and rejected inputs.
 

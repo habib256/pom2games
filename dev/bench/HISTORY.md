@@ -4,6 +4,62 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Audit de la treizième session du 5 novembre 2026 — tuiles, remplissages et géométrie
+
+Après `8d71903`, trois agents Sol 6.1 travaillent sur des noyaux séparés.
+La restauration des tuiles HGR réutilise `ptr4` et `tmp1..tmp4` : les
+coordonnées de tuile deviennent celles des scanlines après validation,
+et le compteur d'IDs laisse sa place à l'adresse de ligne. Les spans DHGR
+placent leur ligne, hauteur et compteurs de banques dans `ptr2..ptr4`.
+Les helpers de pile et le trampoline auxiliaire préservent ces temporaires.
+
+Les lignes GFX génériques omettent l'octet haut constant `$ff` de `-dy`
+après le dispatch des axes ; leur cadre passe de 14 à 13 octets. X porte
+deux opérandes temporaires entre les appels au backend. Les cercles ajoutent
+leur constante directement depuis X et omettent un SEC rendu inutile par
+la rotation précédente. Les conventions publiques restent identiques.
+
+Le contrôle complet mesure **707 cas et 16 budgets absolus**, avant et
+après dans le même environnement. **108 clients rétrécissent** : neuf de
+37 octets chargés, 61 de 15, 24 de 25 et quatorze de quatre. **94 clients
+consomment moins de RAM**, et quatorze diagonales économisent un octet au
+pic de pile C. Page zéro et pile matérielle restent inchangées.
+**84 durées diminuent**, 23 restent identiques parmi les clients affectés ;
+seul le cercle DHGR monochrome prend **28 cycles sur 36 940 (+0,076 %)**.
+Les **599 autres dictionnaires sont identiques**. **407 champs de référence
+sont abaissés**, sans relever de limite ; tous les budgets de trame passent.
+
+| Cas | Cycles avant | Cycles après | Octets chargés gagnés |
+| --- | ---: | ---: | ---: |
+| Restauration de la page entière de tuiles | 271 192 | 268 169 | 37 |
+| Une tuile | 989 | 946 | 37 |
+| Fond de huit tuiles et deux sprites | 6 525 | 6 458 | 37 |
+| Rectangle DHGR coloré | 11 809 | 11 691 | 15 |
+| Rectangle DHGR plein écran | 242 875 | 241 495 | 15 |
+| Diagonale GFX DHGR monochrome | 300 683 | 296 767 | 25 |
+| Diagonale GFX DHGR couleur | 106 646 | 104 957 | 25 |
+| Cercle HGR de rayon 90 | 158 542 | 158 188 | 4 |
+
+Les mesures isolées GFX ont aussi montré deux axes verticaux ralentis de
+182/179 cycles après déplacement des tables de lignes : les lectures
+indexées traversent davantage de pages. La passe DHGR combinée compense
+ces écarts dans le rapport global ; les anciennes limites restent conservées.
+
+L'oracle de tuiles passe avec les deux versions sur les deux CPU, y compris
+IDs 127/128/254/255, pointeurs non alignés traversant les pages, découpages,
+NULL et rejets atomiques. Les spans vérifient 320 lignes colorées et
+1 408 rectangles hauts sur IIe, avec pages, banques, trous vidéo, affichage
+et masque IRQ ; le même oracle passe avec l'ancien noyau.
+Les lignes GFX vérifient **18 020 traces ordonnées / 3 601 461 pixels par
+CPU**, les cercles **73 307 / 13 010 830**. Chaque suite inclut 2 048
+placements de pile et un backend qui détruit les temporaires.
+
+Les tests d'intégration HGR, les 69 programmes de sélection d'archives,
+les 20 options de bibliothèque, les lignes DHGR et les contours passent.
+`make all` réussit ; DHGR et ROBOTSTATION et leurs WOZ sont reconstruits,
+les 18 paires correspondent. L'exemple DHGR, ROBOTSTATION sur IIe/IIc
+et CHROMABREAK passent également. `git diff --check` ne signale rien.
+
 ## Audit de la douzième session du 5 novembre 2026 — texte DHGR
 
 Après `ba6ef09`, les commits `af42b1e`, `c7bbe8c` et `83663b1` placent

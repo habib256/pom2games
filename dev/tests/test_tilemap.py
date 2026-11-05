@@ -8,7 +8,7 @@ from test_hgr import build, offset, a2test
 OPS=[(1,0,0,40,24),(2,3,5,4,3),(2,38,22,255,255),
      (1,39,23,1,1),(0,0,0,1,1),(3,0,0,1,1),
      (1,40,0,1,1),(1,0,24,1,1),(1,0,0,0,1),(1,0,0,1,0)]
-TILES=bytes((tile*61+row*23)&255 for tile in range(4) for row in range(8))
+TILES=bytes((tile*61+row*23)&255 for tile in range(256) for row in range(8))
 
 
 def main():
@@ -17,12 +17,17 @@ def main():
     with tempfile.TemporaryDirectory(prefix='hgr-tiles-') as directory:
         work=Path(directory); source=work/'tiles.c'
         source.write_text('''#include "hgr.h"
-static unsigned char map[960];
-static const unsigned char tiles[]={'''+','.join(map(str,TILES))+'''};
+static unsigned char map_storage[1216],tile_storage[2304];
+static unsigned char *map,*tiles;
+static const unsigned char tile_source[]={'''+','.join(map(str,TILES))+'''};
 static const unsigned char ops[][5]={'''+','.join('{'+','.join(map(str,op))+'}' for op in OPS)+'''};
 static hgr_tilemap_t ctx, copy;
 int main(void){
  unsigned i; unsigned char n;
+ /* Force map reads and eight-byte tile sources across 256-byte boundaries. */
+ map=map_storage+((255u-(unsigned)map_storage)&255u);
+ tiles=tile_storage+((253u-(unsigned)tile_storage)&255u);
+ for(i=0;i<sizeof(tile_source);++i)tiles[i]=tile_source[i];
  hgr_init();hgr_set_draw_page(1);hgr_clear(0xaa);
  hgr_set_draw_page(2);hgr_clear(0x55);hgr_show_page();
  for(i=0;i<960;++i)map[i]=(i%40+i/40)&3;
@@ -43,15 +48,22 @@ int main(void){
  if(hgr_tile_restore(0,1,0,0,1,1))return 6;
  ctx.count=0;if(hgr_tile_restore(&ctx,1,0,0,1,1))return 7;
  ctx.count=257;if(hgr_tile_restore(&ctx,1,0,0,1,1))return 8;
+ ctx=copy;ctx.map=0;if(hgr_tile_restore(&ctx,1,0,0,1,1))return 11;
+ ctx=copy;ctx.tiles=0;if(hgr_tile_restore(&ctx,1,0,0,1,1))return 12;
  *(volatile unsigned char*)0x1000=99;apple2_getkey();
- /* count=256 accepts the complete byte ID range. */
- ctx=copy;ctx.count=256;map[959]=2;
- if(!hgr_tile_restore(&ctx,2,39,23,1,1))return 9;
- *(volatile unsigned char*)0x1000=100;apple2_getkey();return 0;
+ /* count=256 accepts high IDs across map/tile-pointer page boundaries. */
+ ctx=copy;ctx.count=256;
+ map[0]=127;map[1]=128;map[40]=255;map[41]=254;map[959]=255;
+ for(n=1;n<=2;++n){
+  if(!hgr_tile_restore(&ctx,n,0,0,2,2))return 9;
+  if(!hgr_tile_restore(&ctx,n,39,23,255,255))return 10;
+  *(volatile unsigned char*)0x1000=100+n;apple2_getkey();
+ }
+ return 0;
 }''')
         disk=build(work,source);labels=a2test.labels(work/'test.lbl')
         steps=[]
-        for _ in range(len(OPS)+2):
+        for _ in range(len(OPS)+3):
             steps += [labels.until('_apple2_getkey'),'peek:1000:2','peek:2000:16384','key: ']
         result=a2test.run(disk,steps,iie=args.iie)
         pages=[bytearray([0xaa])*8192,bytearray([0x55])*8192]
@@ -64,10 +76,16 @@ int main(void){
                         for yy in range(8):pages[page-1][offset(ty*8+yy)+tx]=TILES[tile*8+yy]
             assert result.dumps[2*i]==bytes((bool(valid),2)),(i,'return/page state')
             assert result.dumps[2*i+1]==pages[0]+pages[1],(i,'pixels/palette/holes')
-        for i,marker in enumerate((99,100),start=len(OPS)):
-            assert result.dumps[2*i][0]==marker,('validation',marker)
-            assert result.dumps[2*i+1]==pages[0]+pages[1],('atomic failure',marker)
-    print('Native tilemap: full page, clipped regions, both pages, palette/holes and transactional invalid IDs OK')
+        i=len(OPS)
+        assert result.dumps[2*i][0]==99,'invalid contexts/IDs accepted'
+        assert result.dumps[2*i+1]==pages[0]+pages[1],'atomic failure'
+        for page in range(2):
+            for tx,ty,tile in ((0,0,127),(1,0,128),(0,1,255),(1,1,254),(39,23,255)):
+                for yy in range(8):pages[page][offset(ty*8+yy)+tx]=TILES[tile*8+yy]
+            i+=1
+            assert result.dumps[2*i][0]==101+page,('high IDs return',page+1)
+            assert result.dumps[2*i+1]==pages[0]+pages[1],('high IDs/pointer crossings',page+1)
+    print('Native tilemap: full page, clips, both pages, high IDs, pointer crossings, palette/holes and atomic failures OK')
 
 
 if __name__=='__main__':main()

@@ -5,12 +5,17 @@
 .import _dhgr_base, _dhgr_pattern, dhgr_rowlo, dhgr_rowhi
 .import _dhgr_cellbyte, _dhgr_cellphase
 .import _dhgr_first, _dhgr_last, _dhgr_first_mask, _dhgr_last_mask
-.importzp ptr1, tmp1, tmp2, tmp3, tmp4, aux_read
+.importzp ptr1, ptr2, ptr3, ptr4, tmp1, tmp2, tmp3, tmp4, aux_read
+; Private row geometry survives split/prepare and aux_read in cc65 scratch.
+; The public rectangle/axis entries tail-call this kernel after releasing
+; their frames; none retain these volatile pointers across it.
+row = ptr2
+rows = ptr2+1
+start = ptr3                    ; first page column in aux/main, or $FF
+pairs = ptr4                    ; interior byte-pair count in aux/main
 .bss
 _dhgr_span_x: .res 2            ; first bit, 0..559
 _dhgr_span_end: .res 2          ; last bit, x..559
-row: .res 1
-rows: .res 1
 edges: .res 1                   ; partial edge bytes, 0..2
 edge_col: .res 2
 edge_main: .res 2
@@ -19,8 +24,6 @@ edge_bits: .res 2
 ; Interior of each bank (index 0 aux, 1 main): first page column or $FF
 ; when empty, byte pairs from there, the odd last column or $FF, and the
 ; pattern bytes of the first column and of the next one.
-start: .res 2
-pairs: .res 2
 tail: .res 2
 pa: .res 2
 pb: .res 2
@@ -58,7 +61,7 @@ split:  sta tmp1
 ; void __fastcall__ dhgr_span_asm(unsigned rows_y): Y = low byte, row count
 ; (>=1, clipped) = high byte; bits dhgr_span_x..dhgr_span_end in dhgr_pattern.
 ; Edge bytes are read/modified/written, interior bytes stored bank by bank.
-; IRQs are masked one scanline at a time. A/X/Y, ptr1, tmp1-tmp4 destroyed.
+; IRQs are masked one scanline at a time. A/X/Y, ptr1-ptr4, tmp1-tmp4 destroyed.
 _dhgr_span_asm:
         sta row
         stx rows
