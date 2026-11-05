@@ -964,6 +964,20 @@ field. `hgr_hud_putu(&field,value)` returns the number of redrawn cells,
 or the pointer is null. Unlike the historical field, it rejects
 numeric overflow without modifying the image or the history.
 
+Both HUD initializers use font-specific native entries and a shared
+bounds/store routine. They reject large origins before adding the cell
+extent, then check the whole box and write only x/y/width/valid; history
+bytes stay intact.
+Isolated initialization clients save **287 / 160 loaded bytes** for the
+16×16/8×8 formats. A valid origin takes **301 / 290 cycles** instead of
+870 / 563; C-stack peaks fall **10 / 8 → 5**, hardware peaks **8 / 7 → 5**,
+with unchanged RAM and zero page. HUD update clients save **239 / 134 bytes**.
+Code placement changes some composed render timings by up to +0.54%; the
+existing cycle references remain in force. `test_hgr_hud_init.py` compares
+268,288 calls on both CPUs: all x/y/width domains, exact box edges, NULL,
+untouched histories/guards, a state pointer crossing a page and 2,048 stack
+placements. The same fixture passes against the original C entries.
+
 The digits are white on a black box whose contents the field owns.
 Switching to a shorter value clears the cells that have become empty.
 Pages 1 and 2 have their own history. After a clear or an external write
@@ -1061,7 +1075,7 @@ or the pixel-rectangle parameters on a HUD-only client.
 Both controllers reuse the digit count returned by conversion/compaction
 and finish the origin's division by seven in eight bits after reducing it
 below 56. This saves 24 code bytes per format without adding RAM or tables.
-The 16×16 single-digit update takes 3,926 cycles; an unchanged value still
+The 16×16 single-digit update takes 3,940 cycles; an unchanged value still
 takes 312 cycles in either format.
 
 The 16×16 kernel writes its second byte column directly to both scanlines:
@@ -1070,11 +1084,11 @@ columns retain their edge masks. Two rotations assemble the upper glyph
 bits, and the three edge writers expand in place instead of calling
 single-use subroutines. This saves 42 code bytes and one BSS byte, with
 unchanged zero page and measured stack peaks. Five changed digits take
-14,974..15,819 cycles across the seven phases, about 17 % less than before.
+15,032..15,888 cycles across the seven phases, about 17 % less than before.
 
 The compact kernel counts the source offset in X and uses the existing
 `tmp1` scratch byte, removing 18 code bytes and two BSS counters. A single
-digit update takes 2,283 cycles. Glyph arguments (`hgr_glyph_params`, five
+digit update takes 2,282 cycles. Glyph arguments (`hgr_glyph_params`, five
 zero-page bytes), string traversal (`hgr_text_params`, five bytes), and
 font lookup (`hgr_text_addr`, two bytes plus 26 code bytes) are separate
 archive members. A HUD8-only client therefore saves 44 code bytes,

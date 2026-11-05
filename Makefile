@@ -143,6 +143,7 @@ test-hgr:
 	$(PYTHON) dev/tests/test_hgr_native.py
 	$(PYTHON) dev/tests/test_hgr_wireframe.py
 	$(PYTHON) dev/tests/test_hgr_lines.py
+	$(PYTHON) dev/tests/test_hgr_hud_init.py
 	$(PYTHON) dev/tests/test_hgr_hud.py
 	$(PYTHON) dev/tests/test_hgr_hud.py --compact
 	$(PYTHON) dev/tests/test_presentation_strategies.py
@@ -203,6 +204,7 @@ test-dhgr:
 	$(PYTHON) dev/tests/test_gfx_dhgr_lines.py
 	$(PYTHON) dev/tests/test_minimal_examples.py --dhgr
 	$(PYTHON) dev/tests/test_stack_profile.py --iie
+	$(PYTHON) dev/tests/test_hgr_hud_init.py --iie
 	$(PYTHON) dev/tests/test_hgr_hud.py --iie
 	$(PYTHON) dev/tests/test_sprmask_bounds.py --iie
 	$(PYTHON) dev/tests/test_hgr_color.py --iie

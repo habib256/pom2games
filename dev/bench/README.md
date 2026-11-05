@@ -319,6 +319,17 @@ unchanged RAM, zero page and stack peaks. A 40×16-byte fill takes
 instead of 7,568 (−6.5 %). The single-byte and clipped cases take 406/514
 cycles. The new cases include fill values with the palette bit set.
 
+The two HUD initializers now share a native bounds/store routine, with
+separate font-specific entries. Their isolated clients save **287 / 160
+loaded bytes**, valid calls fall **870 / 563 → 301 / 290 cycles**, C-stack
+peaks **10 / 8 → 5**, and hardware peaks **8 / 7 → 5**. RAM and zero page
+stay unchanged. The entries reject NULL and invalid width/y before checking
+the 16-bit horizontal extent; only the five common state bytes are written.
+Eighteen isolated cases cover valid/edge/single-cell and rejected calls.
+HUD update clients save **239 / 134 bytes**; the compact game saves 66.
+Some composed workloads cost up to 0.54% more cycles through code placement;
+their earlier cycle references are retained. No rendering kernel changed.
+
 ## Frame rate and absolute budgets
 
 The target is two refreshes per presentation: nominally 30 FPS NTSC and
@@ -335,35 +346,35 @@ report gives limit, cost and margin.
 | Current workload | Cycles |
 |---|---:|
 | 16×16 HUD, value unchanged | 312 |
-| 16×16 HUD, one digit changed | 3,926 |
-| 16×16 HUD, five digits changed, maximum over seven phases | 15,819 |
+| 16×16 HUD, one digit changed | 3,940 |
+| 16×16 HUD, five digits changed, maximum over seven phases | 15,888 |
 | 8×8 HUD, value unchanged | 312 |
-| 8×8 HUD, one digit changed | 2,283 |
-| 8×8 HUD, five digits changed, maximum over seven phases | 6,663 |
-| Compact game: two moving 7×8 sprites, three digits all changed, keyboard, positions, presentation | 15,602..15,865 |
-| Four isolated 21×16 sprites, only the first one moving, default engine | 31,031 |
-| Same scene, option `HGR_SPR_DAMAGE=1` | 14,662 |
-| Stress: four 21×16 sprites all moving + counter + presentation | 38,578 |
+| 8×8 HUD, one digit changed | 2,282 |
+| 8×8 HUD, five digits changed, maximum over seven phases | 6,652 |
+| Compact game: two moving 7×8 sprites, three digits all changed, keyboard, positions, presentation | 15,100..15,367 |
+| Four isolated 21×16 sprites, only the first one moving, default engine | 30,305 |
+| Same scene, option `HGR_SPR_DAMAGE=1` | 14,100 |
+| Stress: four 21×16 sprites all moving + counter + presentation | 37,914 |
 
 The compact game is measured at all seven alignments, in NTSC and PAL. The
 limits after the reservation are **28,060/34,560 cycles**; its worst phase
-still leaves 12,195/18,695 cycles beyond the reservation. Positions and values
+still leaves 12,693/19,193 cycles beyond the reservation. Positions and values
 use a period of three so that each page finds a modified state again. The HUD
 value does not just alternate with the page: its three digits really change
 in the measured case. The modulo shared by the movements and the score is
 computed once per frame.
 
-The isolated scene saves 52.8 % with the assembly computation of the
+The isolated scene saves 53.5 % with the assembly computation of the
 intersections: 437 loaded bytes and 43 extra BSS bytes at eight slots. The
 option stays disabled by default. Four large sprites all moving still cost
-38,578 cycles: they exceed two NTSC periods and the PAL limit after the
+37,914 cycles: they exceed two NTSC periods and the PAL limit after the
 reservation. The overloaded stress cases remain diagnostics.
 
 The native counter uses the cached digits for +1/+2; the 9999 → 10000
-transition costs 6,113 cycles in the 8×8 HUD. Its pre-shifted digits take
+transition costs 6,112 cycles in the 8×8 HUD. Its pre-shifted digits take
 1,386 bytes of RODATA, shared between fields. A HUD-only client avoids the
 mutable row/column LUTs and the general font; a client that also displays
-text pays for both banks. The compact game uses 7,083 loaded bytes,
+text pays for both banks. The compact game uses 6,584 loaded bytes,
 1,618 bytes of RAM and 47 zero-page bytes. Both HUD controllers reuse the conversion's digit
 count and finish the origin division in eight bits: 24 fewer code bytes
 per format, with unchanged tables, RAM and zero page.
@@ -372,7 +383,7 @@ The compact HUD kernel now counts source offsets in X, saving 18 code
 bytes and two BSS counters. Separating glyph arguments, string state and
 the font-address helper into archive members removes another 26 code
 bytes and seven zero-page bytes from HUD8-only clients. Their measured
-binary is 3,417 bytes, with 345 RAM bytes and 35 zero-page bytes. Changing
+binary is 3,283 bytes, with 345 RAM bytes and 35 zero-page bytes. Changing
 five digits is about 11 % faster; the unchanged-value path stays at 312
 cycles. This archive split alone saves five zero-page bytes in HUD16-only
 clients without changing their timing.
@@ -381,11 +392,11 @@ The 16×16 HUD kernel writes its fully covered second column directly,
 assembles the upper pixels with two rotations and expands its three
 single-use edge writers in place. It saves **42 code bytes and one BSS
 byte**, with unchanged zero page and measured stack peaks. Five changed
-digits take 14,974..15,819 cycles (about 17 % less); one changed digit
-takes 3,926 instead of 4,495. The unchanged-value path remains at 312.
-The isolated client uses 3,623 loaded bytes and 805 RAM bytes. The VBL-paced
-loop measures 34,055 instead of 34,048 cycles, including its wait; the
-work-only moving scenes all improve. See [HISTORY.md](HISTORY.md).
+digits take 15,032..15,888 cycles (about 17 % less); one changed digit
+takes 3,940 instead of 4,495. The unchanged-value path remains at 312.
+The isolated client uses 2,805 loaded bytes and 755 RAM bytes. The VBL-paced
+loop currently measures 34,044 cycles including its wait. The per-series
+tradeoffs are recorded in [HISTORY.md](HISTORY.md).
 
 The optional tilemap backend restores eight 7×8 tiles then draws two masked
 sprites without save-under in 6,704 cycles. The map is 960 bytes, supplied by

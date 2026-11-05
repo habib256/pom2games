@@ -422,6 +422,25 @@ SCENES['hgr_tile_background']=dict(sprites=True,sprite_width=7,sprite_height=8,s
     'hgr_ms_spr=&shape;hgr_ms_x=29;hgr_ms_y=60;hgr_ms_run();'+
     'hgr_ms_x=43;hgr_ms_y=60;hgr_ms_run();hgr_show_page();')
 SCENES['hgr_tile_background_pal']=dict(SCENES['hgr_tile_background'],iie=True,pal=True)
+# Isolated HUD initialization includes validation and caller-owned state writes.
+for compact in (False,True):
+    stem='hgr_hud8' if compact else 'hgr_hud'
+    maximum=5 if compact else 14
+    bottom=184 if compact else 176
+    for suffix,x,y,width,pointer in (
+        ('origin',0,0,maximum,'&hud'),
+        ('edge',240 if compact else 30,bottom,maximum,'&hud'),
+        ('single',272 if compact else 264,bottom,1,'&hud'),
+        ('overrun',241 if compact else 31,bottom,maximum,'&hud'),
+        ('outside',65535,0,1,'&hud'),
+        ('below',0,bottom+1,1,'&hud'),
+        ('empty',0,0,0,'&hud'),
+        ('wide',0,0,255,'&hud'),
+        ('null',0,0,1,'0')):
+        SCENES[stem+'_init_'+suffix]=dict(
+            call=f'{stem}_init({pointer},{x}u,{y},{width});',warmup=False,
+            declarations=f'static {stem}_field_t hud;')
+
 # Non-default compile-time variants (dev/lib/ABI.md, "Speed/RAM options"):
 # the listed members are reassembled with the define and linked before hgrc.lib.
 for name in ('hgr_diagonal_cold','hgr_hud_cold','hgr_scene_cold'):

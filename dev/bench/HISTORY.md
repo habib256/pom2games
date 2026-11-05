@@ -4,6 +4,46 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Série du 5 novembre 2026 : initialisation native des HUD
+
+Les deux initialisations C deviennent des entrées assembleur séparées,
+avec une routine commune de bornage horizontal et d'écriture. Les formats
+conservent leurs limites de largeur/hauteur, leur pas de 18/8 pixels et
+leurs structures de 37/19 octets. L'octet haut de x est contrôlé avant
+l'addition de l'étendue, pour éviter un retour sur l'écran par débordement.
+Seuls x, y, width et valid sont écrits ; les historiques restent intacts.
+Les pointeurs nuls et les champs invalides ne modifient aucun octet d'état.
+
+| Appel C | Cycles avant → après | Binaire avant → après |
+|---|---:|---:|
+| Initialisation 16×16 à l'origine | 870 → 301 | 985 → 698 |
+| Initialisation 16×16 au bord | 878 → 310 | 990 → 703 |
+| Pointeur nul 16×16 | 193 → 159 | 981 → 694 |
+| Initialisation 8×8 à l'origine | 563 → 290 | 851 → 691 |
+| Initialisation 8×8 au bord | 567 → 299 | 856 → 696 |
+| Pointeur nul 8×8 | 169 → 159 | 847 → 687 |
+| Compteur 16×16, un chiffre modifié | 3 919 → 3 940 | 3 044 → 2 805 |
+| Compteur 8×8, un chiffre modifié | 2 283 → 2 282 | 3 417 → 3 283 |
+| Jeu compact, phase zéro | 15 315 → 15 277 | 6 650 → 6 584 |
+
+Les clients d'initialisation économisent 287/160 octets, leurs pics de
+pile C passent de 10/8 à 5 et matériels de 8/7 à 5, sans RAM/page zéro
+supplémentaire. Les clients HUD complets gagnent 239/134 octets, les scènes
+16×16 combinées 88, le jeu compact 66. Les 18 initialisations mesurées sont
+plus rapides. Le déplacement du code ralentit quelques rendus composés
+jusqu'à 0,54 % ; leurs références de cycles antérieures restent inchangées.
+73 cas changent dans le relevé de 332 cas, 259 restent identiques ;
+18 cas d'initialisation sont nouveaux.
+
+Le test de 268 288 appels passe sur les versions C puis assembleur II+/IIe :
+toutes les abscisses 16 bits pour une cellule et la largeur maximale,
+ordonnées/largeurs complètes, étendues exactes et dépassées d'un pixel,
+pointeurs nuls, historique et gardes, pointeur d'état traversant une page,
+2 048 positions de pile. Les tests de rendu des deux HUD passent sur les
+deux CPU. Validation complémentaire : 48 clients minimaux d'archive,
+intégration HGR, `make all`, exemple HGR II+/IIe, WOZ, relevé complet et gate.
+HGR.dsk et son WOZ sont reconstruits.
+
 ## Série du 5 novembre 2026 : réservation directe des tampons décimaux
 
 Les entrées signées et non signées sauvegardent déjà la valeur avant de

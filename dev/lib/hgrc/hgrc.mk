@@ -20,8 +20,8 @@ HGRC_RECT_SRCS := $(addprefix $(HGRC)/,hgr_rect.s hgr_pixrect.s hgr_cell.s \
     hgr_colorize.s hgr_carrier.s)
 HGRC_TEXT_SRCS := $(addprefix $(HGRC)/,hgr_font.c hgr_text.s hgr_text8.s hgr_text_cells.s \
     hgr_num_unsigned.s hgr_num_field.s hgr_num_signed.s hgr_num_hex.s \
-    hgr_num_small.s hgr_num_prepare.s hgr_carrier.s hgr_hud.c hgr_hud_asm.s hgr_hud_putu.s \
-    hgr_hud8.c hgr_hud8_asm.s hgr_hud8_putu.s hgr_hud8_digits.s \
+    hgr_num_small.s hgr_num_prepare.s hgr_carrier.s hgr_hud.s hgr_hud_init.s hgr_hud_asm.s hgr_hud_putu.s \
+    hgr_hud8.s hgr_hud8_asm.s hgr_hud8_putu.s hgr_hud8_digits.s \
     hgr_hud_invalidate.s)
 HGRC_SPRITES_SRCS := $(HGRC)/hgr_sprites.s $(HGRC)/hgr_blit7.s
 HGRC_PRESHIFT_SRCS := $(addprefix $(HGRC)/,hgr_preshift.s hgr_preshift_xor.s hgr_preshift_validate.s)
