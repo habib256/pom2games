@@ -1,5 +1,12 @@
 # Current cc65 measurements
 
+Keeping the masked-sprite product and hint in registers saves another
+**5 code bytes**, for **25 loaded bytes across all three passes**. Generic
+drawing takes **2,836 instead of 2,876 cycles**; a height-255 sprite clipped
+to one row takes **399 instead of 5,251** in phase zero and **3,862 instead
+of 5,384** in phase three. Four one-row phase-3/6 cases cost two extra cycles;
+their prior references remain. RAM, zero page and stack usage are unchanged.
+
 Phase-zero masked draws skip the unused height/stride product while still
 consuming their one-call hint. This saves another **4 code bytes**. A tall
 sprite clipped to the bottom row takes **402 instead of 5,251 cycles** in

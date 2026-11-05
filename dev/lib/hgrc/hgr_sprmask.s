@@ -170,8 +170,7 @@ ms_setup_common:
         bne @poff
         ; The draw consumes its one-call hint even when phase zero needs
         ; no multiplication or bank adjustment. Save/restore keeps it intact.
-        lda _hgr_ms_block
-        sta ms_blk
+        ldy _hgr_ms_block
         lda #0
         sta _hgr_ms_block
         ldx tmp1
@@ -179,18 +178,19 @@ ms_setup_common:
         ; phase block = h * stride via loop-add (h iterations, no multiply)
         ldx tmp3                  ; capture full h before reusing its scratch
         sta ms_blk_hi
-        lda ms_blk
-        bne @phases
+        tya
+        bne @product_ready
 @hloop:
         clc
-        lda ms_blk
+        ; A keeps the low product across additions; INC/DEX preserve it.
         adc tmp2                  ; + stride
-        sta ms_blk
         bcc @h2
         inc ms_blk_hi
 @h2:
         dex
         bne @hloop
+@product_ready:
+        sta ms_blk
         ; data += phase*blk ; mask += phase*blk (phase iterations of a 16-bit add)
 @phases:
         ldx tmp1                  ; phase

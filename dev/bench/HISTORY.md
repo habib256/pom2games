@@ -4,6 +4,30 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Nouvelle série du 5 novembre 2026 : produit des sprites masqués en registres
+
+L'octet bas du produit reste dans A pendant toutes les additions ; seul
+le résultat final est stocké. Le cache reste dans Y jusqu'à cette même
+écriture finale. La préparation perd **5 octets supplémentaires**, de
+221 à 216, sans RAM, page zéro ou pile ajoutées. Les trois passes économisent
+donc **25 octets chargés** par client de sprites masqués.
+
+| Appel | Cycles avant les trois passes → après |
+|---|---:|
+| Dessin générique | 2 876 → 2 836 |
+| Sauvegarde et dessin génériques | 3 223 → 3 183 |
+| Phase 0, stride 3, hauteur 16 | 3 565 → 3 252 |
+| Phase 0, stride 1, hauteur 255, bas découpé | 5 251 → 399 |
+| Phase 3, stride 1, hauteur 255, bas découpé | 5 384 → 3 862 |
+| Phase 6, stride 3, hauteur 16 | 3 838 → 3 743 |
+| Phase 6, bloc 48 mis en cache | 3 555 → 3 544 |
+
+Les quatre cas d'une ligne en phase 3/6 coûtent deux cycles supplémentaires,
+avec leurs références antérieures conservées. Sauvegarde et restauration
+génériques gardent leurs durées. Les **1 827 868 préparations** passent à
+nouveau sur chacun des deux CPU, ainsi que les **200 scènes exactes** des
+quatre noyaux : pixels, palette, trous mémoire et tampons de sauvegarde.
+
 ## Nouvelle série du 5 novembre 2026 : phase zéro des sprites masqués
 
 Le dessin consomme d'abord son indicateur de taille mis en cache, puis
