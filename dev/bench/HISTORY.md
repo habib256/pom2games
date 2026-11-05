@@ -4,6 +4,34 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Nouvelle série du 5 novembre 2026 : état et indexation des tuiles
+
+Deux passes sont mesurées séparément. La première retire une copie privée
+du pointeur de contexte et l'octet haut du nombre de tuiles, utilisé seulement
+dans A pendant sa validation : **10 octets de code et 3 octets de RAM**
+en moins. Le cas spécial 256 et le rejet avant toute écriture sont conservés.
+
+La seconde ajoute la colonne au pointeur de destination une seule fois par
+rangée, puis incrémente ce pointeur entre les tuiles. L'octet bas d'une
+rangée HGR est au plus 208 et la colonne au plus 39 : aucun passage de page
+mémoire n'est possible. Les huit stores de chaque tuile utilisent Y=0,
+économisant un cycle chacun. Cette passe retire encore **un octet de code**.
+
+| Restauration | Avant | État simplifié | Indexation simplifiée |
+|---|---:|---:|---:|
+| Une tuile au coin | 1 014 | 998 | 989 |
+| Plein écran | 278 943 | 278 899 | 271 192 |
+| Région 4×3 | 4 403 | 4 390 | 4 291 |
+| Région découpée | 2 003 | 1 986 | 1 952 |
+| Fond de huit tuiles et deux sprites | 6 703 | 6 689 | 6 623 |
+
+Les clients gagnent au total **11 octets chargés et 3 octets de RAM**,
+sans augmentation de page zéro ni des piles. Les sept nouveaux benchmarks
+isolent la restauration, y compris dimensions vides, page invalide et ID
+invalide dans la dernière tuile. Les tests vérifient les deux pages, le
+plein écran, les bornes, bits de palette, trous mémoire, compte 256 et
+l'absence de toute écriture partielle en cas d'erreur, sur 6502 et 65C02.
+
 ## Nouvelle série du 5 novembre 2026 : itérateur de texte sans cadre C
 
 `gfx_text` sauvegarde son pointeur sur la pile matérielle pendant chaque

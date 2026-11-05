@@ -1,5 +1,11 @@
 # Current cc65 measurements
 
+Two tile-restoration passes save **11 loaded bytes and 3 RAM bytes**.
+A full page takes **271,192 instead of 278,943 cycles**; a single corner
+tile **989 instead of 1,014**. The eight-tile background with two sprites
+takes **6,623 instead of 6,703**. Seven new cases isolate restoration and
+rejection costs; both CPUs pass the exact framebuffer and atomic-failure tests.
+
 The text iterator now saves **44 loaded bytes** in string-only clients and
 **18** in numeric clients, with **two fewer C-stack bytes**. Unsigned zero
 takes **1,750 instead of 1,825 cycles**; empty strings **32 instead of 115**.

@@ -1329,8 +1329,16 @@ drawing the affected layers, and keeps a separate history per page.
 This optional backend is used with the masked blitter `hgr_ms_run` (explicit
 internal contract in `hgr_internal.h`) to avoid the save-under pool.
 The historical engine keeps its saved-background restoration.
-An eight-tile region with two masked draws costs 6 701 cycles in
-the benchmark; the cost of a whole page remains to be budgeted for each game.
+The restorer keeps no redundant context-pointer copy or high count byte.
+It adds the destination column to each row pointer once, then uses Y=0
+for all eight scanline stores. Row low bytes plus valid columns cannot
+cross a 256-byte boundary. These passes save **11 loaded bytes and 3 RAM
+bytes**, with unchanged zero-page and stack requirements. A full-page
+restore takes **271,192 instead of 278,943 cycles**; the game's scheduling
+must still budget that work. An eight-tile region with two masked draws
+costs **6,623 cycles**, down from 6,703 before these passes.
+`test_tilemap.py` checks both pages, clipped/full regions, palette and memory
+holes, the 256-count path and atomic rejection on 6502 and 65C02.
 The `HGRC_TILEMAP_SRCS` family is extracted only when it is called.
 
 The `HGRC_HEADERS` dependencies also include the `apple2c` headers,

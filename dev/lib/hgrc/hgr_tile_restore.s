@@ -3,11 +3,9 @@
 ; on software stack. Main RAM/ZP, D=0; non-reentrant, never call from IRQ.
 .export _hgr_tile_restore
 .import popa,popax,hgr_fixed_rowlo,hgr_fixed_rowhi
-.importzp ptr1,ptr2,ptr3,ptr4
-column = ptr4                  ; destination byte column
+.importzp ptr1,ptr2,ptr3
 .macpack longbranch
 .bss
-ctx: .res 2
 base: .res 1
 col: .res 1
 row: .res 1
@@ -15,7 +13,7 @@ width: .res 1
 height: .res 1
 map: .res 2
 tiles: .res 2
-count: .res 2
+count: .res 1                  ; 256 is validated from A, never stored here
 left: .res 1
 rows: .res 1
 scan: .res 1
@@ -39,11 +37,9 @@ _hgr_tile_restore:
  jsr popa
  sta base
  jsr popax
- sta ctx
  sta ptr1
- stx ctx+1
  stx ptr1+1
- ora ctx+1
+ ora ptr1+1
  jeq bad
  lda base
  cmp #1
@@ -100,7 +96,6 @@ context:
  sta count
  iny
  lda (ptr1),y
- sta count+1
  beq small_count
  cmp #1
  jne bad
@@ -138,13 +133,13 @@ checked:
 draw_row:
  ; A tile row keeps one row offset: its eight scanlines step $0400 apart.
  ldx scan
+ clc
  lda hgr_fixed_rowlo,x
+ adc col                       ; row low byte <=208, column <=39: no carry
  sta ptr3
  lda hgr_fixed_rowhi,x
  ora base
  sta rowhi
- lda col
- sta column
  lda width
  sta left
 draw_tile:
@@ -173,7 +168,7 @@ draw_tile:
 .repeat 8,P
  ldy #P
  lda (ptr2),y
- ldy column
+ ldy #0                        ; destination pointer already includes column
  sta (ptr3),y
 .if P<7
  lda ptr3+1
@@ -185,7 +180,7 @@ draw_tile:
  bne map_advanced
  inc ptr1+1
 map_advanced:
- inc column
+ inc ptr3                      ; clipped rows never cross a 256-byte boundary
  dec left
  jne draw_tile
  ; ptr1 already advanced width bytes. Skip to next map row.
