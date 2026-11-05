@@ -196,3 +196,8 @@ The native HGR filled-rectangle entry sorts full-width corners, clips before
 inclusive arithmetic, and reuses the caller's five-byte argument frame.
 `gfx_clear` is an independent alias of `hgr_clear`; clear-only clients omit
 span code and column/mask tables. The portable C reference remains available.
+
+The cc65 archive selects independent native cursor state, `gfx_gotoxy`,
+`gfx_putc` and `gfx_text` members. Positioning alone imports no glyph renderer;
+character-only clients omit string iteration. Strings keep their iterator
+on the C stack across backend calls. `gfx_text.c` remains the portable reference.

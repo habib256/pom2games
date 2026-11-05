@@ -1,5 +1,6 @@
 /* VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root). */
 /*
+ * Portable reference; hgrc.mk selects independent native cursor/text members.
  * gfx_text.c — card-NEUTRAL positioned-text façade (AXIS 3). See gfx.h.
  *
  * Owns the 8x8 cell cursor, the advance/wrap rules;

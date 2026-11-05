@@ -89,6 +89,8 @@ test-changed:
         $(TESTED:%=test-%) $(TESTED:%=test-%-long)
 
 test-hgr:
+	$(PYTHON) dev/tests/test_gfx_cursor.py
+	$(PYTHON) dev/tests/test_gfx_cursor.py --iie
 	$(PYTHON) dev/tests/test_gfx_rect_entry.py
 	$(PYTHON) dev/tests/test_gfx_rect_entry.py --iie
 	$(PYTHON) dev/tests/test_gfx_line_entry.py

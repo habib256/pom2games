@@ -4,6 +4,41 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Série du 5 novembre 2026 : curseur et chaîne GFX natifs séparés
+
+Le curseur, le positionnement, le caractère et la chaîne deviennent quatre
+membres d'archive indépendants. Positionner ne charge plus la police ni le
+renderer. L'itérateur de chaîne reste privé sur la pile C et survit à tous
+les temporaires écrasés par le backend. Les retours ligne/chariot, contrôles,
+rebouclages en dernière ligne et règles de promotion des coordonnées restent
+ceux du C, conservé comme référence.
+
+| Appel C | Cycles avant → après | Binaire avant → après |
+|---|---:|---:|
+| Position (12,8) seule | 153 → 91 | 2 134 → 586 |
+| Position (255,255) seule | 177 → 103 | 2 132 → 584 |
+| Nouvelle ligne | 109 → 45 | 2 139 → 1 938 |
+| Retour chariot | 88 → 29 | 2 139 → 1 938 |
+| Contrôle ignoré | 96 → 27 | 2 129 → 1 889 |
+| Chaîne vide | 123 → 115 | 2 132 → 1 972 |
+| APPLE II, tables froides | 27 838 → 26 994 | 2 148 → 2 027 |
+| Non signé 65535, chaud | 9 247 → 8 681 | 2 294 → 2 195 |
+| Signé −32768, chaud | 10 880 → 10 292 | 2 340 → 2 241 |
+| Hexadécimal FFFF, chaud | 6 635 → 6 244 | 2 269 → 2 170 |
+
+Positionner seul économise 1 548 octets chargés, 950 de RAM et 12 de page
+zéro ; piles C/matérielle 2/6 → 1/4. Les clients de nombres gagnent
+99 octets et un octet de pile C, sans changer RAM/page zéro/pile matérielle.
+Les 12 nouveaux cas portent le banc à 508 : les 29 cas concernés
+s'améliorent, 479 restent identiques.
+
+La référence C puis les entrées natives passent sur II+ et IIe 786 432 cas
+coordonnées/caractères sur quatre grilles, 256 placements de chaînes et
+768 positions de pile. Le flux de glyphes, les contrôles, les gardes et
+les temporaires hostiles sont vérifiés. Les 67 clients minimaux, l'intégration
+HGR, le starter et le gate complet passent ; reconstruction et 18 WOZ
+validés, disques inchangés.
+
 ## Série du 5 novembre 2026 : rectangles GFX HGR natifs et effacement isolé
 
 L'entrée trie les coordonnées complètes, découpe les maxima puis calcule

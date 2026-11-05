@@ -571,6 +571,23 @@ for suffix,ch,col,row in (('origin',65,0,0),('last',90,34,23),('zero',0,0,0),
         setup='hgr_puts8(0,0," ");',warmup=False)
 SCENES['gfx_color_noop']=dict(call='gfx_cell_color(255);',warmup=False)
 
+for suffix,call,setup in (
+    ('position','gfx_gotoxy(12,8);',''),
+    ('position_clip','gfx_gotoxy(255,255);',''),
+    ('char','gfx_putc(65);','gfx_gotoxy(0,0);'),
+    ('char_wrap','gfx_putc(65);','gfx_gotoxy(34,23);'),
+    ('newline','gfx_putc(10);','gfx_gotoxy(12,8);'),
+    ('newline_bottom','gfx_putc(10);','gfx_gotoxy(34,23);'),
+    ('return','gfx_putc(13);','gfx_gotoxy(12,8);'),
+    ('control','gfx_putc(1);',''),
+    ('empty','gfx_text("");',''),
+    ('short','gfx_text("APPLE II");','gfx_gotoxy(0,0);'),
+    ('controls','gfx_text("A\\nB\\rC");','gfx_gotoxy(0,0);'),
+    ('wrap','gfx_text("ABCDEF");','gfx_gotoxy(33,22);'),
+):
+    SCENES['gfx_cursor_'+suffix]=dict(call=call,setup=setup,warmup=False)
+
+
 # GFX HGR adapters: public C calls, clipped axes and full-width endpoints.
 for suffix,call in (
     ('plot','gfx_plot(139,95);'),

@@ -1,5 +1,12 @@
 # Current cc65 measurements
 
+Independent native GFX cursor/text members save **1,548 loaded bytes**,
+**950 RAM bytes** and **12 zero-page bytes** for position-only clients.
+Positioning takes **91/103 cycles** for valid/clamped coordinates, formerly
+153/177. Numeric text clients save **99 bytes** and one C-stack byte;
+unsigned 65535 takes **8,681 cycles instead of 9,247**, signed −32768
+**10,292 instead of 10,880**. String iterators remain private across backend calls.
+
 Native GFX filled rectangles save **256 loaded bytes** and reduce C-stack
 use to **5 bytes**. A clipped rectangle takes **4,549 cycles instead of
 4,944**, a rejected y range **139 instead of 327**. Independent `gfx_clear`

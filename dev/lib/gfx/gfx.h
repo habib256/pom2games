@@ -94,7 +94,7 @@ unsigned char gfx_itoa(char *buf, int value);
 unsigned char gfx_hexstr(char *buf, unsigned value);
 
 /* ===========================================================================
- * Positioned HGR text (gfx_text.c + gfx_text_backend_hgr.c).
+ * Positioned HGR text (native archive entries; gfx_text.c is the C reference).
  * ===========================================================================
  * One shared 8x8-cell cursor, white text, 35 columns x 24 rows. The supplied
  * cell backend is HGR-only, writes to the current HGR draw page and is in the
