@@ -582,6 +582,15 @@ for suffix,coords in (
     SCENES['gfx_outline_'+suffix]=dict(call='gfx_rect('+','.join(f'{v}u' for v in coords)+');')
 
 
+for suffix,x,y,r in (
+    ('point',139,95,0),('one',139,95,1),('inside',140,96,16),
+    ('large',140,96,90),('left',0,96,16),('top',140,0,16),
+    ('corner',0,0,31),('right',280,96,31),('bottom',140,192,31),
+    ('wide',140,96,255),('reject_x',65535,96,255),('reject_y',140,255,31),
+):
+    SCENES['gfx_circle_'+suffix]=dict(call=f'gfx_circle({x}u,{y},{r});')
+
+
 for backend,width,pen in (('mono',560,1),('color',140,9)):
     for suffix,call in (
         ('pen_zero','dhgr_set_color(0);'),('pen_byte','dhgr_set_color(255);'),

@@ -15,13 +15,14 @@ def check_native_backends():
         work=Path(directory)
         sources=gfx_backend_sources(work,'gfx_backend_dhgr_color.c')
         native_vectors=[DEV/'lib/gfx/gfx_line.s',DEV/'lib/gfx/gfx_rect.s']
-        saved={source:source.read_bytes() for source in sources+native_vectors}
+        native_circle=[DEV/'lib/gfx/gfx_circle.s']
+        saved={source:source.read_bytes() for source in sources+native_vectors+native_circle}
         expected={'':'_gfx_width _gfx_height','set_color':'_dhgr_set_color',
                   'plot':'_gfx_plot','hline':'_gfx_hline','vline':'_gfx_vline',
                   'rect':'_gfx_filled_rect','clear':'_gfx_clear'}
         for name,consumer in (('demo',DEV/'examples/dhgr'),('rss',DEV.parent/'robotspacestation')):
             build=work/name
-            selected=sources+(native_vectors if name=='rss' else [])
+            selected=sources+(native_vectors if name=='rss' else native_circle)
             objects=[build/(source.stem+'.o') for source in selected]
             run(['make','-s','-C',consumer,f'BUILD={build}',*objects])
             for source,obj in zip(selected,objects):
@@ -29,7 +30,7 @@ def check_native_backends():
                 exports=set(re.findall(r'Name:\s+"([^"]+)"',run(['od65','--dump-exports',obj])))
                 wanted=expected[suffix] if source in sources else '_'+source.stem
                 assert exports==set(wanted.split()),(consumer,source,exports)
-            assert saved=={source:source.read_bytes() for source in sources+native_vectors},'native source overwritten'
+            assert saved=={source:source.read_bytes() for source in sources+native_vectors+native_circle},'native source overwritten'
     print('DHGR demo/Robot Station: selected native backend objects, exact exports and source preservation OK.')
 
 

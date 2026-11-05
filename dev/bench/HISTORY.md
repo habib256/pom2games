@@ -4,6 +4,42 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Série du 5 novembre 2026 : cercles GFX natifs et découpage
+
+Le cercle garde sept octets privés sur la pile et choisit une boucle sans
+vérification par point quand toute la forme est visible. L'autre boucle
+rejette les coordonnées signées hors écran avant de pousser le point.
+Les symétries, leur ordre et les égalités restent ceux du C, sans doublons.
+Le cas x=y termine immédiatement après sa dernière symétrie.
+
+| Appel C | Cycles avant → après | Binaire avant → après |
+|---|---:|---:|
+| Rayon zéro HGR | 769 → 317 | 2 214 → 1 951 |
+| Rayon 16 intérieur HGR | 29 388 → 28 975 | 2 216 → 1 953 |
+| Rayon 90 intérieur HGR | 159 075 → 158 542 | 2 216 → 1 953 |
+| Découpage gauche HGR | 38 275 → 20 532 | 2 212 → 1 949 |
+| Découpage haut HGR | 39 435 → 17 641 | 2 210 → 1 947 |
+| Cercle au coin HGR | 61 494 → 23 331 | 2 206 → 1 943 |
+| Rayon 255 HGR | 401 954 → 87 406 | 2 216 → 1 953 |
+| Rayon 16 DHGR monochrome | 37 419 → 36 940 | 2 982 → 2 741 |
+| Rayon 16 DHGR couleur | 35 684 → 35 307 | 3 115 → 2 852 |
+
+Piles C HGR intérieur/découpé 14/18 → 9 ; rayon zéro/rejets 14 → 3.
+Les cercles découpés gagnent deux octets de pile matérielle. RAM et page
+zéro inchangées. Les 14 cas concernés gagnent en taille et vitesse ;
+608 autres mesures restent identiques. Les 12 nouveaux cas donnent 622 mesures.
+
+Référence C et natif passent 73 307 tracés exacts (13 010 830 pixels) :
+toutes les paires rayon/y, tous les mots x rejetés à droite, centres sur et
+hors écran, grilles vides/étroites, temporaires hostiles et 2 048 placements
+de pile. Le natif passe sur II+ et IIe. L'oracle des pixels, l'intégration
+HGR, la démo DHGR, les règles de construction, la reconstruction, les 18
+jumeaux WOZ et le gate passent. DHGR.dsk et son WOZ changent.
+
+La démo sélectionne explicitement le cercle assembleur, avec test des exports
+et de la conservation des sources ; une règle C homonyme ne peut plus le
+remplacer par son fichier temporaire. Le C reste la référence portable.
+
 ## Série du 5 novembre 2026 : lignes GFX génériques natives
 
 Le Bresenham générique conserve ses comparaisons strictes et l'ordre des

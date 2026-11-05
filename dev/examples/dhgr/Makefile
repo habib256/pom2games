@@ -6,7 +6,7 @@ include $(DEV)/cc65/apple2.mk
 include $(HGRC)/hgrc.mk
 include $(APPLE2C)/apple2c.mk
 DISK := $(DIST)/DHGR.dsk
-SRCS := $(HGRC_DHGR_SRCS) $(APPLE2C_SRCS) $(APPLE2C_FRAME_SRCS) $(HGRC_DHGR_COLOR_BACKEND) $(GFX)/gfx_circle.c
+SRCS := $(HGRC_DHGR_SRCS) $(APPLE2C_SRCS) $(APPLE2C_FRAME_SRCS) $(HGRC_DHGR_COLOR_BACKEND) $(GFX)/gfx_circle.s
 # Library objects go into a private archive: ld65 extracts only what the
 # demo calls (no pixel readback, blocks or sprites).
 LIB_OBJS := $(addprefix $(BUILD)/,$(notdir $(SRCS:.c=.o)))
@@ -20,7 +20,7 @@ all: $(DISK)
 
 # Select the native backend sources explicitly: the portable .c references
 # share their stems, so vpath's C-first fallback must not choose them.
-GFX_BACKEND_OBJS := $(addprefix $(BUILD)/,$(notdir $(HGRC_DHGR_COLOR_BACKEND:.s=.o)))
+GFX_BACKEND_OBJS := $(addprefix $(BUILD)/,$(notdir $(HGRC_DHGR_COLOR_BACKEND:.s=.o))) $(BUILD)/gfx_circle.o
 $(GFX_BACKEND_OBJS): $(BUILD)/%.o: $(GFX)/%.s Makefile $(HGRC)/hgrc.mk
 	@mkdir -p $(@D)
 	$(CA65) -t none $(HGRC_AFLAGS) -o $@ $<

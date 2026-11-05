@@ -1,5 +1,11 @@
 # Current cc65 measurements
 
+Native midpoint circles save **263 loaded bytes** in HGR/color clients
+and **241** in DHGR mono. A corner-clipped HGR circle takes **23,331 cycles
+instead of 61,494**; radius 255 takes **87,406 instead of 401,954**. Interior
+circles also improve. HGR C-stack peaks fall from 14/18 to **9 bytes** for
+interior/clipped circles. The exact ordered oracle checks 13 million pixels.
+
 Native generic Bresenham lines save **251 loaded bytes** per client. The
 DHGR mono/color diagonals take **300,683/106,646 cycles**, down from
 433,885/152,003; their C-stack peaks fall from 29/28 to **17/16 bytes**.
