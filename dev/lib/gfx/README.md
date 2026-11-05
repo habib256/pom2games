@@ -213,7 +213,15 @@ span code and column/mask tables. The portable C reference remains available.
 The cc65 archive selects independent native cursor state, `gfx_gotoxy`,
 `gfx_putc` and `gfx_text` members. Positioning alone imports no glyph renderer;
 character-only clients omit string iteration. Strings keep their iterator
-on the C stack across backend calls. `gfx_text.c` remains the portable reference.
+in two hardware-stack bytes across backend calls, with no private C-stack
+frame. This remains safe for nested callbacks that destroy all cc65 scratch;
+the cursor itself is still shared. `gfx_text.c` remains the portable reference.
+String-only clients save 44 loaded bytes and numeric clients 18, with two
+fewer C-stack bytes but two more hardware-stack bytes while rendering.
+Empty strings take 32 cycles instead of 115. The 128-character benchmark
+costs 0.84% more cycles; original limits are retained. `test_gfx_cursor.py`
+also checks 2,304 nested traces per CPU (depths 0–8, all pointer alignments,
+empty callbacks and scratch clobbers).
 
 The monochrome DHGR archive separates dimensions, pen state/selection and
 all drawing entries. Points and axes append the selected pen directly to

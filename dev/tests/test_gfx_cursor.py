@@ -8,6 +8,66 @@ from test_hgr import DEV, build, run, a2test
 GRIDS=((35,24),(1,1),(255,255),(0,0))
 
 
+def check_nested_text(work, iie):
+    work.mkdir()
+    source = work/'nested.c'
+    source.write_text('''#include "gfx.h"
+#include <string.h>
+void page_done(void);void finished(void);void trash(void);
+unsigned char records[66],index,depth,limit;
+static char buffer[260];
+void gfx_putc(char ch) {
+    if(index>=64)for(;;) {}
+    records[1+index++]=(unsigned char)ch;
+    if(ch=='@' && depth<limit) {++depth;gfx_text("x@#y");--depth;}
+    if(ch=='#')gfx_text("");
+    trash();
+}
+int main(void) {
+    unsigned low;volatile unsigned guard=0xa55a;
+    for(limit=0;limit<=8;++limit)for(low=0;low<256;++low) {
+        memset(records,0xa5,sizeof(records));index=depth=0;
+        memcpy(buffer+low,"A@#B",5);gfx_text(buffer+low);
+        if(guard!=0xa55a || depth || records[0]!=0xa5 || records[64]!=0xa5)for(;;) {}
+        records[65]=index;page_done();
+    }
+    finished();for(;;) {}return 0;
+}
+''')
+    marker=work/'marker.s'
+    code='''.export _page_done,resume,_finished,_trash
+.importzp ptr1,ptr2,ptr3,ptr4,tmp1,tmp2,tmp3,tmp4
+.code
+_page_done: nop
+resume: rts
+_finished: rts
+_trash: lda #$5a
+'''
+    for name in ('ptr1','ptr1+1','ptr2','ptr2+1','ptr3','ptr3+1','ptr4','ptr4+1','tmp1','tmp2','tmp3','tmp4'):
+        code+=f' sta {name}\n'
+    marker.write_text(code+' tax\n tay\n rts\n')
+    disk=build(work,source,extra_sources=(marker,))
+    labels=a2test.labels(work/'test.lbl');steps=[]
+    for _ in range(9*256):
+        steps.extend((labels.until('_page_done'),labels.peek('_records',66),labels.until('resume')))
+    steps.append(labels.until('_finished'))
+    result=a2test.run(disk,steps,iie=iie)
+
+    def expanded(message,depth,limit):
+        out=bytearray()
+        for ch in message:
+            out.append(ch)
+            if ch==ord('@') and depth<limit:out.extend(expanded(b'x@#y',depth+1,limit))
+        return out
+
+    for limit in range(9):
+        text=expanded(b'A@#B',0,limit)
+        wanted=(b'\xa5'+text).ljust(65,b'\xa5')+bytes((len(text),))
+        for low in range(256):
+            assert result.dumps[limit*256+low]==wanted,('nested text',limit,low)
+    print(f'GFX nested text: 2,304 traces, depths 0..8, all pointer alignments, empty nested calls and hostile scratch; IIe={iie}.')
+
+
 def glyphs(cols,rows,col,row,data):
     col=col if col<cols else (cols-1)&255
     row=row if row<rows else (rows-1)&255
@@ -249,6 +309,7 @@ done:
         assert result.dumps[offset]==b'\0','empty string rendered'
         print(f'GFX cursor: 786,432 coordinate/control cases, four grids, all byte characters, '
               f'256 string alignments, 768 stack placements, exact glyph streams, hostile scratch and guards; IIe={args.iie}.')
+        check_nested_text(work/'nested',args.iie)
 
 
 if __name__=='__main__':main()

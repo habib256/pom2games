@@ -1,5 +1,12 @@
 # Current cc65 measurements
 
+The text iterator now saves **44 loaded bytes** in string-only clients and
+**18** in numeric clients, with **two fewer C-stack bytes**. Unsigned zero
+takes **1,750 instead of 1,825 cycles**; empty strings **32 instead of 115**.
+Rendered strings use two more hardware-stack bytes. A 128-character string
+costs 0.84% more cycles, within its original reference. Nested callbacks,
+scratch clobbers and all pointer alignments are checked on both CPUs.
+
 The third session keeps **642 passing benchmark cases**: **119 clients shrink
 by 2–9 bytes**, 523 measurements stay identical, with no extra RAM, zero page
 or stack. 314 improved reference fields are tightened; all older limits and

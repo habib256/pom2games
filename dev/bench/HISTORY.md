@@ -4,6 +4,37 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Nouvelle série du 5 novembre 2026 : itérateur de texte sans cadre C
+
+`gfx_text` sauvegarde son pointeur sur la pile matérielle pendant chaque
+appel du renderer, puis le restaure et l'incrémente avec propagation de
+retenue. Les temporaires restent libres pour le backend et ses appels
+imbriqués. Le noyau passe de 54 à **36 octets**, sans cadre sur la pile C.
+Les clients de chaînes seules économisent **44 octets chargés**, car ils
+n'importent plus `pushax` ; les clients numériques en économisent **18**.
+
+| Appel | Cycles avant → après | Pile C avant → après |
+|---|---:|---:|
+| Chaîne vide | 115 → 32 | 2 → 0 |
+| GFX non signé 0 | 1 825 → 1 750 | 13 → 11 |
+| GFX non signé 65535 | 8 678 → 8 625 | 13 → 11 |
+| GFX signé −32768 | 10 238 → 10 165 | 14 → 12 |
+| GFX hexadécimal FFFF | 6 195 → 6 125 | 12 → 10 |
+
+RAM et page zéro sont inchangées. Le pic de pile matérielle des clients
+numériques passe de 16 à 18 octets, celui des chaînes affichées de 14 à 16.
+La chaîne vide passe de 7 à 4. Le compromis est aussi mesuré sur les chaînes
+longues : 128 caractères prennent 221 453 cycles au lieu de 219 612
+(+0,84 %), et 128 contrôles ignorés 9 376 au lieu de 9 348 (+0,30 %).
+La chaîne froide « APPLE II » coûte 27 173 au lieu de 26 994 (+0,66 %).
+Les limites précédentes restent conservées.
+
+Les 786 432 cas du curseur et les passages de pages/pile passent sur les
+deux CPU. Un nouveau contrôle vérifie **2 304 traces par CPU**, profondeurs
+imbriquées 0…8, tous les alignements du pointeur, appels vides imbriqués,
+temporaires hostiles et gardes. Les 199 680 entrées de texte numérique et
+l'intégration graphique réelle passent également.
+
 ## Audit de la troisième session du 5 novembre 2026 — 3 séries
 
 Après `ae41ace`, les commits `2e3fbc4`, `cb90bbc` et `577cca7` réduisent
