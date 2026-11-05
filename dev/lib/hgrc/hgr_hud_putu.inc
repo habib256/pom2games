@@ -280,7 +280,7 @@ internal:
 .endif
         lda character
         jsr cell_run
-        jsr field_ptr
+        jsr field_ptr           ; the 16x16 cell borrows ptr3 for masks/row
         lda digits_offset
         clc
         adc index

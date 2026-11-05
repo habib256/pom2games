@@ -1,21 +1,22 @@
 ; VERHILLE Arnaud — GPL-3.0. Opaque white 16x16 HUD cell, width 16/18.
 ; Init validates the full box; the native controller prepares the row table.
 ; A = ASCII digit or space. Main RAM/ZP, D=0. IRQ flags/banks unchanged.
-; Reuses text parameters, destroys A/X/Y, ptr1/ptr2/tmp1..tmp4. Non-reentrant.
+; Reuses text parameters, destroys A/X/Y, ptr1..ptr4/tmp1..tmp4.
+; Non-reentrant; the controller restores its field pointer after each cell.
 .export _hgr_hud_cell_run, _hgr_hud_cell_width
 .import _hgr_font, _hgr_rowlo, _hgr_rowhi, glyph_addr, hgr_dbl_lo, hgr_dbl_hi
 .importzp _hgr_g_col, _hgr_g_bit, _hgr_g_y, _hgr_g_glyph, _hgr_t_font
-.importzp ptr1, ptr2, tmp1, tmp2, tmp3, tmp4
+.importzp ptr1, ptr2, ptr3, ptr4, tmp1, tmp2, tmp3, tmp4
 ; glyph_addr finishes using tmp2 before the row fragments are initialized.
 m0 = tmp2
 m1 = tmp3
 m2 = tmp4
+keep0 = ptr3
+row = ptr3+1
+keep_tail = ptr4                ; columns 2/3; column 1 is always fully owned
 .bss
 _hgr_hud_cell_width: .res 1
-keep0: .res 1
-keep_tail: .res 2              ; columns 2/3; column 1 is always fully owned
 cells: .res 1
-row: .res 1
 shift: .res 1                   ; pen bit * 16
 .code
 ; Each edge is written once per row: expand in place to avoid JSR/RTS

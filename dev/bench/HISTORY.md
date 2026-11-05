@@ -4,6 +4,23 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Nouvelle série du 5 novembre 2026 : masques et lignes du HUD 16×16
+
+Les masques de bord utilisent `ptr3` et les deux octets de `ptr4` ; le
+compteur de lignes utilise `ptr3+1`. Le contrôleur restaure déjà son
+pointeur de champ immédiatement après chaque cellule. Aucun appel
+n'intervient pendant le tracé, et le contrat des temporaires est documenté.
+Cette passe retire **quinze octets de code et quatre octets de RAM**
+supplémentaires, soit **28 et sept** pour le noyau 16×16 sur cette session.
+Page zéro et piles restent inchangées.
+
+Le chiffre modifié passe de **3 833 à 3 770 cycles**, le champ froid de
+**21 596 à 21 145**, et les cinq chiffres en phase zéro de **14 926 à
+14 607**. Les modèles de pixels et d'historique passent sur 6502 et 65C02,
+avec toutes les origines valides et les largeurs 1..14. Le gate complet
+passe pour 697 cas ; par rapport au début de session, sa seule hausse
+est la boucle avec attente VBL, de 34 050 à 34 053 cycles (moins de 0,01 %).
+
 ## Nouvelle série du 5 novembre 2026 : fragments du HUD 16×16 en page zéro
 
 Les trois fragments du glyphe agrandi utilisent `tmp2..tmp4` après le
