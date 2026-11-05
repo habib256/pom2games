@@ -4,6 +4,22 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Nouvelle série du 5 novembre 2026 : indicateurs de dommages sans BSS
+
+L'invalidation de page et le témoin de propagation utilisent les deux
+octets de `ptr1`. Le constructeur des colonnes termine avant leur
+initialisation ; les appels suivants ne les touchent pas. Le noyau n'a
+plus de BSS propre. Cette passe retire **cinq octets de code et deux
+octets de RAM supplémentaires**, soit **43 octets chargés et onze octets
+de RAM** pour les trois passes, sans page zéro ni pile ajoutées.
+
+Par rapport au début de session, le calcul stable passe de **5 476 à
+5 183 cycles**, la chaîne inverse de **20 604 à 18 624**, le cas aux bords
+de **12 500 à 11 489**, et le rendu isolé de **14 092 à 13 890**. Ce dernier
+prend 15 cycles de plus que dans la passe intermédiaire précédente, tout
+en restant plus rapide qu'à l'origine. Les modèles de rectangles et de
+propagation, les préfixes stables et les images avec gardes restent valides.
+
 ## Nouvelle série du 5 novembre 2026 : indices de propagation HGR en page zéro
 
 L'identifiant courant, l'autre slot et l'offset du rectangle utilisent

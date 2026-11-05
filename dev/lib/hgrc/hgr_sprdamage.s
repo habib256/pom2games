@@ -1,18 +1,20 @@
 ; VERHILLE Arnaud — GPL-3.0. Optional save-under byte-overlap closure, NMOS.
 ; Extracted only when the C engine config enables HGR_SPR_DAMAGE.
+; Non-reentrant C-callable worker: A/X/Y, ptr1..ptr4 and tmp1..tmp4 destroyed.
 .export _hgr_spr_damage
 .import _spr_box, _spr_dirty, _spr_count, _spr_invalid, _spr_shape
 .import _spr_drawn, _spr_px, _spr_py, _spr_x, _spr_y
 .import spr_pgbase, spr_changed, spr_visible, spr_bits
 .import _hgr_col7, _hgr_build_columns
-.importzp ptr2, ptr3, ptr4, tmp2, tmp3, tmp4
-.bss
+.importzp ptr1, ptr2, ptr3, ptr4, tmp2, tmp3, tmp4
 ; spr_changed only borrows tmp1; spr_visible does not write scratch.
 id = tmp2
 other = tmp3
 id_offset = tmp4
-all: .res 1
-changed: .res 1
+; The column builder finishes before these flags are initialized. No
+; subsequent callee touches ptr1, and the closure itself makes no calls.
+all = ptr1
+changed = ptr1+1
 ; Geometry survives only spr_visible (no scratch writes) and add_box.
 ; The shape pointer in ptr3 is dead once width/height have been read;
 ; the same pair then holds the old or new x coordinate.
