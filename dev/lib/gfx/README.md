@@ -170,7 +170,7 @@ bytes: a call with at most one full byte a line pays 30 to 50 cycles of
 setup, a wide fill gains 10 to 21 %.
 
 
-The HGR archive selects `gfx_line_hgr.c`: diagonals use the 280-pixel
+The HGR archive selects `gfx_line_hgr.s`: diagonals use the 280-pixel
 assembler kernel of `hgr_line`. The C fallback `gfx_line.c` remains intended
 for the generic/DHGR backends. Both files define the same symbol:
 pick one implementation at link time. No function pointer is added.

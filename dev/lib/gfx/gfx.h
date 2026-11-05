@@ -49,7 +49,7 @@ extern const unsigned char gfx_height;
  * All endpoints inclusive. */
 
 /* Bresenham line. Axes use clipped gfx_hline/gfx_vline spans. Diagonals reject
- * off-screen endpoints. Link exactly one implementation: gfx_line_hgr.c for
+ * off-screen endpoints. Link exactly one implementation: gfx_line_hgr.s for
  * HGR (ASM kernel), gfx_line.c for generic/DHGR (C fallback through gfx_plot). */
 void gfx_line(unsigned x0, unsigned char y0, unsigned x1, unsigned char y1);
 

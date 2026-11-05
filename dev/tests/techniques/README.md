@@ -208,7 +208,7 @@ fdraw targets 280 × 192 HGR. Its principles (incremental addresses, prepared
 masks, specialised loops) can guide a DHGR engine, but its routines do not
 directly replace ours. The DHGR fallback `gfx_line.c` goes through `gfx_plot`
 for each diagonal point; the colour backend then goes through a 1 × 1
-rectangle. The HGR backend now selects `gfx_line_hgr.c` and its assembler
+rectangle. The HGR backend now selects `gfx_line_hgr.s` and its assembler
 kernel; this finding therefore concerns DHGR. It is a plausible target, with
 no measured speed factor.
 The generic spans also switch aux writes byte by byte: handling main and aux

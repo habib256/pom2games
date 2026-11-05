@@ -4,6 +4,36 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Série du 5 novembre 2026 : aiguillage natif des lignes GFX HGR
+
+L'entrée réutilise les cinq octets d'arguments du client. Elle conserve
+la priorité horizontale, décale seulement les deux octets de x1 pour un
+segment horizontal et retire x1 pour un segment vertical. Les diagonales
+transmettent directement le cadre initial à `hgr_line`. Les axes gardent
+leur découpage historique, y compris pour des extrémités hors écran.
+La référence C reste disponible ; le backend DHGR garde son Bresenham C.
+
+| Appel C | Cycles avant → après | Binaire avant → après |
+|---|---:|---:|
+| Horizontal découpé | 1 115 → 986 | 2 100 → 1 953 |
+| Vertical découpé | 11 559 → 11 371 | 2 106 → 1 959 |
+| Diagonale rejetée | 383 → 190 | 2 096 → 1 949 |
+| Diagonale 280×192 | 21 310 → 21 447 | 2 100 → 1 953 |
+
+Les clients économisent 147 octets, sans RAM ni page zéro supplémentaire.
+Pile C horizontale/verticale/diagonale 10/9/11 → 5 ; pile matérielle −2.
+Le déplacement du noyau dans le binaire augmente de 0,64 % le temps de
+la grande diagonale mesurée ; son ancienne référence de cycles est
+conservée. Trois cas gagnent en vitesse, deux diagonales identiques en
+travail gagnent en taille/pile ; les 491 autres mesures restent identiques.
+
+La référence C puis l'entrée native passent 918 528 appels sur II+ et IIe :
+tous les mots x dans les deux ordres autour de trois ancres, toutes les
+paires y, priorité des axes, arguments exacts, temporaires écrasés et
+1 024 positions de pile. Les 464 lignes réelles, les backends DHGR mono et
+couleur, l'intégration HGR, le starter et le gate complet passent.
+La reconstruction ne change aucun disque ; les 18 WOZ restent cohérents.
+
 ## Série du 5 novembre 2026 : alias GFX HGR indépendants
 
 Les entrées point et segments horizontal/vertical ont les mêmes signatures

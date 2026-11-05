@@ -1,5 +1,6 @@
 /* VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root). */
-/* Link-time HGR implementation; generic backends use gfx_line.c instead.
+/* Portable reference; hgrc.mk selects gfx_line_hgr.s.
+ * Link-time HGR implementation; generic backends use gfx_line.c instead.
  * Keep historical clipping for axis spans, reject off-screen diagonals. */
 #include "gfx.h"
 #define HGR_NO_APPLE2

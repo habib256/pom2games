@@ -8,7 +8,7 @@
  *
  * Straight runs shortcut to the card's fast span (gfx_hline/gfx_vline); the
  * diagonal case walks gfx_plot. Off-screen diagonal endpoints are rejected;
- * the H/V shortcuts still clip via the span calls. HGR selects gfx_line_hgr.c.
+ * the H/V shortcuts still clip via the span calls. HGR selects gfx_line_hgr.s.
  */
 #include "gfx.h"
 

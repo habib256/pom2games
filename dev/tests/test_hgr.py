@@ -95,7 +95,7 @@ def build(work, fixture=None, extra_sources=(), gfx_backend=None, cflags=()):
     sources = run(['make', '-s', '-f', mk, 'print']).split()
     if gfx_backend:
         sources = [s for s in sources if not Path(s).name.startswith('gfx_backend_hgr')
-                   and Path(s).name != 'gfx_line_hgr.c']
+                   and Path(s).stem != 'gfx_line_hgr']
         sources.extend([DEV/'lib/gfx/gfx_line.c', DEV/'lib/gfx'/gfx_backend])
     sources.extend(extra_sources)
     objects = []

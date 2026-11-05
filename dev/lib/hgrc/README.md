@@ -1099,7 +1099,7 @@ of `make test-hgr`.
 
 ## Choosing the gfx implementation
 
-`HGRC_VECTOR_SRCS` and the default archive use `gfx_line_hgr.c`, which
+`HGRC_VECTOR_SRCS` and the default archive use `gfx_line_hgr.s`, which
 routes diagonals to the assembler `hgr_line`. The axis-aligned lines of `gfx_line`
 keep their historical span clipping; `hgr_line` rejects any
 off-screen endpoint, axis-aligned lines included. Valid diagonal pixels are identical.

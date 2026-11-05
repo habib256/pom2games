@@ -1,5 +1,11 @@
 # Current cc65 measurements
 
+Native GFX HGR line dispatch saves **147 loaded bytes** and reduces the
+C-stack peak from 9–11 to **5 bytes**, without extra RAM or zero page.
+A clipped horizontal line takes **986 cycles instead of 1,115**, a rejected
+diagonal **190 instead of 383**. The large diagonal's changed code placement
+costs 0.64 % (21,310 → 21,447 cycles); its older cycle gate remains in force.
+
 Independent GFX HGR aliases resolve points and axis spans directly to the
 matching HGR entries, without copying C arguments or adding a call frame.
 A point takes **249 cycles instead of 382**, saving **623 loaded bytes**,
