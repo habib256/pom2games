@@ -165,8 +165,8 @@ peak **9 → 5**, with unchanged RAM and zero page. Small/last-pixel cases
 fall **1,291 / 988 → 1,023 / 671 cycles**; rejected/empty calls also improve.
 The public colour rectangle, including its native entry, saves **201 bytes**,
 **12,267 → 11,790 cycles**;
-with native monochrome forwarding, the line saves **167 bytes**, **2,796 →
-2,340 cycles**. The helper’s
+with native monochrome forwarding and axis preparation, the line saves
+**355 bytes**, **2,796 → 2,226 cycles**. The helper’s
 hardware-stack peaks fall by one or two bytes. Nine new helper cases run
 after `dhgr_init`, including full-width, 16-bit wrap, clipping and rejections.
 
@@ -188,6 +188,15 @@ hardware peak **9 → 7**, with unchanged RAM and zero page. Small/last-pixel
 cases fall **1,355 / 1,124 → 1,143 / 898 cycles**, the 16-row rectangle
 **12,016 → 11,790**. All eleven affected cases improve; ten new cases cover
 byte boundaries, clipping, all-bits-set colours and empty/offscreen calls.
+
+Separate native `dhgr_hline`/`dhgr_vline` entries sort and clip endpoints,
+then expand their arguments into one six-byte fill frame. Isolated clients
+save **188 / 248 loaded bytes**, C-stack peaks **14 / 12 → 6**, hardware
+peaks **9 → 7** (rejections **7 → 5**), with unchanged RAM and zero page.
+Forward/reversed short horizontal lines fall **1,323 / 1,478 → 1,191 /
+1,213 cycles**; vertical lines **3,123 / 3,164 → 2,983 / 2,992**. The full
+horizontal line falls **2,340 → 2,226**. All eleven affected cases improve;
+ten new direct axis cases cover reversal, clipping and offscreen calls.
 
 Bounded DHGR clearing (`dhgr_clear_rows`) uses a register counter for the
 four turns of each pattern pass and passes the row's high address byte in

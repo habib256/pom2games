@@ -451,7 +451,8 @@ and zero page. A small rectangle takes **1,023 instead of 1,291 cycles**;
 the last pixel with width 65535 takes **671 instead of 988**. The public
 colour rectangle, including its native entry, saves 201 bytes and takes
 **11,790 instead of 12,267
-cycles**; with native monochrome forwarding, a line saves 167 bytes and takes **2,340 instead of
+cycles**; with native monochrome forwarding and axis preparation, a line saves
+355 bytes and takes **2,226 instead of
 2,796**. The helper’s hardware-stack peaks also fall by one or two bytes.
 `test_dhgr_bit_rect_entry.py` checks 328,704 calls on both CPU models:
 all x values with one-pixel/maximal widths, every width at both screen
@@ -485,6 +486,21 @@ The small/last-pixel colour cases take **1,143 / 898 cycles** instead of
 CPUs: all 65,536 x/width pairs, all y/height/color bytes, call ordering,
 clipped bit coordinates, scratch/caller guards and 1,024 stack placements.
 The same fixture passes against the original C entry.
+
+Horizontal and vertical DHGR lines have separate native archive entries.
+They sort the endpoints, clip the far edge and form a six-byte rectangle
+frame before tail-calling the monochrome fill. The horizontal entry expands
+its arguments by one byte, the vertical by two; no local frame or new RAM
+is needed. Isolated horizontal/vertical clients save **188 / 248 loaded
+bytes**, C-stack peaks **14 / 12 → 6**, hardware peaks **9 → 7** (rejections
+**7 → 5**), with unchanged zero page. Forward/reversed short horizontal
+lines take **1,191 / 1,213 cycles** instead of 1,323 / 1,478; vertical
+lines **2,983 / 2,992** instead of 3,123 / 3,164.
+`test_dhgr_axes_entry.py` compares 527,104 calls on both CPUs: both full
+16-bit horizontal endpoint domains against three anchors, all vertical
+x values and y pairs, byte selectors, clipped/modular extents, scratch/caller
+guards and 2,048 stack placements. It also passes against the C reference.
+Minimal clients verify that using one axis does not link the other.
 
 - `dhgr_capabilities()`: bits `DHGR_CAP_EXTENDED` and `DHGR_CAP_AUX_VIDEO`.
   The probe keeps the display and the bytes used in the video holes.

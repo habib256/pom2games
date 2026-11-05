@@ -4,6 +4,42 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Série du 5 novembre 2026 : entrées natives séparées des axes DHGR
+
+Les deux fonctions de `dhgr_span.c` deviennent deux membres d'archive
+indépendants. Les entrées natives trient les extrémités sur leur largeur
+complète, bornent la fin puis forment le cadre de six octets attendu par
+le remplissage monochrome. L'horizontale ajoute un octet à ses arguments,
+la verticale deux. Les valeurs modulaires de largeur/hauteur hors écran
+restent celles du C ; le remplissage prépare donc toujours le même motif
+avant le rejet final. Aucun octet de RAM/page zéro supplémentaire.
+
+| Appel C | Cycles avant → après | Binaire avant → après |
+|---|---:|---:|
+| Horizontale courte | 1 323 → 1 191 | 2 560 → 2 372 |
+| Horizontale inversée | 1 478 → 1 213 | 2 560 → 2 372 |
+| Horizontale clippée | 1 438 → 1 154 | 2 558 → 2 370 |
+| Horizontale hors écran | 523 → 370 | 2 559 → 2 371 |
+| Horizontale complète | 2 340 → 2 226 | 2 558 → 2 370 |
+| Verticale courte | 3 123 → 2 983 | 2 555 → 2 307 |
+| Verticale inversée | 3 164 → 2 992 | 2 554 → 2 306 |
+| Verticale clippée | 1 229 → 1 053 | 2 555 → 2 307 |
+| Verticale hors écran | 422 → 282 | 2 553 → 2 305 |
+
+Économies de 188/248 octets pour les clients horizontaux/verticaux isolés.
+Pile C 14/12 → 6, pile matérielle 9 → 7 (rejets 7 → 5). Les onze cas
+concernés s'améliorent, 373 restent identiques ; dix cas sont nouveaux.
+
+La fixture de 527 104 appels passe sur le C puis l'assembleur II+/IIe :
+les deux domaines d'extrémités horizontales 16 bits contre trois ancres,
+toutes les abscisses verticales et paires d'ordonnées, sélecteurs octet,
+tri et étendues clippées/modulaires, registres de travail écrasés, gardes
+et 2 048 positions de pile. Les tests réels étendus et GFX vérifient les
+deux pages/banques, inversions, clipping et pixels. Deux nouveaux clients
+minimaux excluent l'autre axe du lien. Validation complémentaire :
+52 clients minimaux, intégration HGR, `make all`, relevé complet de 384 cas
+et gate. Les disques livrés restent identiques.
+
 ## Série du 5 novembre 2026 : préparation native du remplissage couleur DHGR
 
 `dhgr_fill.s` borne la largeur en pixels couleur, prépare le motif puis
