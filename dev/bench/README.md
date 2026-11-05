@@ -1,5 +1,15 @@
 # Current cc65 measurements
 
+The seventh-session gate passes **681 cases**, including 15 workloads
+measured before optimization. DHGR bitmap/overlay address accumulation
+and the direct C PRNG shrink **25 clients** (15 by **3 loaded bytes**,
+10 by **8**). **21 timings improve, none regress**; 656 result dictionaries
+are unchanged. A 4×31-byte overlay takes **28,080 instead of 30,882 cycles**.
+The C PRNG takes **45/46 instead of 55/64 cycles**, including a volatile
+result store, and uses two fewer hardware-stack bytes. RAM and zero page
+are unchanged. 77 reference fields are tightened without raising limits.
+See [the seventh-session audit](HISTORY.md#audit-de-la-septième-session-du-5-novembre-2026--dhgr-et-générateur-aléatoire).
+
 The sixth-session gate passes **666 cases**. Clipping against remaining
 screen space and removing a redundant stride copy shrink **80 clients**:
 61 by **16 loaded bytes**, 19 by **14**. RAM, zero page and stacks are

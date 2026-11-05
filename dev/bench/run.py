@@ -719,6 +719,14 @@ for suffix,call,setup in (
     SCENES['gfx_cursor_'+suffix]=dict(call=call,setup=setup,warmup=False)
 
 
+# C PRNG: both feedback paths, zero's fixed point, and both CPUs.
+for iie in (False, True):
+    for seed in (0, 1, 2, 0xACE1, 0xFFFF):
+        SCENES[f'a2_rand16_{seed:04x}'+('_iie' if iie else '')]=dict(
+            call='value=a2_rand16();', setup=f'a2_rand_state={seed}u;',
+            declarations='#include "apple2rand.h"\nstatic volatile unsigned value;',
+            warmup=False, iie=iie, rand=True)
+
 # GFX HGR adapters: public C calls, clipped axes and full-width endpoints.
 for suffix,call in (
     ('plot','gfx_plot(139,95);'),
@@ -812,6 +820,18 @@ SCENES['dhgr_spr_vbl_move']=dict(SCENES['dhgr_spr_move'],spr=('DHGR_SPR_VBL',),c
     setup='a2_vbl_init();'+SCENES['dhgr_spr_move']['setup']+'a2_frame_wait();')
 SCENES['dhgr_cursor_move']=dict(iie=True,dhgr=True,spr=(),declarations=SPR_DECL,
     setup='dhgr_cursor(20,60,4,6,arrow,under);', call='dhgr_cursor(21,61,4,6,arrow,under);')
+for height in (1,6,31):
+    SCENES[f'dhgr_spr_overlay_h{height}']=dict(iie=True,dhgr=True,spr=(),warmup=False,
+        declarations=SPR_DECL+'static unsigned char ov_bits[252],ov_under[504];',
+        setup=SPR_ROOM+'for(i=0;i<252;++i)ov_bits[i]=i&127;'+
+            f'dhgr_spr_overlay(16,40,4,{height},ov_bits,ov_under);',call='dhgr_spr_update();')
+for kind in ('CHUNKY','TILE'):
+    SCENES['dhgr_spr_skip_top_'+kind.lower()]=dict(iie=True,dhgr=True,spr=(),warmup=False,
+        declarations=SPR_DECL+'static unsigned char tall_bits[448];static unsigned j;'+
+            f'static const dhgr_shape_t tall={{DHGR_SHAPE_{kind},7,64,0,tall_bits}};',
+        setup=SPR_ROOM+'for(j=0;j<448;++j)tall_bits[j]=j&15;'+
+            'dhgr_spr_area(0,60,139,63);dhgr_spr_set(0,&tall,28,20,0);',
+        call='dhgr_spr_update();')
 SCENES['dhgr_spr_overlay_move']=dict(SCENES['dhgr_spr_move'],
     setup=SCENES['dhgr_spr_move']['setup']+'dhgr_spr_overlay(20,60,4,6,arrow,under); dhgr_spr_update();',
     call='dhgr_spr_overlay(21,61,4,6,arrow,under); dhgr_spr_update();')
@@ -868,7 +888,7 @@ def presentation_source(variant):
 
 def measure(work,name,call,dhgr=False,setup='',sprites=False,warmup=True,
             declarations='',sprite_width=None,sprite_height=4,sprite_stride=2,presentation=None,iie=False,cadence=False,
-            pal=False,damage=False,variant=None,spr=None,clock=False,backend=None,prodos=False):
+            pal=False,damage=False,variant=None,spr=None,clock=False,backend=None,prodos=False,rand=False):
     source=work/(name+'.c'); obj=source.with_suffix('.o'); binary=source.with_suffix('.bin')
     source.write_text('#include "hgr.h"\n#include "gfx.h"\n#include "dhgr.h"\n#include "apple2io.h"\n'
       'void hgr_build_tables(void); void bench_begin(void); void bench_end(void); void bench_present(void);\n'+
@@ -919,6 +939,10 @@ def measure(work,name,call,dhgr=False,setup='',sprites=False,warmup=True,
             run(['ca65','-t','none',*('-D'+d+'=1' for d in spr),'-I',DEV/'lib/hgrc','-I',DEV/'lib/apple2',
                  '-o',spr_obj,DEV/'lib/hgrc'/member])
             extra.append(spr_obj)
+    if rand:
+        rand_obj=work/(name+'_rand.o')
+        run(['ca65','-t','none','-I',DEV/'lib/apple2','-o',rand_obj,DEV/'lib/apple2c/apple2rand.s'])
+        extra.append(rand_obj)
     if clock:
         for src in (DEV/'lib/apple2c/apple2vbl.s',DEV/'lib/apple2c/apple2frame.s',DEV/'lib/mouse/mouse.s'):
             clock_obj=work/(name+'_'+src.stem+'.o')

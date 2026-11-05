@@ -4,6 +4,35 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Audit de la septième session du 5 novembre 2026 — DHGR et générateur aléatoire
+
+Après `8ed35bc`, les commits `89b4cdf`, `b2864af` et `b3bc5a2` gardent
+les pointeurs DHGR dans A pendant les additions et rendent directement
+l'état du générateur aléatoire C. Les anciennes mesures DHGR refaites
+avant modification correspondent au rapport complet précédent. Quinze
+nouveaux cas, mesurés avant modification, portent le banc à **681 cas**.
+
+Le gate complet `--dhgr --check` passe : **25 clients plus petits** (15 à
+−3 octets et 10 à −8), **21 durées réduites**, aucune métrique en hausse
+et **656 dictionnaires inchangés**. La surimpression de 31 lignes passe
+de **30 882 à 28 080 cycles** ; les appels C du générateur de **55/64 à
+45/46 cycles**. La pile matérielle des dix clients PRNG perd deux octets ;
+RAM, page zéro et pile C restent identiques. **77 champs de référence
+sont abaissés**, sans relever de seuil ou de budget absolu.
+
+Le test PRNG couvre les **65 536 états sur chaque CPU**, avec résultat
+A/X, état stocké, graine initiale, Y et équilibre de pile ; les tests
+mathématiques passent aussi. Le modèle DHGR étendu passe sur **IIe et IIc
+dans les sept configurations** : 66 mises à jour, 67 en double page,
+contrôle des écritures uniques, des accès auxiliaires sous interruptions
+VIA et de la synchronisation VBL. Les cas hauts traversent une page source
+et couvrent les formats CHUNKY/TILE, le miroir et la surimpression.
+
+`make all` réussit. SNAKE passe ses tests de jeu, placement des fruits,
+cadence NTSC/PAL et sauvegarde ; Robot Space Station passe le modèle,
+le laboratoire et les zones sur IIe et IIc. Seules leurs disquettes
+et leurs WOZ changent ; les **18 paires disque/WOZ** sont vérifiées.
+
 ## Nouvelle série du 5 novembre 2026 : générateur aléatoire C sans appel intermédiaire
 
 `a2_rand16` applique directement la même transition LFSR `$B400` que

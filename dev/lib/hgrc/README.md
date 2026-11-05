@@ -813,6 +813,16 @@ groups), 6,500 painting (21 rectangles, 290 bytes stored), the rest tiles
 walk and bookkeeping. `dhgr_spr_overlay_move` no longer runs the
 save-under pass while the pointer stays inside the area.
 
+The bitmap painter and overlay row hook now keep the low source address in
+A across repeated additions, storing it once after the loop. Skipping 40
+seven-byte source rows saves 234 cycles without extra code. The overlay
+hook also loses three code bytes: a 4×31-byte overlay takes 28,080 instead
+of 30,882 cycles, and a 4×6 overlay takes 6,465 instead of 6,564. The final
+CHUNKY animation measures 9,407 instead of 9,450 cycles. RAM, zero page and
+stack peaks are unchanged. The extended compositor model covers tall
+CHUNKY/TILE sources crossing a page, mirroring and a 31-row overlay across
+all seven build variants, both IIe and IIc, plus VIA interrupt and VBL checks.
+
 Code (6502), the core every program links: calls 252 B (`dhgr_spr_set`,
 `dhgr_spr_invalidate`, `dhgr_spr_solid`), init + update 872 B, write 304 B
 (with the 16-byte table and the 51-byte patch list), canvas painters 532 B:
