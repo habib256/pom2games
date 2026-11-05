@@ -4,6 +4,28 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Audit de la quatrième session du 5 novembre 2026 — texte et tuiles
+
+Après `f56a608`, les commits `13cd560` et `325c4b5` regroupent trois passes
+mesurées : itérateur texte, état du restaurateur, puis indexation des tuiles.
+Le banc passe de **642 à 651 cas**, avec deux chaînes longues et sept
+restaurations isolées mesurées avant et après modification. Le gate complet
+`--dhgr --check` passe : **32 clients plus petits**, 619 dictionnaires
+identiques, 28 durées réduites et quatre augmentées de moins de 0,85 %.
+
+La restauration économise trois octets de RAM ; le texte utilise moins
+de pile C et davantage de pile matérielle pendant les appels au backend,
+comme détaillé ci-dessous. La page zéro reste identique. **125 champs de
+référence sont abaissés** ; aucune ancienne limite ni aucun budget absolu
+n'est relevé. Les neuf nouveaux cas conservent leur référence antérieure
+à l'optimisation lorsqu'une métrique augmente.
+
+Les contrôles du curseur, de récursion et de texte numérique passent sur
+6502 et 65C02, ainsi que les tests de tuiles sur les deux pages. L'intégration
+HGR et les 69 clients minimaux vérifient aussi le rendu et la sélection des
+membres de l'archive. `make all` ne modifie aucun disque livré ; les 18 WOZ
+correspondent. Les interfaces publiques sont inchangées.
+
 ## Nouvelle série du 5 novembre 2026 : état et indexation des tuiles
 
 Deux passes sont mesurées séparément. La première retire une copie privée

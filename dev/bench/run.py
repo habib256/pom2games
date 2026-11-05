@@ -422,6 +422,17 @@ SCENES['hgr_tile_background']=dict(sprites=True,sprite_width=7,sprite_height=8,s
     'hgr_ms_spr=&shape;hgr_ms_x=29;hgr_ms_y=60;hgr_ms_run();'+
     'hgr_ms_x=43;hgr_ms_y=60;hgr_ms_run();hgr_show_page();')
 SCENES['hgr_tile_background_pal']=dict(SCENES['hgr_tile_background'],iie=True,pal=True)
+for suffix,page,col,row,width,height in (
+    ('one',1,39,23,1,1),('full',1,0,0,40,24),('region',2,3,5,4,3),
+    ('clip',2,38,22,255,255),('empty',1,0,0,0,1),('bad_page',0,0,0,1,1),
+    ('bad_id',1,0,0,40,24),
+):
+    SCENES['hgr_tile_restore_'+suffix]=dict(
+        declarations='static hgr_tilemap_t background;static unsigned char tilemap[960];'+
+                     'static const unsigned char tiles[8]={85,42,85,42,85,42,85,42};',
+        setup='if(!hgr_tilemap_init(&background,tilemap,tiles,1))return 2;'+
+              ('tilemap[959]=1;' if suffix=='bad_id' else ''),
+        call=f'hgr_tile_restore(&background,{page},{col},{row},{width},{height});')
 # Isolated HUD initialization includes validation and caller-owned state writes.
 for compact in (False,True):
     stem='hgr_hud8' if compact else 'hgr_hud'
@@ -688,6 +699,8 @@ for suffix,call,setup in (
     ('short','gfx_text("APPLE II");','gfx_gotoxy(0,0);'),
     ('controls','gfx_text("A\\nB\\rC");','gfx_gotoxy(0,0);'),
     ('wrap','gfx_text("ABCDEF");','gfx_gotoxy(33,22);'),
+    ('long','gfx_text("'+'A'*128+'");','gfx_gotoxy(0,0);'),
+    ('long_controls','gfx_text("'+'\\001'*128+'");','gfx_gotoxy(0,0);'),
 ):
     SCENES['gfx_cursor_'+suffix]=dict(call=call,setup=setup,warmup=False)
 

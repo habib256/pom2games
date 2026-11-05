@@ -1,5 +1,13 @@
 # Current cc65 measurements
 
+The fourth session measures three passes on text and tile restoration.
+The expanded gate passes **651 cases**: **32 smaller clients**, 619 unchanged
+measurements, and nine new cases measured before and after. 125 reference
+fields are tightened; no existing limit or absolute budget is raised.
+The text stack tradeoff and four cycle increases below 0.85% are recorded in
+[the fourth-session audit](HISTORY.md#audit-de-la-quatrième-session-du-5-novembre-2026--texte-et-tuiles).
+Rebuilt disks remain identical and all 18 WOZ twins match.
+
 Two tile-restoration passes save **11 loaded bytes and 3 RAM bytes**.
 A full page takes **271,192 instead of 278,943 cycles**; a single corner
 tile **989 instead of 1,014**. The eight-tile background with two sprites
