@@ -1,5 +1,15 @@
 # Current cc65 measurements
 
+The fifteenth-session benchmark covers **759 cases**, including 17 new
+workloads measured against the old kernels. Backward HGR byte blits,
+indexed DHGR sprite sources and native ellipses shrink **106 clients**
+by 3..272 bytes. **61 timings improve**; three gain one cycle and one
+rejected ellipse gains six. The other 653 result dictionaries are identical.
+RAM and zero page stay unchanged; 18 ellipse clients save 7..19 C-stack
+bytes. Full-page HGR SET takes **172,739 instead of 195,299 cycles**;
+a small HGR ellipse takes **105,892 instead of 151,671**. All 16 frame
+budgets pass and 293 reference fields are tightened. See [the fifteenth-session audit](HISTORY.md#audit-de-la-quinzième-session-du-6-novembre-2026--blits-par-octets-et-ellipses-natives).
+
 The fourteenth-session benchmark has **742 cases**, including 35 workloads
 measured with the old kernels first. Bitmap endings, DHGR damage merging
 and CMOS decimal scratch improve **63 timings**, with **no metric increase**;

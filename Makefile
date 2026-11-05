@@ -101,6 +101,8 @@ test-hgr:
 	$(PYTHON) dev/tests/test_gfx_circle_entry.py --iie
 	$(PYTHON) dev/tests/test_gfx_ellipse_offset.py
 	$(PYTHON) dev/tests/test_gfx_ellipse_offset.py --iie
+	$(PYTHON) dev/tests/test_gfx_ellipse_entry.py
+	$(PYTHON) dev/tests/test_gfx_ellipse_entry.py --iie
 	$(PYTHON) dev/tests/test_gfx_line_entry.py
 	$(PYTHON) dev/tests/test_gfx_line_entry.py --iie
 	$(PYTHON) dev/tests/test_asm_boundaries.py
@@ -249,6 +251,7 @@ test-dhgr:
 	$(MAKE) -C dev/examples/dhgr test
 	$(PYTHON) dev/tests/test_dhgr_extended.py
 	$(PYTHON) dev/tests/test_dhgr_blocks.py
+	$(PYTHON) dev/tests/test_dhgr_sprite_native.py
 	$(PYTHON) dev/tests/test_dhgr_pages.py
 	$(PYTHON) dev/tests/test_dhgr_pages.py --iie
 	$(PYTHON) dev/tests/test_dhgr_axes_entry.py

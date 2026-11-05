@@ -171,6 +171,12 @@ SCENES = {
  'hgr_sprite7_cold': dict(call='hgr_blit7(279,191,255,255,bits,HGR_XOR);',warmup=False),
  'hgr_sprite7_empty': dict(call='hgr_blit7(0,0,0,255,bits,HGR_XOR);'),
  'hgr_sprite7_outside': dict(call='hgr_blit7(65535u,0,255,255,bits,HGR_XOR);'),
+ 'hgr_sprite7_full_set': dict(call='hgr_blit7(0u,0,40,192,bytepage,HGR_SET);',
+     declarations='static unsigned char bytepage[7680];'),
+ 'hgr_sprite7_full_clear': dict(call='hgr_blit7(0u,0,40,192,bytepage,HGR_CLEAR);',
+     declarations='static unsigned char bytepage[7680];'),
+ 'hgr_sprite7_full_xor': dict(call='hgr_blit7(0u,0,40,192,bytepage,HGR_XOR);',
+     declarations='static unsigned char bytepage[7680];'),
  'hgr_colorize_cold': dict(call='hgr_colorize(255,189,255,255,HGR_ORANGE);', warmup=False),
  'hgr_colorize_clip': dict(call='hgr_colorize(255,189,255,255,HGR_ORANGE);'),
  'hgr_colorize_invalid': dict(call='hgr_colorize(7,32,140,16,255);'),
@@ -609,6 +615,20 @@ for suffix,x,y,width,height,stride in (
         declarations='static unsigned char data[2048],mask[2048];',
         dhgr=True,iie=True,warmup=False)
 
+# Native row movement: independently crossing source pointers and a screen
+# address that crosses a page. Count zero retains the kernel's 256-byte loop.
+for suffix,bank,count,mask in (
+    ('one_aux',1,1,0),('one_main',0,1,0),
+    ('full_aux',1,80,0),('full_main',0,80,0),
+    ('partial_aux',1,80,85),('partial_main',0,80,42),
+    ('transparent',1,80,255),('raw256',0,0,85)):
+    setup = f'for(i=0;i<512;++i){{data[i]=(unsigned char)(i*29u+17u);masks[i]={mask};}}'
+    setup += (f'dhgr_addr=(unsigned char*)0x20f7;dhgr_aux={bank};dhgr_count={count};'
+              'dhgr_buffer=data+250;dhgr_sprite_mask=masks+251;')
+    SCENES['dhgr_sprite_native_'+suffix] = dict(dhgr=True,iie=True,warmup=False,
+        declarations='#include "dhgr_internal.h"\nstatic unsigned char data[512],masks[512];static unsigned i;',
+        setup=setup,call='dhgr_sprite_asm();')
+
 for suffix,x,y in (('aux',0,0),('main',7,0),('phase6',6,40),
                    ('last',559,191),('outside',560,191),('high',65535,0),('below',0,255)):
     for value in (0,255):
@@ -685,6 +705,9 @@ for backend,width,pen in (('mono',560,1),('color',140,9)):
         ('fill_reject_y',f'gfx_filled_rect(0,255,{width-1},192);'),
         ('clear_black','gfx_clear(0);'),('clear_white','gfx_clear(255);'),
         ('diagonal',f'gfx_line(0,0,{width-1},191);'),
+        ('ellipse_small','gfx_ellipse(20,20,100,80);'),
+        ('ellipse_full',f'gfx_ellipse(0,0,{width-1},191);'),
+        ('ellipse_wide','gfx_ellipse(0,80,65535u,100);'),
         ('line_reverse',f'gfx_line({width-1},191,0,0);'),
         ('line_steep',f'gfx_line(5,0,15,191);'),
         ('line_steep_reverse',f'gfx_line(15,191,5,0);'),

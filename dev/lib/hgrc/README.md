@@ -138,6 +138,11 @@ rejected calls. `test_hgr_blit7.py` covers 2,164 warm and 18 cold cases,
 all visible x coordinates and byte dimensions, all modes (including the
 existing CLEAR fallback), source row stride, both pages, palette bits
 and screen holes. It supports IIe and folded-table variants.
+The byte kernel walks each clipped row backwards, using Y as both offset
+and counter. Width is bounded to 1..40 bytes. Its three mode loops save
+three code bytes, with unchanged RAM, zero page and stacks; a full-page
+SET takes 172,739 instead of 195,299 cycles. Sanitized bus probes check
+exact reads for every width, all modes and tight/padded crossing sources.
 
 Recolouring alternates even/odd column bodies, selecting parity once per
 row. With the native wrapper, `hgr_colorize(7,32,140,16,HGR_ORANGE)`

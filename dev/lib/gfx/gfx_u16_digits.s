@@ -1,6 +1,7 @@
 ; VERHILLE Arnaud — GPL-3.0. Optional 65C02-only numeric kernel.
 ; Unsigned 16-bit to five ASCII digits, using bounded 65C02 decimal doubling.
-; CMOS IRQ entry clears decimal mode; RTI restores it. Preserve caller flags.
+; CMOS IRQ entry clears decimal mode; RTI restores it. Preserve C/V/D/I;
+; loading the returned pointer sets N/Z.
 .setcpu "65C02"
 .export _gfx_u16_digits
 .importzp ptr1, ptr2, tmp1

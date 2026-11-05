@@ -102,8 +102,8 @@ guard is checked on both.
 unsigned value from 0 to 65535. Its static buffer is reused on the next
 call. The assembler kernel `gfx_u16_digits.s` is **65C02-only**; the
 optional family `HGRC_65C02_NUM_SRCS` selects it without changing the
-6502 conversions used on the Apple II+. It preserves the flags, including
-the interrupt and decimal-mode states.
+6502 conversions used on the Apple II+. It preserves carry, overflow and
+the interrupt/decimal-mode states; N/Z follow the returned pointer.
 Its binary input and packed digits reuse `ptr1`, `ptr2` and `tmp1`; only
 the six-byte ASCII buffer persists. This removes 17 code bytes and five
 RAM bytes. An exhaustive 65C02 test covers every input under all four D/I
@@ -191,8 +191,12 @@ The two HGR APIs are compared on 464 lines; generic lines are tested in both
 DHGR modes, on both pages and banks, with exact ordered traces and rejected inputs.
 
 `gfx_rect.s` and `gfx_circle.s` provide native outlines for all three backends.
-Their private stack state survives backend scratch clobbers. `gfx_ellipse.c`
-uses the native `gfx_ellipse_offset.s` scaler: radii 0..32767 and signed
+Their private stack state survives backend scratch clobbers. `gfx_ellipse.s`
+keeps a twelve-byte private frame and emits the same 64 ordered chords as
+the retained C reference, including narrow, reversed and clipped boxes.
+Degenerate boxes reuse their argument slots and tail-call a single line.
+HGR clients save 267 loaded bytes; ordinary calls use seven fewer C-stack
+bytes. Both native and C entries use `gfx_ellipse_offset.s`: radii 0..32767 and signed
 coefficients -64..64 are checked exhaustively, including truncation toward
 zero. Matching C geometry files remain portable references; define
 `GFX_ELLIPSE_C_OFFSET` to use the C scaler in a cc65 reference build.

@@ -1,6 +1,6 @@
 ; VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root).
 .include "apple2.inc"
-.importzp ptr1, ptr2, ptr3, tmp2, tmp3, tmp4, aux_read
+.importzp ptr1, ptr2, ptr3, tmp1, tmp2, tmp3, tmp4, aux_read
 .import _dhgr_addr, _dhgr_aux, _dhgr_buffer, _dhgr_count, _dhgr_sprite_mask
 .export _dhgr_read_block_asm, _dhgr_write_block_asm, _dhgr_sprite_asm
 ; Row kernels preserve all shared parameter globals. The block controller
@@ -22,12 +22,14 @@ block_setup:
         rts
 ; Inline the per-byte advance to avoid a JSR/RTS pair for every byte.
 ; DEC must remain last: its Z flag controls each caller's row loop.
-.macro BLOCK_NEXT
+.macro BLOCK_NEXT advance_buffer
         .local @buffer_ok, @same_address
+        .if advance_buffer
         inc ptr2
         bne @buffer_ok
         inc ptr2+1
 @buffer_ok:
+        .endif
         txa                     ; keep the bank in A through pointer increments
         bne @same_address
         inc ptr1
@@ -50,7 +52,7 @@ _dhgr_write_block_asm:
         sta RAMWRTON
 @main:  sta (ptr1),y
         sta RAMWRTOFF
-        BLOCK_NEXT
+        BLOCK_NEXT 1
         bne @byte
         plp
         rts
@@ -65,7 +67,7 @@ _dhgr_read_block_asm:
 @main:  lda (ptr1),y
 @store: and #$7F
         sta (ptr2),y
-        BLOCK_NEXT
+        BLOCK_NEXT 1
         bne @byte
         plp
         rts
@@ -78,7 +80,9 @@ _dhgr_sprite_asm:
         sta ptr3
         lda _dhgr_sprite_mask+1
         sta ptr3+1
-@byte:  lda (ptr3),y
+        sty tmp1                ; shared source offset; both bases stay fixed
+@byte:  ldy tmp1
+        lda (ptr3),y
         eor #$FF
         and #$7F
         beq @next
@@ -86,6 +90,7 @@ _dhgr_sprite_asm:
         lda (ptr2),y
         and tmp3
         sta tmp4
+        ldy #0                  ; screen accesses still use the current address
         lda tmp3
         cmp #$7F
         beq @write
@@ -107,11 +112,8 @@ _dhgr_sprite_asm:
         lda tmp4
         sta (ptr1),y
         sta RAMWRTOFF
-@next:  inc ptr3
-        bne @mask_ok
-        inc ptr3+1
-@mask_ok:
-        BLOCK_NEXT
+@next:  inc tmp1
+        BLOCK_NEXT 0
         bne @byte
         plp
         rts

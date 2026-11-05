@@ -11,21 +11,23 @@ ROOT = Path(__file__).resolve().parents[2]
 DEV = ROOT / 'dev'
 
 
-def bitmap(work):
+def bitmap(work, aligned=False):
     cfg = work / 'bus.cfg'
     cfg.write_text('''MEMORY { ZP: start=$50,size=$B0,type=rw;
  RAM: start=$6000,size=$2000,type=rw,file=%O; }
 SEGMENTS { ZEROPAGE: load=ZP,type=zp; CODE: load=RAM,type=ro; }
 ''')
     objects = []
-    for source in (DEV / 'tests/hgr_bitmap_bus.s', DEV / 'lib/hgrc/hgr_bitmap_asm.s'):
+    defines = ['-D', 'HGRC_BLIT7_BUS=1'] if aligned else []
+    kernel = 'hgr_blit7_asm.s' if aligned else 'hgr_bitmap_asm.s'
+    for source in (DEV / 'tests/hgr_bitmap_bus.s', DEV / 'lib/hgrc'/kernel):
         obj = work / (source.stem + '.o')
-        subprocess.run(['ca65', '-I', str(DEV / 'lib/hgrc'), '-o', str(obj), str(source)], check=True)
+        subprocess.run(['ca65', *defines, '-I', str(DEV / 'lib/hgrc'), '-o', str(obj), str(source)], check=True)
         objects.append(obj)
     binary = work / 'bus.bin'
     subprocess.run(['ld65', '-C', str(cfg), '-o', str(binary), *map(str, objects)], check=True)
     probe = work / 'probe'
-    subprocess.run([*shlex.split(os.environ.get('CC', 'cc')), '-O1', '-g',
+    subprocess.run([*shlex.split(os.environ.get('CC', 'cc')), *defines, '-O1', '-g',
                     '-fsanitize=address,undefined', '-fno-sanitize-recover=all',
                     '-I', str(DEV / 'tools/a2run'), str(DEV / 'tests/hgr_bitmap_bus.c'),
                     str(DEV / 'tools/a2run/cpu6502.c'), '-o', str(probe)], check=True)
@@ -83,4 +85,5 @@ if __name__ == '__main__':
     with tempfile.TemporaryDirectory(prefix='video-memory-') as tmp:
         work = Path(tmp)
         bitmap(work)
+        bitmap(work, aligned=True)
         lores(work)

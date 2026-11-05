@@ -2,10 +2,10 @@
 /*
  * gfx_ellipse.c — card-neutral 64-segment polyline ellipse. See gfx.h.
  *
- * This independent member carries the 80-byte cosine/sine table and the
- * radius scaler. The target uses gfx_ellipse_offset.s; the portable scaler
- * below remains the host and cc65 test reference. Line/rect/circle clients
- * import neither the table nor the scaler.
+ * Portable reference for gfx_ellipse.s. Both carry the same 80-byte
+ * cosine/sine table. cc65 reference builds use gfx_ellipse_offset.s unless
+ * GFX_ELLIPSE_C_OFFSET requests the portable scaler below. Line/rect/circle
+ * clients import neither the table nor the scaler.
  *
  * Drawn by stepping the parametric angle from 0..63/64 * 2π, plotting each
  * 64-segment chord through gfx_line (which itself routes straight runs to

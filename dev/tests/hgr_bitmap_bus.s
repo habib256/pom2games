@@ -1,5 +1,11 @@
 ; Standalone bitmap kernel fixture: parameters supplied by the host bus probe.
+.ifdef HGRC_BLIT7_BUS
+.import _hgr_blit7_run
+blit = _hgr_blit7_run
+.else
 .import _hgr_blit_run
+blit = _hgr_blit_run
+.endif
 .export _hgr_rowlo, _hgr_rowhi
 .exportzp _hgr_b_col, _hgr_b_h, _hgr_b_mode, _hgr_b_src
 .exportzp _hgr_b_stride, _hgr_b_w, _hgr_b_y, ptr1, ptr2, tmp1, tmp2, tmp3, tmp4
@@ -17,7 +23,11 @@ tmp1: .res 1
 tmp2: .res 1
 tmp3: .res 1
 tmp4: .res 1
+.ifdef HGRC_BLIT7_BUS
+_hgr_b_mask: .res 1
+.else
 .importzp _hgr_b_mask
+.endif
 .code
 entry:
     lda $1000
@@ -28,14 +38,16 @@ entry:
     sta _hgr_b_stride
     lda #0
     sta _hgr_b_y
-    sta _hgr_b_mode
     sta _hgr_b_col
+    lda $1004
+    sta _hgr_b_mode
+    lda $1005
     sta _hgr_b_src
     lda #$90
     sta _hgr_b_src+1
     lda #1
     sta _hgr_b_mask
-    jsr _hgr_blit_run
+    jsr blit
     lda #1
     sta $1003
 @done: jmp @done

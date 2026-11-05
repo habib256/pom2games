@@ -4,6 +4,77 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Audit de la quinzième session du 6 novembre 2026 — blits par octets et ellipses natives
+
+Après `1a22268`, les trois boucles du blitter HGR parcourent leurs octets
+à rebours. La largeur découpée est bornée à 40 : Y devient à la fois
+offset et compteur, avec DEY/BPL au lieu d'INY/CPY/BNE. Le noyau perd
+trois octets. Trois nouveaux cas mesurent les 40×192 octets d'une page
+complète ; les tests de bus couvrent aussi les sources non alignées.
+
+Le sprite DHGR garde les bases des pixels et du masque fixes, et utilise
+un offset commun dans `tmp1`. Les accès écran gardent Y=0 et les mêmes
+changements de banques, lectures et écritures. Le noyau partagé perd
+quatre octets, sans autre mémoire. Huit nouveaux cas isolent les entrées
+natives, notamment les masques opaques/transparents et le compteur zéro
+qui représente 256 octets.
+
+`gfx_ellipse.s` remplace le contrôleur C dans les archives cc65. Ses douze
+octets privés conservent le centre, les rayons et les points précédents
+au travers des appels au backend. Il émet les mêmes 64 segments ordonnés,
+avec les mêmes arrondis et découpages ; les cas dégénérés réutilisent les
+arguments et appellent directement une ligne. Le C reste une référence
+portable ; le scaler et la table de 80 octets gardent leurs valeurs.
+Le membre passe de 721 à 595 octets de code ; la suppression de helpers
+de runtime porte les gains des clients à **267 octets HGR / 272 DHGR**.
+Six nouveaux profils mesurent les ellipses sur les deux backends DHGR.
+
+Les **17 nouvelles références** sont prises avec les anciens noyaux.
+Le banc compte **759 cas**, dont **106 clients rétrécissent** : 42 de trois
+octets, 46 de quatre, douze de 267 et six de 272. **61 durées diminuent**,
+41 restent identiques parmi les clients affectés. Trois cas prennent
+un cycle et le rejet horizontal d'ellipse six cycles (239 → 245) ; les
+anciennes limites restent conservées. Les **653 autres dictionnaires
+sont identiques**. RAM et page zéro ne changent pas. Les 18 clients
+d'ellipse gagnent **7..19 octets au pic de pile C**, et trois cas dégénérés
+deux octets de pile matérielle. **293 champs de référence sont abaissés**,
+sans aucune hausse ; les **16 budgets de trame passent**.
+
+| Cas | Cycles avant | Cycles après |
+| --- | ---: | ---: |
+| Blit HGR plein écran SET | 195 299 | 172 739 |
+| Blit HGR plein écran CLEAR | 210 788 | 188 468 |
+| Sprite DHGR transparent, 80 octets | 3 979 | 3 381 |
+| Petite ellipse HGR | 151 671 | 105 892 |
+| Ellipse HGR plein écran | 182 151 | 136 649 |
+| Petite ellipse DHGR monochrome | 250 044 | 204 073 |
+| Petite ellipse DHGR couleur | 251 727 | 206 507 |
+
+Les blits passent huit configurations d'oracles par pixel (entrée directe
+et sprites pré-décalés, deux CPU, tables séparées/repliées), ainsi que
+les lectures exactes sous ASan/UBSan avec les deux versions du noyau.
+Le sprite DHGR passe **1 024 appels / 130 552 écritures ordonnées** avec
+les deux versions : tous les compteurs, pages/banques, pointeurs traversant
+les pages, paramètres préservés et états IRQ. Les contrôles publics
+passent sur IIe/IIc.
+
+Les ellipses natives passent **74 192 tracés / 4 117 895 segments ordonnés
+par CPU**, le C retenu passe le même ensemble sur NMOS. Les cas incluent
+toutes les paires d'ordonnées, des abscisses 16 bits, des écrans vides,
+des callbacks détruisant les temporaires et 2 048 placements de pile.
+Neuf formes sur les deux pages sont aussi rendues par les vrais backends
+et comparées octet par octet au C : **294 912 octets vidéo par CPU en
+HGR**, **589 824 par backend DHGR**, trous vidéo et banques compris.
+Les états vidéo stables correspondent ; le VBL instantané est exclu de
+cette comparaison car les durées changent.
+
+Les tests de frontières, de construction des archives, d'intégration HGR
+et des lignes DHGR passent, ainsi que ROBOTSTATION sur IIe/IIc.
+`make all` réussit ; seul ROBOTSTATION et son WOZ changent. Les **18 paires
+disque/WOZ** correspondent et `git diff --check` ne signale rien.
+Le contrôle final `--dhgr --check` reproduit les 759 mesures à l'identique,
+avec les références resserrées et les 16 budgets absolus satisfaits.
+
 ## Audit de la quatorzième session du 5 novembre 2026 — bitmaps, zones sales et décimal CMOS
 
 Après `1ef8225`, le blitter HGR teste le dernier pixel avant d'avancer son
