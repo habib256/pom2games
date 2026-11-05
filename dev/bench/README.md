@@ -1,5 +1,10 @@
 # Current cc65 measurements
 
+Phase-zero masked draws skip the unused height/stride product while still
+consuming their one-call hint. This saves another **4 code bytes**. A tall
+sprite clipped to the bottom row takes **402 instead of 5,251 cycles** in
+phase zero. All setup dimensions, phases and hint values pass on both CPUs.
+
 Masked-sprite row advancement shares its save-under tail, saving **16 loaded
 bytes** without extra instructions, RAM or stack. The four generic drawing,
 saving and restoration cases retain their cycle counts. A new setup oracle

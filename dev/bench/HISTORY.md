@@ -4,6 +4,28 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Nouvelle série du 5 novembre 2026 : phase zéro des sprites masqués
+
+Le dessin consomme d'abord son indicateur de taille mis en cache, puis
+rejette le travail de décalage lorsque la phase est zéro. Sauvegarde et
+restauration continuent à préserver cet indicateur. La préparation perd
+**4 octets supplémentaires**, de 225 à 221, sans état ni pile ajoutés.
+
+| Dessin en phase zéro | Cycles avant → après cette passe |
+|---|---:|
+| Stride 2, hauteur 1 | 443 → 420 |
+| Stride 3, hauteur 16 | 3 559 → 3 255 |
+| Stride 1, hauteur 255, bas découpé | 5 251 → 402 |
+| Stride 255, hauteur 1, droite découpée | 435 → 412 |
+| Stride 3, hauteur 16 avec cache | 3 265 → 3 257 |
+
+Les phases non nulles coûtent provisoirement 6 à 12 cycles supplémentaires ;
+la passe suivante réduit le calcul de leur produit. Les deux modes de
+préparation passent chacun dans le contrôle complet : **1 827 868 appels
+par CPU**, sur 6502 et 65C02, dont tous les indicateurs de cache pour chaque
+phase et placement. Les benchmarks réarment cet indicateur dans l'appel
+mesuré : l'échauffement ne doit pas le consommer avant la mesure.
+
 ## Nouvelle série du 5 novembre 2026 : fin de ligne des sprites masqués
 
 L'avancement du pointeur de sauvegarde et des compteurs de lignes est

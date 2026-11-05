@@ -168,19 +168,19 @@ ms_setup_common:
 @hok:
         lda ms_under_only
         bne @poff
+        ; The draw consumes its one-call hint even when phase zero needs
+        ; no multiplication or bank adjustment. Save/restore keeps it intact.
         lda _hgr_ms_block
-        beq @calculate
         sta ms_blk
         lda #0
-        sta ms_blk_hi
         sta _hgr_ms_block
-        beq @phases               ; A=0, stores preserve Z
-@calculate:
+        ldx tmp1
+        beq @poff
         ; phase block = h * stride via loop-add (h iterations, no multiply)
         ldx tmp3                  ; capture full h before reusing its scratch
-        lda #0
-        sta ms_blk
         sta ms_blk_hi
+        lda ms_blk
+        bne @phases
 @hloop:
         clc
         lda ms_blk
@@ -194,7 +194,6 @@ ms_setup_common:
         ; data += phase*blk ; mask += phase*blk (phase iterations of a 16-bit add)
 @phases:
         ldx tmp1                  ; phase
-        beq @poff
 @ploop:
         clc
         lda ptr2
