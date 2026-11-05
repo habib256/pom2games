@@ -571,6 +571,19 @@ for suffix,ch,col,row in (('origin',65,0,0),('last',90,34,23),('zero',0,0,0),
         setup='hgr_puts8(0,0," ");',warmup=False)
 SCENES['gfx_color_noop']=dict(call='gfx_cell_color(255);',warmup=False)
 
+for suffix,x,y,w,h,color,mode in (
+    ('one',0,0,1,1,1,0),('max_w',0,0,64,1,4,2),
+    ('max_h',14,190,1,64,5,1),('empty_w',0,0,0,64,1,0),
+    ('empty_h',0,0,64,0,1,0),('overflow',0,0,255,255,1,0),
+    ('over_limit',0,0,65,1,1,0),('reject_x',65535,0,3,16,1,0),
+    ('reject_y',0,192,3,16,1,0),('unknown_color',0,0,3,16,255,255),
+):
+    SCENES['hgr_inflate_blit_'+suffix]=dict(
+        declarations='#include "hgr_x2.h"\nstatic unsigned char mono[64];static unsigned i;',
+        setup='for(i=0;i<64;++i)mono[i]=(unsigned char)(i*13u+7u);',
+        call=f'hgr_blit_x2({x}u,{y},mono,{w},{h},{color},{mode});')
+
+
 for suffix,w,h,color in (
     *((f'one_{c}',1,1,c) for c in range(6)),
     ('sprite_white',3,16,1),('sprite_blue',3,16,4),

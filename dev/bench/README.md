@@ -1,5 +1,11 @@
 # Current cc65 measurements
 
+The native inflate-and-blit entry saves another **36 loaded bytes** and
+reduces valid/rejected C-stack peaks from 18/11 to **14/8 bytes**. An
+oversized source is rejected in **152 cycles instead of 570**; drawing a
+white 3×16 source now takes **13,698 cycles**. Its private 256-byte buffer
+and all color/mode forwarding remain unchanged.
+
 Native doubled-sprite conversion saves **391 loaded bytes** and reduces
 C/hardware-stack peaks from 23/8 to **5/6 bytes**, with unchanged RAM and
 zero page. Inflating a white 3×16 source takes **10,604 cycles instead of

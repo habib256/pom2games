@@ -25,7 +25,7 @@ HGRC_TEXT_SRCS := $(addprefix $(HGRC)/,hgr_font.c hgr_text.s hgr_text8.s hgr_tex
     hgr_hud_invalidate.s)
 HGRC_SPRITES_SRCS := $(HGRC)/hgr_sprites.s $(HGRC)/hgr_blit7.s
 HGRC_PRESHIFT_SRCS := $(addprefix $(HGRC)/,hgr_preshift.s hgr_preshift_xor.s hgr_preshift_validate.s)
-HGRC_X2_SRCS := $(HGRC)/hgr_x2_target.s $(HGRC)/hgr_inflate_x2_asm.s $(HGRC)/hgr_blit_x2.c
+HGRC_X2_SRCS := $(HGRC)/hgr_x2_target.s $(HGRC)/hgr_inflate_x2_asm.s $(HGRC)/hgr_blit_x2.s
 HGRC_SPRMASK_SRCS := $(HGRC)/hgr_sprmask.s
 HGRC_SPRENGINE_SRCS := $(HGRC)/hgr_sprengine.c $(HGRC)/hgr_sprengine_asm.s $(HGRC)/hgr_sprdamage.s $(HGRC)/hgr_sprdefault.c
 HGRC_GEOM_SRCS := $(addprefix $(HGRC)/,hgr_hline.s hgr_vline.s hgr_line.s hgr_outline.s \

@@ -1413,3 +1413,9 @@ arguments. `test_hgr_x2_bytes.py` compares every byte/color pair and all
 pointer alignments with a pixel oracle; `--reference` selects the C version.
 `test_hgr_x2_entry.py` verifies every dimension pair, both full pointer domains,
 the exact extent boundary, hostile scratch and 1,536 stack placements.
+
+`hgr_blit_x2.s` validates the 64-byte source limit with a bounded product,
+then reuses the original arguments for the byte blitter after inflation.
+Its C reference remains available. `test_hgr_blit_x2_entry.py` checks all
+size pairs, full x/source words, colors/modes and 2,048 stack placements,
+including a backend that destroys every scratch register.

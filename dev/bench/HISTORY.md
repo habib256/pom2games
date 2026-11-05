@@ -4,6 +4,38 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Série du 5 novembre 2026 : entrée native du dessin de sprites doublés
+
+L'entrée refuse les dimensions nulles, les coordonnées hors écran et les
+sources dépassant 64 octets avant de réserver de pile supplémentaire.
+Le produit est borné pendant son calcul binaire. Après conversion, les
+arguments initiaux deviennent directement le cadre du blitter ; le mode,
+la couleur et le pointeur source sont transmis sans altération. Le tampon
+privé reste à 256 octets et la référence C est conservée.
+
+| Appel C | Cycles avant → après | Binaire avant → après |
+|---|---:|---:|
+| Un octet blanc | 1 769 → 1 465 | 1 772 → 1 736 |
+| Largeur source 64 | 13 917 → 13 591 | 1 782 → 1 746 |
+| Hauteur source 64 | 16 385 → 16 206 | 1 790 → 1 754 |
+| Sprite blanc 3×16 | 13 926 → 13 698 | 1 786 → 1 750 |
+| Sprite bleu 3×16 | 12 403 → 12 183 | 1 788 → 1 752 |
+| Taille trop grande | 570 → 152 | 1 774 → 1 738 |
+| x hors écran | 584 → 198 | 1 782 → 1 746 |
+| y hors écran | 594 → 187 | 1 782 → 1 746 |
+
+Les clients économisent 36 octets, sans changer RAM ni page zéro.
+Pile C valide/rejetée 18/11 → 14/8 ; pile matérielle rejetée 8 → 4.
+Les dix nouveaux cas portent le banc à 534 : les 12 cas du wrapper
+s'améliorent, les 522 autres restent identiques.
+
+C puis assembleur passent 264 192 appels sur II+ et IIe : tous les couples
+de dimensions, mots x/source, octets y/couleur/mode, séquence et arguments
+exacts des deux moteurs, même tampon entre conversion et dessin, temporaires
+hostiles et 2 048 positions de pile. Les x2 réels, ASan/UBSan hôte,
+69 clients minimaux, intégration HGR, gate, reconstruction et 18 WOZ passent.
+Les disques restent identiques.
+
 ## Série du 5 novembre 2026 : inflation native des sprites doublés
 
 L'entrée calcule seulement l'octet haut du produit largeur × hauteur en
