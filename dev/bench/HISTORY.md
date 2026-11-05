@@ -4,6 +4,29 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Audit de la cinquième session du 5 novembre 2026 — sprites masqués
+
+Après `9812ef8`, les commits `22594f9`, `477b613` et `52ef795` partagent la
+fin de ligne, évitent le produit en phase zéro et conservent le produit et
+le cache dans les registres. Le gain cumulé est de **25 octets chargés**
+par client concerné, sans changement de RAM, page zéro ou piles.
+
+Le gate complet `--dhgr --check` passe avec **666 cas**, dont 15 nouveaux
+mesurés avant modification. Par rapport au bilan précédent complété par
+ces mesures : **61 clients plus petits**, 605 dictionnaires identiques,
+26 durées réduites et 33 augmentées de moins de **0,36 %**. Ces petites
+hausses comprennent quatre dessins d'une ligne à +2 cycles et des scènes
+intégrées ; tous les budgets absolus de trame restent respectés.
+**141 champs de référence sont abaissés** ; aucun ancien seuil ni budget
+absolu n'est relevé, y compris pour les nouveaux cas qui ralentissent.
+
+Les **1 827 868 préparations** et **200 scènes exactes** passent sur chacun
+des deux CPU, 6502 et 65C02. Les tests du moteur, stress, suivi des sprites
+modifiés, propagation des dommages et HGR passent également. `make all`,
+les tests de l'exemple HGR et la campagne complète des cinq niveaux de
+LIGHT3DBALL réussissent. Seules les disquettes HGR et LIGHT3DBALL changent ;
+leurs WOZ sont régénérés et les **18 paires disque/WOZ** sont vérifiées.
+
 ## Nouvelle série du 5 novembre 2026 : produit des sprites masqués en registres
 
 L'octet bas du produit reste dans A pendant toutes les additions ; seul

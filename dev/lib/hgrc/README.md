@@ -1273,6 +1273,17 @@ and two zero-page bytes, with unchanged RAM and stack peaks. Generic
 all four entries, large strides and heights, products crossing 255, every
 phase, both pages and save-under guards on NMOS and 65C02.
 
+Three further passes share the save-under row tail, skip the unused
+height/stride product in phase zero and keep its low byte and the cached
+block in registers. They save another 25 loaded bytes per masked-sprite
+client without changing RAM, zero page or stack peaks. Generic draw and
+save-and-draw now take 2,836 and 3,183 cycles. A height-255 phase-zero sprite
+clipped to one row takes 399 instead of 5,251 cycles. Draw still consumes
+the one-call block hint, while save and restore preserve it. The full setup
+oracle checks 1,827,868 calls on each CPU, including every nonzero stride
+and height, all seven phases and all 256 hint values. Small timing tradeoffs
+and the full-suite results are recorded in the benchmark history.
+
 ## Optional explicit addressing
 
 `hgr_row_on_page(page,y)` returns an address for page 1/2 and line

@@ -285,6 +285,20 @@ for name, kernel in (('draw', 'hgr_ms_run'), ('save', 'hgr_ms_save_run'),
             'static const hgr_mspr_t shape={pixels,keep,7,8};\nstatic unsigned j;',
         setup='for(j=0;j<392;++j){pixels[j]=j&127u;keep[j]=128;}'
             'hgr_ms_x=17;hgr_ms_y=40;hgr_ms_spr=&shape;hgr_ms_under=under;')
+for phase in (0,3,6):
+    for label,stride,height,y in (('one',2,1,40),('sprite',3,16,40),
+                                  ('tall',1,255,191),('wide',255,1,191)):
+        block=stride*height
+        SCENES[f'hgr_masked_phase{phase}_{label}']=dict(
+            declarations='#include "hgr_internal.h"\n'+
+                f'static unsigned char pixels[{7*block}],keep[{7*block}],under[{block}];'+
+                f'static const hgr_mspr_t shape={{pixels,keep,{stride},{height}}};static unsigned j;',
+            setup=f'for(j=0;j<{7*block};++j){{pixels[j]=j&127u;keep[j]=128;}}'+
+                f'hgr_ms_x={273+phase if label=="wide" else 28+phase};hgr_ms_y={y};'+
+                'hgr_ms_spr=&shape;hgr_ms_under=under;',call='hgr_ms_run();')
+    SCENES[f'hgr_masked_cached_phase{phase}']=dict(SCENES[f'hgr_masked_phase{phase}_sprite'],
+        call='hgr_ms_block=48;hgr_ms_run();')
+
 for phase in (0, 3, 6):
     SCENES['hgr_preshift_phase'+str(phase)] = dict(
         call='hgr_sprite_xor(%du,40,&sprite);' % (28 + phase),

@@ -1,5 +1,13 @@
 # Current cc65 measurements
 
+The fifth-session gate passes **666 cases**, including 15 new masked-sprite
+workloads measured before and after. **61 clients shrink by 25 loaded bytes**;
+RAM, zero page and stacks are unchanged. 141 reference fields are tightened.
+The 33 timing increases stay below 0.36%, with prior limits preserved and
+all frame budgets met. Exhaustive setup checks pass on both CPUs, as do
+engine integration and the rebuilt HGR/LIGHT3DBALL disks; all 18 WOZ twins
+match. See [the fifth-session audit](HISTORY.md#audit-de-la-cinquième-session-du-5-novembre-2026--sprites-masqués).
+
 Keeping the masked-sprite product and hint in registers saves another
 **5 code bytes**, for **25 loaded bytes across all three passes**. Generic
 drawing takes **2,836 instead of 2,876 cycles**; a height-255 sprite clipped
