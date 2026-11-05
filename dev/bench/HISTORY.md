@@ -4,6 +4,78 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Audit de la vingt-et-unième session du 6 novembre 2026 — sprites masqués, décalages et commandes
+
+Après `b56bfb9`, la préparation HGR save/restore saute les lectures de
+pointeurs data/mask, inutilisés par ces opérations. Les avances de ligne
+réutilisent la retenue nulle du calcul d'adresse écran : octet bas de
+ligne ≤ $D0, colonne ≤ 39, boucles d'octets préservant C. Les additions
+indépendantes des pointeurs de dessin conservent leurs CLC nécessaires.
+Le code, les données et les piles gardent **exactement la même taille**.
+Sauvegarde générique **1 783 → 1 727 cycles**, restauration **1 794 →
+1 738**, dessin **2 841 → 2 825**. Les quatre sprites de 16 lignes passent
+de **37 531 à 37 115 cycles** : 40 de préparation et deux par ligne de
+dessin/restauration économisés sur chaque sprite. Les temporaires cc65
+inutilisés restent sans contrat de valeur ou de préservation.
+
+Le banc global passe **793 cas et 16 budgets de trame**. **51 durées
+baissent de 2..416 cycles**, aucune mesure n'augmente et les **742 autres
+dictionnaires sont identiques**. Aucune empreinte de code, RAM, page zéro
+ou pile ne change dans ce banc. **49 plafonds de cycles sont abaissés**,
+aucun relevé. Le jeu compact passe de 15 148 à **15 004 cycles**.
+Les oracles HGR vérifient **1 827 868 préparations sur chaque CPU**,
+400 scènes de pixels, 72 scènes du moteur et la fermeture des dégâts.
+Ancien et nouveau code passent chacun **544 appels et 17 592 écritures
+écran ordonnées**, avec écrans/buffers complets, arguments, pile,
+banques et état IRQ à chaque écriture puis au retour.
+
+La contrainte physique exploite la borne `qx²+qy² ≤ 64800` : pas de
+retenue haute possible, et le décalage conserve le signe sans réécrire
+son octet. Le bloc générique passe de **60 à 50 octets**, de 103 à
+79 cycles positifs et de 111 à 85 près de zéro négatif. Les contraintes
+intégrées économisent **10..12 octets chargés et 24..29 cycles** dans
+les profils ciblés. Le helper de paire reste à **24 octets**, mais son
+décalage quatre passe de **104/105 à 86/87 cycles**. Les blocs fixes K=5..8
+économisent **0/1/2/3 octets et 3/6/9/12 cycles** ; la correction K=0..2
+reste en place. Aucun état, cache, page zéro ou pile supplémentaires.
+
+Les deux CPU vérifient les **131 072 mots signés** du bloc générique et
+**15 compteurs × 65 536 entrées** de paire, y compris zéro (256 tours)
+et les grands compteurs. Les empreintes d'état/drapeaux sont identiques.
+Tous les gains K=0..8 et les 32 combinaisons publiques conservent leurs
+résultats. Les six modèles clients passent : par exemple LANDER sans
+moteur **5 124 → 5 067 cycles**, ROPE en oscillation **14 327..16 384 →
+14 224..16 281** ; CATAPULT K4/FAST conserve ses timings. Les fixtures
+ROPE/LANDER/HALFPIPE perdent un octet, celles CUTROPE/CATAPULT gardent
+leur taille. Les bancs dédiés proposent références et métadonnées.
+
+Sept branches de répertoire désormais relatives économisent **21 octets
+chargés dans les 56 profils** : 50 appels accélèrent, six sont identiques,
+sans autre métrique changée. Filtrage **22 508 → 22 366 cycles**, géométrie
+de longueur zéro au maximum **69 194 → 67 829**. Les 2 351 cas par CPU et
+les volumes réels résidents/OVL2 LOWBSS passent. L'OVL2 de MBTRACKER
+occupe désormais **4 266 octets**.
+
+L'ajout de texte DOS conserve son index dans X et supprime un chemin de
+débordement Y impossible : un tampon de capacité ≤ 256 réserve son NUL,
+donc copie au plus 255 caractères. Les **18 profils perdent deux octets
+de code et gagnent 52..146 cycles**, sans autre métrique changée. Ces
+durées excluent les entrées/sorties disque. L'oracle indépendant passe
+**27 450 cas sur les deux CPU et toutes les capacités 1..256** : A/X/Y,
+retenue, index, overflow, buffers, gardes, pile et page zéro. Les 530
+commandes par CPU, CATALOG réel, réutilisation, DOS_SEI et sauvegarde
+partielle de la page zéro passent aussi. Les tests dédiés rejoignent les
+cibles habituelles, avec une cible exhaustive pour les capacités DOS.
+
+`make all` réussit et les **18 paires disque/WOZ** correspondent. Les neuf
+programmes reconstruits passent : **ARKABREAKOUT, CUTROPE, DIRTBIKE, HGR,
+LIGHT3DBALL, MAZE3D, MBTRACKER, ROGUE et SNAKE**, sauvegardes et erreurs
+disque comprises. Les quatre démonstrations LANDER, ROPE, HALFPIPE et
+CATAPULT passent modèles, fonctionnement et cadence/blanking vertical.
+Les options de bibliothèque, la structure du Makefile et
+`git diff --check` passent. Les 49 références resserrées proviennent du
+contrôle global final sur les sources figées.
+
 ## Audit de la vingtième session du 6 novembre 2026 — entrées natives du moteur HGR
 
 Après `1dbfb25` et le correctif physique isolé `6f78d57`, les entrées

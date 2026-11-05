@@ -244,8 +244,7 @@ vl_constrain:
         TYA
         ADC     vl_pen+1
         STA     vl_w1
-        LDA     #0
-        ADC     #0
+        LDA     #0                      ; 2 * 180^2 = 64800: no carry
         STA     vl_w2
 .endif                                  ; (VL_CON_FAST)
 .ifdef VL_CON_MINLEN_POINT
@@ -297,12 +296,20 @@ _VL_FKN = 11 - VL_CON_FIXED_K           ; f = clamp(w / 2^n, +-127), toward 0
         STA     vl_w2
 @fk:
 .if _VL_FKN < 8
+.if 8 - _VL_FKN >= 2
+        LDA     vl_w2
 .repeat 8 - _VL_FKN                     ; w << (8 - n): f = w2:w1
         ASL     vl_w0
         ROL     vl_w1
-        ROL     vl_w2
+        ROL     A
 .endrepeat
+        STA     vl_w2
+.else
+        ASL     vl_w0
+        ROL     vl_w1
+        ROL     vl_w2
         LDA     vl_w2
+.endif
 .else
         LDA     vl_w2                   ; w2:w1 >> (n - 8)
 .repeat _VL_FKN - 8
@@ -335,17 +342,17 @@ _VL_FKN = 11 - VL_CON_FIXED_K           ; f = clamp(w / 2^n, +-127), toward 0
 @fmin:  LDA     #$81
 @fok:   STA     vl_fcoef
 .else
+        ; q2 <= 64800 and l2 <= 65535: w2 is already $00/$ff.
+        ; Feed its top three sign bits without rotating/storing it again.
         LDY     #3                      ; >> 3, arithmetic
-@sh:    LDA     vl_w2
-        CMP     #$80
-        ROR     vl_w2
+        LDA     vl_w2
+@sh:    ASL     A
         ROR     vl_w1
         ROR     vl_w0
         DEY
         BNE     @sh
-        LDA     vl_w2                   ; clamp to +-4095
+        TAY                             ; restore N/Z; product below replaces Y
         BMI     @dneg
-        BNE     @dmax
         LDA     vl_w1
         CMP     #$10
         BCC     @dok
@@ -354,9 +361,7 @@ _VL_FKN = 11 - VL_CON_FIXED_K           ; f = clamp(w / 2^n, +-127), toward 0
         LDA     #$0F
         STA     vl_w1
         BNE     @dok
-@dneg:  CMP     #$FF
-        BNE     @dmin
-        LDA     vl_w0
+@dneg:  LDA     vl_w0
         CMP     #$01
         LDA     vl_w1
         SBC     #$F0

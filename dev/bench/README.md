@@ -1,5 +1,14 @@
 # Current cc65 measurements
 
+The twenty-first-session gate passes **793 cases and 16 frame budgets**.
+Masked save/restore setup and row carries improve **51 timings**, with
+every footprint/stack metric unchanged and no regression; 742 dictionaries
+are identical and 49 cycle limits tighten. Four moving sprites take
+**37,115 instead of 37,531 cycles**. Separate measured passes save 10..12
+bytes in generic physics constraints, 21 in directory clients and two in
+DOS command preparation; the existing low-gain correction is preserved.
+See [the twenty-first-session audit](HISTORY.md#audit-de-la-vingt-et-unième-session-du-6-novembre-2026--sprites-masqués-décalages-et-commandes).
+
 The twentieth-session gate passes **793 cases and 16 frame budgets**.
 Independent native HGR sprite entries shrink **56 clients by 356..949
 loaded bytes**. Eighteen timings improve, eight stay equal and thirty rise

@@ -113,24 +113,13 @@ ms_setup_common:
 @xset:
         sta ms_col
         sty tmp1                  ; tmp1 = phase (0..6)
-        ; deref spr -> read data/mask/stride/h (ptr1 is free until the row loop)
+        ; Geometry is shared by all entries. Data/mask pointers are needed
+        ; only by drawing; ptr1 retains the descriptor until that branch.
         lda _hgr_ms_spr
         sta ptr1
         lda _hgr_ms_spr+1
         sta ptr1+1
-        ldy #0
-        lda (ptr1),y              ; data low
-        sta ptr2
-        iny
-        lda (ptr1),y              ; data high
-        sta ptr2+1
-        iny
-        lda (ptr1),y              ; mask low
-        sta ptr3
-        iny
-        lda (ptr1),y              ; mask high
-        sta ptr3+1
-        iny
+        ldy #4
         lda (ptr1),y              ; stride
         sta ms_stride
         sta ms_w                  ; default w = stride
@@ -157,7 +146,20 @@ ms_setup_common:
         sta ms_h
 @hok:
         lda ms_under_only
-        bne @poff
+        bne @poff               ; save/restore never consume data or mask
+        ldy #0
+        lda (ptr1),y              ; data low
+        sta ptr2
+        iny
+        lda (ptr1),y              ; data high
+        sta ptr2+1
+        iny
+        lda (ptr1),y              ; mask low
+        sta ptr3
+        iny
+        lda (ptr1),y              ; mask high
+        sta ptr3+1
+
         ; The draw consumes its one-call hint even when phase zero needs
         ; no multiplication or bank adjustment. Save/restore keeps it intact.
         ldy _hgr_ms_block
@@ -225,8 +227,9 @@ ms_rowbase:
 
 ; --- ms_next_row : advance data/mask/under by stride, yy += 1, rows -= 1 ------
 ; Returns with Z clear while rows remain (callers loop on BNE). ~45 cycles.
+; ms_rowbase leaves C=0: row low <=$D0 plus clipped column <=39.
+; The byte loops (including unrolled widths) preserve it until this entry.
 ms_next_row:
-        clc
         lda ptr2                ; data += stride
         adc ms_stride
         sta ptr2
@@ -241,8 +244,9 @@ ms_next_row:
         inc ptr3+1
 @u:
         ; Save/restore enters this same tail, without data/mask advancement.
+        clc                     ; data/mask advances may have carried
+; Direct save/restore callers also arrive with C=0 from ms_rowbase.
 ms_next_under:
-        clc
         lda ptr4                ; under += stride (linear buffer, row-major)
         adc ms_stride
         sta ptr4

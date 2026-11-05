@@ -95,6 +95,15 @@ hints:
  lda index
 hint_ready:
  sta _hgr_ms_block
+ ; Save/restore must not depend on source-pointer scratch from earlier draws.
+ lda #$5a
+ sta ptr2
+ lda #$a5
+ sta ptr2+1
+ lda #$c3
+ sta ptr3
+ lda #$69
+ sta ptr3+1
  lda under_mode
  bne under
  jsr ms_setup
@@ -110,7 +119,9 @@ record:
             for plane,name in enumerate(fields):
                 out.write(f' lda {name}\n sta results+{plane*256},x\n')
             out.write(""" inc index
- bne loop
+ beq :+
+ jmp loop
+:
 page_done: nop
 resume: jmp prepare
 .export start,height,under_mode,hint_mode,page_done,resume,results
@@ -160,7 +171,11 @@ SEGMENTS {
                                         hint if under else 0,base or 0x20)
                                 for plane,v in enumerate(values):wanted[plane*256+index]=v
                                 count+=1
-                            assert result.dumps[batch]==wanted,(x,y,under,hints,h,[(i//256,i%256,a,b) for i,(a,b) in enumerate(zip(result.dumps[batch],wanted)) if a!=b][:12])
+                            # ptr2/ptr3 are volatile scratch, not outputs of an
+                            # under-only operation. Check every geometry,
+                            # under-pointer, hint and page field independently.
+                            start=4*256 if under else 0
+                            assert result.dumps[batch][start:]==wanted[start:],(x,y,under,hints,h,[(i//256,i%256,a,b) for i,(a,b) in enumerate(zip(result.dumps[batch][start:],wanted[start:]),start) if a!=b][:12])
         print(f'Masked setup: {count:,} calls, all strides/seven phases/two placements, '
               f'full offsets and clipping, both modes and all 256 hints; '
               f'{L["ms_rowbase"]-L["ms_setup"]} setup bytes; IIe={args.iie}.')

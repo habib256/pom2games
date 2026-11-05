@@ -110,6 +110,7 @@ test-hgr:
 	$(PYTHON) dev/tests/test_asm_boundaries.py
 	$(PYTHON) dev/tests/test_dos_reuse.py
 	$(PYTHON) dev/tests/test_dosbin.py
+	$(PYTHON) dev/tests/test_dos_append.py
 	$(PYTHON) dev/tests/test_math.py
 	$(PYTHON) dev/tests/test_rand16.py
 	$(PYTHON) dev/tests/test_rand16.py --iie
@@ -125,6 +126,8 @@ test-hgr:
 	$(PYTHON) dev/tests/test_verlet_ground_probes.py --iie
 	$(PYTHON) dev/tests/test_verlet_fixed_gain.py
 	$(PYTHON) dev/tests/test_verlet_fixed_gain.py --iie
+	$(PYTHON) dev/tests/test_verlet_constraint_shifts.py
+	$(PYTHON) dev/tests/test_verlet_constraint_shifts.py --iie
 	$(PYTHON) dev/tests/test_gfx_glyph_entry.py
 	$(PYTHON) dev/tests/test_gfx_glyph_entry.py --iie
 	$(PYTHON) dev/tests/test_gfx_number_entries.py
@@ -181,6 +184,7 @@ test-hgr:
 	$(PYTHON) dev/tests/test_preshift_setup.py
 	$(PYTHON) dev/tests/test_sprmask_bounds.py
 	$(PYTHON) dev/tests/test_sprmask_setup.py
+	$(PYTHON) dev/tests/test_hgr_masked_rows.py
 	$(PYTHON) dev/tests/test_sprite16_bounds.py
 	$(PYTHON) dev/tests/test_text8_strings.py
 	$(PYTHON) dev/tests/test_hgr_native.py
@@ -362,6 +366,10 @@ test-hgr-spr-control-full: $(A2RUN)
 	$(PYTHON) dev/tests/test_hgr_spr_control.py --full
 	$(PYTHON) dev/tests/test_hgr_spr_control.py --full --reference
 .PHONY: test-hgr-spr-control-full
+
+test-dos-append-full: $(A2RUN)
+	$(PYTHON) dev/tests/test_dos_append.py --full
+.PHONY: test-dos-append-full
 
 test-preshift-setup-full: $(A2RUN)
 	$(PYTHON) dev/tests/test_preshift_setup.py --full

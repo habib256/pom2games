@@ -161,22 +161,22 @@ entry_loop:
  sta ptr1+1
  cmp #>(block+512)
  bcc entry_valid
- jne block_done
+ bne block_done
  lda ptr1
  cmp #<(block+512)
  bcc entry_valid
- jne block_done
+ bne block_done
 entry_valid:
  ldy #0
  lda (ptr4),y
  cmp #$10
- jcc next_entry
+ bcc next_entry
  cmp #$40
- jcs next_entry
+ bcs next_entry
  and #15
  cmp sl
- jcc next_entry
- jeq next_entry
+ bcc next_entry
+ beq next_entry
  sta tmp2                  ; name length
  sbc sl                    ; C set: name length minus suffix length
  sta tmp3
@@ -226,7 +226,7 @@ match_count:
  lda _prodos_dir_count
  ldy #2
  cmp (sp),y
- jeq block_done
+ beq block_done
 next_entry:
  inc tmp1
  lda tmp1

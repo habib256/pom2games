@@ -437,13 +437,14 @@ vl_pair_damp:
 ; val >>= VL_PAIR_DAMP (arithmetic), w2 = its sign byte
 vl_sd_shift:
         LDY     #VL_PAIR_DAMP
-@s:     LDA     vl_val+1
-        CMP     #$80
-        ROR     vl_val+1
+        LDA     vl_val+1
+@s:     CMP     #$80
+        ROR     A
         ROR     vl_val
         DEY
         BNE     @s
-        LDA     #0
+        STA     vl_val+1
+        TYA
         BIT     vl_val+1
         BPL     @p
         LDA     #$FF

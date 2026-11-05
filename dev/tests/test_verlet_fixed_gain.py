@@ -23,7 +23,7 @@ def gains(source_path, include, iie, expect_bug):
     # below independently check source selection and surrounding composition.
     source = source_path.read_text()
     start = source.index('        LDA     vl_w2\n        BPL     @fk')
-    stop = source.index('\n.else\n        LDY     #3', start)
+    stop = source.index('\n.else\n', source.index('@fok:   STA     vl_fcoef', start))
     block = source[start:stop]
     report = {}
     for gain in range(9):

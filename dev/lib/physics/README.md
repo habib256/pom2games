@@ -139,6 +139,18 @@ FAST/SKIP/PIN/HEAVY/Y_HIGH combination. The test supports `--iie`,
 `--reference PATH`, `--expect-bug` for the old source and metadata-rich
 `--out PATH` reports. Shipped fixed-gain clients use K=4, 5 or 6.
 
+A subsequent shift pass uses the bound `qx²+qy² <= 64800` to avoid an
+impossible carry and repeated writes of the sign byte. Generic constraints
+save 10..12 loaded bytes and 24..29 cycles in the focused calls. The pair
+shift keeps its 24-byte size; count four takes **86/87 instead of 104/105
+cycles**. Fixed-gain K=5..8 shift blocks save 0/1/2/3 bytes and 3/6/9/12
+cycles. The K=0..2 correction remains in place. No state, zero page or stack
+is added. `test_verlet_constraint_shifts.py` checks all 131,072 signed
+stage inputs and 15 counts × 65,536 pair inputs on each CPU, including
+legacy count zero and large counts, plus public constraints. Use `--iie`,
+`--bench --out PATH` and `--reference DIR` for the paired measurements.
+Full fixed-gain/model hashes remain identical for every K and switch set.
+
 **Pins** (`VL_PIN`): `vl_pin,X` non-zero (the program sets the table; BSS
 is not cleared) pins point X: `vl_integrate` and `vl_push_all` leave it
 alone, a link with one pinned end moves the other end by the whole

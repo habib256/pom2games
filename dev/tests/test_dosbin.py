@@ -62,7 +62,7 @@ def expected_command(name,address,length):
     return bytes(data)+b'\0',overflow
 
 
-def check(work,kernel):
+def check(work,kernel,dos_source=None):
     source=work/'calls.c'
     source.write_text('#include "apple2dos.h"\nvoid ready(void);void prepared(void);\n'
         'static const struct {const char *name; unsigned addr,len; unsigned char save;} cases[]={'+
@@ -73,8 +73,11 @@ def check(work,kernel):
         'else a2_dos_bload(cases[i].name,(void*)cases[i].addr);prepared();}'
         'for(;;){}return 0;}')
     helper=work/'apple2dos_asm.s'
-    helper.write_text('.export dos_cmd_buf,dos_cmd_ix,dos_cmd_overflow,dos_zp_prog\n'+
-                      (DEV/'lib/apple2c/apple2dos_asm.s').read_text())
+    helper_source=(DEV/'lib/apple2c/apple2dos_asm.s').read_text()
+    if dos_source is not None:
+        assert helper_source.count('.include "dos.asm"')==1
+        helper_source=helper_source.replace('.include "dos.asm"',dos_source.read_text())
+    helper.write_text('.export dos_cmd_buf,dos_cmd_ix,dos_cmd_overflow,dos_zp_prog\n'+helper_source)
     markers=work/'markers.s'
     markers.write_text('''.export _ready,_prepared,checkpoint,resume,_stack_state
 .importzp sp
@@ -163,15 +166,17 @@ def measure(work,bench,name,filename,address,length,iie):
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--reference',type=Path,help='assemble this original apple2dosbin.s instead')
+    parser.add_argument('--dos-reference',type=Path,help='assemble this original DOS command builder instead')
     parser.add_argument('--bench',action='store_true',help='measure argument setup/preparation before DOS device I/O')
     parser.add_argument('--out',type=Path,help='write the preparation measurement report (requires --bench)')
     args=parser.parse_args()
     if args.out and not args.bench:
         parser.error('--out requires --bench')
     kernel=(args.reference or DEV/'lib/apple2c/apple2dosbin.s').resolve()
+    dos_source=(args.dos_reference or DEV/'lib/apple2/dos.asm').resolve()
     with tempfile.TemporaryDirectory(prefix='dosbin-test-') as directory:
         work=Path(directory)
-        check(work,kernel)
+        check(work,kernel,dos_source)
         if not args.bench:
             return
         sys.path.insert(0,str(DEV/'bench'))
@@ -192,6 +197,7 @@ def main():
         version=subprocess.run(['cl65','--version'],capture_output=True,text=True,check=True)
         report=dict(schema=1,scope='C argument setup and command preparation, ending at a2_dos_run entry before DOS/COUT device I/O',
                     source=dict(name=kernel.name,sha256=hashlib.sha256(kernel.read_bytes()).hexdigest()),
+                    dos_source=dict(name=dos_source.name,sha256=hashlib.sha256(dos_source.read_bytes()).hexdigest()),
                     compiler=(version.stdout+version.stderr).strip(),flags='-Oirs',
                     results=results,case_environments=environments,
                     environments={name:bench.environment(name=='iie') for name in ('nmos','iie')})

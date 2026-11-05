@@ -1028,6 +1028,17 @@ CPUs (2,150,272 calls); `--full` exhausts 16-bit pointer and size fields.
 retained C entries, which reproduce the original benchmark exactly.
 `make test-hgr-spr-control-full` runs the matrix and full native/C checks.
 
+Masked save/restore setup skips the drawing-only data/mask pointer reads.
+Row advancement reuses the clear carry from the bounded screen address
+calculation; byte loops preserve it, and the drawing path still clears carry
+between independent pointer additions. This changes no footprint or stack
+usage. Generic save/restore takes **1,727/1,738 instead of 1,783/1,794 cycles**,
+and four moving 16-row sprites take **37,115 instead of 37,531**.
+The setup oracle covers 1,827,868 calls per CPU. `test_hgr_masked_rows.py`
+checks full screen/buffer contents and 17,592 ordered stores, IRQ status and
+bank state, with `--reference PATH_OR_REV` and `--bench --out PATH` options.
+Unused cc65 scratch has no preservation or output-value guarantee.
+
 The frame engine now keeps temporary visibility in cc65 scratch, reads movement
 arguments directly from the C stack and advances several save-under slots in
 one call. Together these passes save **17 loaded bytes and four RAM bytes**

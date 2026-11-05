@@ -134,17 +134,17 @@ dos_cmd_add:
         LDA     dos_cmd_overflow
         BNE     dos_cmd_full
         LDY     #$00
-@lp:    LDX     dos_cmd_ix
+        LDX     dos_cmd_ix
+@lp:
 @src:   LDA     $FFFF,Y         ; self-modified: the string
         BEQ     @done
         CPX     #DOS_CMD_MAX-1  ; reserve space for the terminator
         BCS     dos_cmd_full
         STA     dos_cmd_buf,X
-        INC     dos_cmd_ix
+        INX
+        STX     dos_cmd_ix
         INY
-        BNE     @lp
-        ; A 256-byte source without a terminator is also too long.
-        JMP     dos_cmd_full
+        BNE     @lp             ; <=255 characters fit: Y cannot wrap here
 @done:  STA     dos_cmd_buf,X
         CLC
         RTS

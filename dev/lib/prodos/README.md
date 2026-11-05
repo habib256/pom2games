@@ -273,6 +273,10 @@ geometry cases rise by 25 cycles (0.121%). Filtering takes **22,508 instead
 of 24,976 cycles**; a rejected long suffix 1,062 instead of 1,539. These
 injected-MLI timings exclude device I/O. Use `--bench --out PATH` and
 `--reference PATH` for reproducible old/new measurements.
+Seven subsequently shortened in-range branches save another **21 code
+bytes**: 50 of the 56 profiles accelerate, six stay equal, with no change
+to RAM, zero page or stacks. Filtering takes 22,366 instead of 22,508
+cycles; the maximum-count zero-length geometry 67,829 instead of 69,194.
 User: MB TRACKER (`.AYS` names, 16 bytes apart, 40 at most, in its OVL2
 overlay with the block in LOWBSS; its save prompt's name check, after its
 `.AYS` added to a name without a dot).

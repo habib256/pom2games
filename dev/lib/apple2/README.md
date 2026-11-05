@@ -293,6 +293,16 @@ on the disk, and `disk_protected` is tested before writing. MICRO-SOKOBAN
 uses this for its level packs (`BLOAD`), `MICROSAVE` and `MICROHOF`.
 
 `DOS_CMD_MAX` sets the size of the command buffer (40 bytes by default).
+The append loop keeps its destination index in X, saving two code bytes
+and four cycles per copied character. Reserving the final NUL bounds the
+copy to 255 characters even with a 256-byte buffer, so Y cannot wrap.
+`test_dos_append.py` checks registers/carry, index, overflow, guards, stack
+and all cc65 scratch against an independent model: 690 routine cases,
+or 27,450 across both CPUs and all capacities with `--full`.
+The 18 C binary-command preparation profiles all accelerate by 52..146
+cycles with unchanged RAM, zero page and stack peaks. These measurements
+exclude device I/O; `test_dosbin.py --dos-reference PATH` selects an old
+builder independently of its existing binary-wrapper `--reference` option.
 `dos_cmd_run` keeps the buffer and its length: the command can be repeated,
 or text and hexadecimal digits appended to it after it has run.
 With `DOS_CMD_WORKBSS = 1`, this buffer and its index live in the program's

@@ -130,21 +130,24 @@ results: .res 512
     return report
 
 
-def shifts(work, include, iie, bench):
+def shifts(work, include, iie, bench, kinds=('heavy', 'damp')):
     report = {}
-    for kind in ('heavy', 'damp'):
+    for kind in kinds:
         # HEAVY's immediate bias accepts 0..8. Zero retains the original
         # LDY #0 / DEY loop's 256 shifts; do not silently change that behavior.
         # Damping documents Y=1..7; also guard its neighboring counts 0 and 8.
-        for shift in range(9):
+        counts = (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 15, 16, 17, 127, 255) if kind == 'pair' else range(9)
+        for shift in counts:
             name = f'{kind}_{shift}'
             target = work / name
             target.mkdir()
-            variable = 'vl_val' if kind == 'heavy' else 'vl_vt'
-            helper = 'vl_heavy' if kind == 'heavy' else 'vl_damp'
+            variable = 'vl_vt' if kind == 'damp' else 'vl_val'
+            helper = dict(heavy='vl_heavy', damp='vl_damp', pair='vl_sd_shift')[kind]
             fields = [variable, variable+'+1']
             if kind == 'heavy':
                 fields += ['vl_vn', 'vl_vn+1']
+            elif kind == 'pair':
+                fields += ['vl_w2']
             fields += ['returned_flags']
             planes = len(fields)
             copy = ''.join(f' lda {field}\n sta results+{index*256},x\n'
@@ -160,6 +163,7 @@ saved_hw: .res 1
 VL_NPOINTS=1
 VL_NCON=1
 VL_CON_HEAVY_SHIFT={shift}
+VL_PAIR_DAMP={shift}
 .include "verlet.inc"
 .code
 start:
@@ -204,7 +208,7 @@ invoke:
  cmp current+1
  bne fail
  lda current
- cmp {variable}+1
+ cmp {'vl_w2' if kind == 'pair' else variable+'+1'}
  bne fail
  tsx
  cpx saved_hw
@@ -258,17 +262,30 @@ results: .res {planes*256}
                         biased = value + ((1 << shift)-1 if value < 0 else 0)
                         delta = biased >> (shift or 256)
                         values.append(((value+delta)&65535, (value-delta)&65535))
-                    else:
+                    elif kind == 'damp':
                         # Use the contract's signed floor division, independent
                         # of the implementation's 24-bit left-shift loop.
                         # Count zero retains its original counter-wrap result.
                         delta = value >> (8-shift) if shift else 0
                         values.append(((value-delta)&65535,))
+                    else:
+                        delta = value >> (shift or 256)
+                        values.append((delta&65535, 255 if delta < 0 else 0))
                 for plane in range(planes-1):
                     expected = bytes(value[plane//2] >> (8*(plane%2)) & 255
                                      for value in values)
                     actual = result.dumps[high][plane*256:(plane+1)*256]
                     assert actual == expected, (kind, shift, high, plane)
+                if kind == 'pair':
+                    # BIT of the sign-extended high byte supplies V; the
+                    # sign-result load supplies N/Z. Carry is the final
+                    # shifted-out bit, including the counter-wrap count0.
+                    expected_flags = bytes(
+                        0x30 | ((low&1)<<2) | (0xc0 if values[low][1] else 2) |
+                        (((high*256+low-(65536 if high&128 else 0)) >>
+                          ((shift or 256)-1)) & 1)
+                        for low in range(256))
+                    assert result.dumps[high][-256:] == expected_flags, ('pair flags', shift, high)
             entry = dict(cases=65536, code_bytes=points['kernel_end']-points['kernel_start'],
                          sweep_cycles=result.cycles[-1]-result.cycles[0],
                          state_sha256=hashlib.sha256(result.data).hexdigest())

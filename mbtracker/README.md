@@ -205,7 +205,7 @@ sa souris (un clic, une note, `HELP`, `ORD`). 18 contrôles, ~15 s.
 | main `$1000-$1F47` | tampon OPEN, bloc de catalogue (`dev/lib/prodos/dir_list.s`), préfixe, motif courant (`grid`) + motif de travail (aussi les noms de l'écran de chargement) (pages libres du bitmap ProDOS : les lectures MLI y sont permises) |
 | main `$2000-$7A44` | saut d'entrée, RODATA (≥ 512 o : le FORMAT de `/RAM` écrase `$2000-$21FF` à la sortie), crt0, code résident (18 Ko), données |
 | main `$7A45-$7CEF` | libre (683 o) |
-| main `$7CF0-$8DFF` | les recouvrements (4 368 o) : OVL1 l'éditeur d'instrument et `^W` (4 173 o), OVL2 les écrans de fichiers + `files.c` + le décodeur AYS (4 287 o) |
+| main `$7CF0-$8DFF` | les recouvrements (4 368 o) : OVL1 l'éditeur d'instrument et `^W` (4 173 o), OVL2 les écrans de fichiers + `files.c` + le décodeur AYS (4 266 o) |
 | main `$8E00-$BDFF` | le morceau AYS (12 Ko), lu par le lecteur ; au démarrage, le transit de `MBT.HELP` et de `MBT.OVL` |
 | main `$BE00-$BEFF` | pile C |
 | aux `$0400-$07FF` | colonnes paires du texte 80 colonnes |
