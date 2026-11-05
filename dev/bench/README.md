@@ -1,5 +1,11 @@
 # Current cc65 measurements
 
+Native generic outlines save **249 loaded bytes** in HGR clients and **244**
+in either DHGR backend. A clipped HGR outline takes **2,207 cycles instead
+of 2,573**; point/axis C-stack peaks fall from 9–10 to **6 bytes**. Exact
+span order is checked across full coordinates, nine grids and hostile
+backend scratch. Small DHGR layout costs retain their older cycle limits.
+
 Independent native DHGR color adapters reduce a point-only client from
 **3,052 to 1,781 loaded bytes** and **330 to 264 cycles**. Axis C-stack peaks
 fall from **18–19 to 5 bytes**. Pen-only clients save **2,241 loaded bytes**;

@@ -4,6 +4,39 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Série du 5 novembre 2026 : contours GFX natifs communs
+
+Le contour trie les coins complets dans le cadre de l'appelant, puis prépare
+les arguments des segments directement sur la pile. Les coins ne sont jamais
+écrits deux fois ; les bords hors écran ne sont pas déplacés. Les backends
+peuvent détruire tous les temporaires cc65 entre deux appels. Le C reste
+la référence portable. Aucun octet de RAM ou de page zéro n'est ajouté.
+
+| Appel C | Cycles avant → après | Binaire avant → après |
+|---|---:|---:|
+| Point HGR | 752 → 663 | 1 840 → 1 591 |
+| Horizontal HGR | 1 208 → 1 091 | 1 834 → 1 585 |
+| Rectangle HGR | 22 668 → 22 158 | 1 838 → 1 589 |
+| Coins inversés HGR | 22 946 → 22 264 | 1 840 → 1 591 |
+| Rectangle découpé HGR | 2 573 → 2 207 | 1 832 → 1 583 |
+| Deux lignes adjacentes HGR | 1 485 → 1 332 | 1 840 → 1 591 |
+| Contour DHGR monochrome | 47 350 → 47 553 | 3 014 → 2 770 |
+| Contour DHGR couleur | 58 917 → 59 189 | 3 167 → 2 923 |
+
+Les formes HGR réduites à un point/axe passent de 9–10 à 6 octets de pile C,
+et de 10 à 8 octets de pile matérielle. Les autres pics restent identiques.
+Les deux contours DHGR paient 0,43/0,46 % de cycles de placement ; leurs
+anciennes références de cycles restent en vigueur. Les 12 nouveaux cas HGR
+s'améliorent en taille et vitesse ; 574 autres mesures sont identiques,
+pour 588 cas au total.
+
+La référence et le natif passent 528 896 cas : mots x complets, toutes les
+paires y, neuf dimensions d'écran, ordre exact des segments, temporaires
+hostiles, gardes et 2 048 positions de pile. Le natif passe sur II+ et IIe.
+Le contrôle des pixels vérifie 625 rectangles hôte et 158 scènes cc65,
+avec cercles, découpage, pages et trous écran. Intégration HGR, DHGR étendu,
+démo HGR, reconstruction et gate passent. HGR.dsk et son WOZ sont reconstruits.
+
 ## Série du 5 novembre 2026 : backend GFX DHGR couleur natif et séparé
 
 Le backend distingue les dimensions, le réglage du crayon et chaque

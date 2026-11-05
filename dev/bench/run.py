@@ -571,6 +571,17 @@ for suffix,ch,col,row in (('origin',65,0,0),('last',90,34,23),('zero',0,0,0),
         setup='hgr_puts8(0,0," ");',warmup=False)
 SCENES['gfx_color_noop']=dict(call='gfx_cell_color(255);',warmup=False)
 
+for suffix,coords in (
+    ('point',(139,95,139,95)),('horizontal',(0,95,279,95)),
+    ('vertical',(139,0,139,191)),('box',(10,10,269,180)),
+    ('reverse',(269,180,10,10)),('clip',(65535,255,100,180)),
+    ('reject_x',(280,0,65535,255)),('reject_y',(0,192,279,255)),
+    ('adjacent_rows',(10,10,20,11)),('adjacent_cols',(10,10,11,20)),
+    ('tiny',(0,0,1,1)),('full',(0,0,279,191)),
+):
+    SCENES['gfx_outline_'+suffix]=dict(call='gfx_rect('+','.join(f'{v}u' for v in coords)+');')
+
+
 for backend,width,pen in (('mono',560,1),('color',140,9)):
     for suffix,call in (
         ('pen_zero','dhgr_set_color(0);'),('pen_byte','dhgr_set_color(255);'),
