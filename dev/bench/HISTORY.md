@@ -4,6 +4,20 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Nouvelle série du 5 novembre 2026 : colonnes du texte DHGR standard
+
+Le premier octet entrelacé et le nombre d'octets de la ligne utilisent
+les deux octets de `ptr4`. Le curseur de chaîne reste dans `ptr3` et le
+trampoline auxiliaire préserve ces temporaires. Cette passe retire **six
+octets de code et deux octets de RAM**, sans page zéro ni pile ajoutées.
+
+« APPLE II » passe de **32 080 à 31 648 cycles** en x=0, de **32 390 à
+31 950** en x=3 et de **31 874 à 31 442** en x=6. Les huit profils standard
+accélèrent. Les tests vérifient 238 captures, tous les caractères non NUL,
+les chaînes vides, les sept phases, les deux pages/banques, les deux états
+IRQ, le découpage, les palettes et les trous vidéo. Les 48 contrôles
+DHGR étendus passent également avec les deux moteurs graphiques.
+
 ## Nouvelle série du 5 novembre 2026 : colonnes du petit texte DHGR
 
 La première colonne et le nombre d'octets par ligne utilisent `tmp3/tmp4`.

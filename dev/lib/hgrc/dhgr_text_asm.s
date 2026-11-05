@@ -2,18 +2,20 @@
 ; Opaque white/black 8x8 DHGR text: each glyph bit is one color pixel, four
 ; equal dots. Two glyph bits (eight dots) at bit phase 0..6 always fit in two
 ; 7-bit bytes, so a glyph row is four table lookups ORed into 5-6 bytes.
+; Non-reentrant; destroys A/X/Y, ptr1..ptr4/tmp1..tmp3. aux_read preserves
+; the row geometry in ptr4; the string cursor lives separately in ptr3.
 .include "apple2.inc"
 .export _dhgr_puts
 .import _hgr_font, _dhgr_base, dhgr_rowlo, dhgr_rowhi, _dhgr_cellbyte, _dhgr_cellphase
 .import incsp3
-.importzp sp, ptr1, ptr2, ptr3, tmp1, tmp2, tmp3, aux_read
+.importzp sp, ptr1, ptr2, ptr3, ptr4, tmp1, tmp2, tmp3, aux_read
 row = tmp2                     ; cc65 scratch; aux_read only clobbers A
 gap = tmp3                     ; the one low byte not overlapping a prior high byte
+first = ptr4                   ; interleaved byte of the glyph's first dot
+count = ptr4+1                 ; bytes per glyph row, 5 or 6
 .bss
 xpos: .res 1
 ypos: .res 1
-first: .res 1                   ; interleaved byte of the glyph's first dot
-count: .res 1                   ; bytes per glyph row, 5 or 6
 pair_index: .res 4              ; dot phase*4 for glyph bit pairs 0..3
 pair_byte: .res 4               ; their first output byte
 keep: .res 6                    ; screen bits kept in each output byte
