@@ -4,6 +4,24 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Audit complémentaire du 5 novembre 2026 — 3 séries
+
+Après `7cb6ceb`, les commits `e8f3b6a`, `d829b16` et `62fe7fe` optimisent
+la conversion hexadécimale, les contrôles du curseur et les ellipses.
+Le relevé final `--dhgr --check` conserve **642 cas** : **58 binaires
+réduits**, 584 dictionnaires entièrement identiques. Les cycles baissent
+dans 41 cas, restent identiques dans 596 et augmentent dans 5.
+Outre les deux écarts décrits ci-dessous, trois textes numériques coûtent
+1, 5 et 7 cycles supplémentaires (au plus +0,24 %). La conversion hexadécimale
+augmente de deux octets sept pics de pile matérielle. Aucun pic de RAM,
+page zéro ou pile C n'augmente.
+
+Les 169 champs de référence améliorés sont abaissés ; les autres limites
+et tous les budgets absolus restent conservés. Les interfaces sont inchangées.
+Les contrôles exhaustifs décrits dans les séries passent sur les deux CPU,
+ainsi que l'intégration `test_hgr.py` et les 1 144 scènes des champs numériques.
+`make all` ne change aucun disque livré ; les 18 WOZ sont vérifiés.
+
 ## Série complémentaire du 5 novembre 2026 : cadre et parcours des ellipses
 
 La boucle parcourt directement les angles 1…63,0, dans le même ordre,

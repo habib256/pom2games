@@ -1,5 +1,12 @@
 # Current cc65 measurements
 
+Three follow-up series after the morning audit keep **642 benchmark cases**:
+**58 smaller binaries**, 584 entirely unchanged measurements, and all gates
+passed. 169 improved reference fields are tightened; no limits are raised.
+The small cycle and hardware-stack tradeoffs are recorded in
+[the follow-up audit](HISTORY.md#audit-complémentaire-du-5-novembre-2026--3-séries).
+Rebuilt disks remain identical and all 18 WOZ twins are verified.
+
 The follow-up ellipse pass saves another **24 loaded bytes** and reduces
 ordinary C-stack peaks **28 → 24**. A small ellipse takes **151,885 cycles**
 (formerly 156,385); the widest box **167,148** (formerly 171,778).

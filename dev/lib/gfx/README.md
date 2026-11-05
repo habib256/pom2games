@@ -83,16 +83,18 @@ The cc65 hexadecimal converter uses `gfx_num_hex.s`; `gfx_num_hex.c` is the
 host reference. Both produce uppercase text without leading zeroes and return
 the digit count. `test_gfx_hex.py` checks every 16-bit input, the terminating
 NUL, return length and buffer guards, including page-crossing buffers.
-The assembly member now occupies **68 bytes** (71 before this nibble pass,
-168 for the original C code and constant data). A four-digit counter selects
-the upper/lower nibble of each byte directly, switching bytes once instead
-of shifting the full 16-bit value between digits. The ASCII adjustment has
-C=0 on both paths, so no extra CLC is needed. No lookup table, extra scratch,
-RAM, zero page or stack is introduced.
+The assembly member now occupies **64 bytes** (68 before this byte pass,
+168 for the original C code and constant data). It skips an empty high byte
+and shares a two-nibble conversion, preserving interior zeroes. The ASCII
+adjustment has C=0 on both paths, so no extra CLC is needed. No lookup table,
+extra scratch, RAM or zero page is introduced. Sharing the helper adds two
+hardware-stack bytes to the measured two- to four-digit isolated calls;
+C-stack usage stays unchanged.
 With cc65 2.18 `-Oirs`, the exhaustive fixture takes **131,796,307 cycles**
-instead of 138,079,027 before this pass (238,118,920 for the original C),
+instead of 138,079,027 before the earlier nibble pass (238,118,920 for the original C),
 including the unchanged C loop and buffer initialization. Its linked binary
-shrinks 705 → **702 bytes**. The full sweep has identical cycle counts on
+then shrank 705 → 702 bytes. The current byte pass further reduces this to
+**130,373,216 cycles and 698 bytes**. The full sweep has identical cycle counts on
 NMOS 6502 and 65C02 (`--iie`); every value, NUL, return length and buffer
 guard is checked on both.
 
