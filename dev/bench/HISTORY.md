@@ -4,6 +4,19 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Nouvelle série du 5 novembre 2026 : fragments du HUD 16×16 en page zéro
+
+Les trois fragments du glyphe agrandi utilisent `tmp2..tmp4` après le
+retour de `glyph_addr`. Aucun autre appel ne peut écraser ces valeurs
+pendant le tracé. Cette passe retire **treize octets de code et trois
+octets de RAM** par client 16×16, sans page zéro ni pile supplémentaires.
+
+Le chiffre modifié passe de **3 930 à 3 833 cycles**, le champ froid de
+**22 027 à 21 596**, et les cinq chiffres en phase zéro de **15 450 à
+14 926**. Les 81 profils ciblés ne présentent aucune métrique en hausse.
+Le modèle de pixels 6502 passe : 168 mises à jour, 70 glyphes aux bords,
+les 265 origines valides et les largeurs 1..14.
+
 ## Nouvelle série du 5 novembre 2026 : scratch du HUD 8×8
 
 Les deux masques de bord et l'adresse de base du noyau compact utilisent
