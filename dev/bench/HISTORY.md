@@ -4,6 +4,21 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Nouvelle série du 5 novembre 2026 : page zéro des rectangles HGR
+
+Les deux colonnes et les quatre masques de bord du noyau pixel utilisent
+`tmp3/tmp4` et `ptr3/ptr4`. Les arguments publics restent intacts et le
+noyau ne fait aucun appel. Il conserve seulement l'octet privé de remplissage
+intérieur : **six octets de page zéro sont libérés** par client, sans modifier
+les instructions de tracé ni ajouter de stockage ailleurs.
+
+Les 25 profils de rectangles, cellules et axes ciblés ne changent que par
+ces six octets : cycles, code, RAM hors page zéro et piles sont identiques.
+Les **752 remplissages/effacements** passent sur chaque CPU, avec toutes
+les phases de bord, les largeurs 1..40 octets, le découpage, les deux pages,
+les palettes et les trous vidéo. Les premiers appels avec tables ordinaires
+ou regroupées passent également sur II+ et IIe.
+
 ## Nouvelle série du 5 novembre 2026 : scratch du texte 16×16
 
 Les deux porteuses et les deux fragments supérieurs du glyphe utilisent

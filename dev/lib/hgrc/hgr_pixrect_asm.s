@@ -1,18 +1,20 @@
 ; VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root).
 ; hgr_pixrect_asm.s — Apple II HGR kernel; linked independently from hgrc.lib.
+; Leaf kernel, destroys A/X/Y, ptr1..ptr4/tmp1..tmp4. Non-reentrant.
 .export _hgr_pixrect_asm
 .import _hgr_col7, _hgr_mask7, _hgr_rowhi, _hgr_rowlo
 .importzp _hgr_r_mode, _hgr_r_rows, _hgr_r_x, _hgr_r_xr, _hgr_r_y0
-.importzp ptr1, ptr2, tmp1, tmp2, tmp3, tmp4
+.importzp ptr1, ptr2, ptr3, ptr4, tmp1, tmp2, tmp3, tmp4
+; The arguments stay intact; edge state lives only until this call returns.
+gr_colL = tmp3              ; left byte column
+gr_colR = tmp4              ; right byte column (== colL for one byte)
+gr_keepL = ptr3             ; left byte: AND mask
+gr_setL = ptr3+1            ; left byte: OR mask
+gr_keepR = ptr4             ; right byte: AND mask
+gr_setR = ptr4+1            ; right byte: OR mask
 
 .segment "ZEROPAGE"
-gr_colL:  .res 1             ; left  byte column
-gr_colR:  .res 1             ; right byte column (== colL if rect fits one byte)
-gr_keepL: .res 1             ; left  byte: AND mask
-gr_setL:  .res 1             ; left  byte: OR  mask
 gr_setF:  .res 1             ; full bytes: stored directly ($7F fill / $00 erase)
-gr_keepR: .res 1             ; right byte: AND mask
-gr_setR:  .res 1             ; right byte: OR  mask
 
 .segment "CODE"
 _hgr_pixrect_asm:
