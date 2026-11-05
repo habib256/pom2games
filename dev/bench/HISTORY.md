@@ -4,6 +4,28 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Audit de la troisième session du 5 novembre 2026 — 3 séries
+
+Après `ae41ace`, les commits `2e3fbc4`, `cb90bbc` et `577cca7` réduisent
+la bascule LORES, les conversions décimales et les initialisations mathématiques.
+Le banc complet `--dhgr --check` passe sur **642 cas** : **119 clients
+gagnent 2 à 9 octets**, 523 dictionnaires restent identiques. Les cycles
+baissent dans 86 cas, restent identiques dans 533 et augmentent dans 23.
+Les écarts défavorables restent inférieurs à 0,8 % ; toutes leurs limites
+précédentes sont conservées. Aucun pic de RAM, page zéro ou pile n'augmente.
+**314 champs de référence sont abaissés**, aucun budget n'est relevé.
+
+Les tests exhaustifs décimaux, des tables/racines et des pages passent sur
+6502 et 65C02. Les entrées numériques passent leurs 199 680 appels par CPU,
+avec 3 072 placements de pile ; les 1 144 champs numériques et l'intégration
+HGR passent aussi. Les tests rapides CUTROPE, DIRTBIKE, LIGHT3DBALL et SNAKE,
+le starter HGR, les démos lander/half-pipe/corde/catapulte et les variantes
+des contacts physiques passent.
+
+`make all` reconstruit les disques CUTROPE, DIRTBIKE, HGR, LIGHT3DBALL et
+SNAKE, ainsi que leurs WOZ ; tous les autres disques restent identiques.
+Les 18 jumeaux WOZ sont vérifiés. Les API et les résultats restent inchangés.
+
 ## Nouvelle série du 5 novembre 2026 : initialisation des tables mathématiques
 
 Le constructeur des carrés compte ses deux demi-tables à rebours et

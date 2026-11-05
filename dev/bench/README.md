@@ -1,5 +1,12 @@
 # Current cc65 measurements
 
+The third session keeps **642 passing benchmark cases**: **119 clients shrink
+by 2–9 bytes**, 523 measurements stay identical, with no extra RAM, zero page
+or stack. 314 improved reference fields are tightened; all older limits and
+absolute budgets are retained. Cycle increases remain below 0.8%.
+Affected games/examples pass, five disks are rebuilt, and all 18 WOZ twins
+are verified; see [the third-session audit](HISTORY.md#audit-de-la-troisième-session-du-5-novembre-2026--3-séries).
+
 Math-table initialization saves **2 code bytes and 516 cycles** across
 `mul_init`/`sqrt_init`: **61,206 instead of 61,722 cycles** including calls.
 All table bytes, seeds and 65,536 roots pass at two table placements on
