@@ -32,7 +32,7 @@
 ;   VL_GROUND_AFTER    in contact, after the rebuild (X = the point, vl_vt
 ;                      the final tangential speed): spokes, spin...
 ; Hook code should use unnamed labels (or names no @label here uses:
-; @hx @hx2 @sneg @sok @wneg @wok @touch @nob @xp).
+; @sneg @sok @wneg @wok @touch @nob @xp).
 ; ============================================================================
 
 .ifndef _VERLET_HMAP_ASM_LOADED_
@@ -78,35 +78,24 @@ vl_ground:
         LDA     #0
         STA     vl_gnd,X
         VL_GROUND_ENTER
-        SEC                             ; ground rows at px - p, px, px + p
+        ; Build the centre pointer once. Indexed reads reach both neighbours;
+        ; (pointer - 256) + (256 - probe) addresses the left sample even when
+        ; the low byte borrows. Restore the pointer's high byte afterwards.
         LDA     vl_xl,X
-        SBC     #VL_PROBE
         STA     vl_hxl
         LDA     vl_xh,X
-        SBC     #0
         STA     vl_hxh
         JSR     vl_height_at
-        PHA
-        CLC
-        LDA     vl_hxl
-        ADC     #2 * VL_PROBE
-        STA     vl_hxl
-        BCC     @hx
-        INC     vl_hxh
-@hx:    JSR     vl_height_at
-        PHA
-        SEC
-        LDA     vl_hxl
-        SBC     #VL_PROBE
-        STA     vl_hxl
-        BCS     @hx2
-        DEC     vl_hxh
-@hx2:   JSR     vl_height_at
         STA     vl_hgt
-        PLA                             ; slope = h[+p] - h[-p], +-VL_SLOPE_MAX
+        LDY     #VL_PROBE
+        LDA     (vl_tptr),Y
         STA     vl_hp2
-        PLA
+        DEC     vl_tptr+1
+        LDY     #256 - VL_PROBE
+        LDA     (vl_tptr),Y
         STA     vl_hm2
+        INC     vl_tptr+1
+        ; slope = h[+p] - h[-p], +-VL_SLOPE_MAX
         LDA     vl_hp2
         SEC
         SBC     vl_hm2

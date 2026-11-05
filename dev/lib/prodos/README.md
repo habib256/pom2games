@@ -9,6 +9,15 @@ bitmap; this interface does not allocate a buffer and does not change its protec
 `prodos_mli(command, params)` (`mli_cmd.s`, in `PRODOS_SRCS`, its own
 module: 15 bytes, linked only when called) does both in one call.
 
+The public command and parameter fields are the writable inline MLI record.
+They start at zero and retain the last request, including across repeated
+`prodos_call()` calls. Sharing this record saves 18 code bytes and three BSS
+bytes; all 16 focused injected-MLI profiles save 24 cycles, with unchanged
+zero page and stack peaks. These timings exclude device I/O.
+`test_prodos_mli.py` checks both CPUs, public readback and repeated calls,
+then actual ProDOS file reads and errors. Its `--bench --out PATH` and
+`--reference PATH` options reproduce the separate measurements.
+
 `video.s`: explicit takeover of auxiliary memory for
 DHGR and rebuilding of the empty `/RAM` disk on exit.
 `prodos_video_claim(PD_VIDEO_PRESERVE_RAM)` refuses any installed `/RAM`,

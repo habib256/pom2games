@@ -868,6 +868,19 @@ stack peaks are unchanged. The extended compositor model covers tall
 CHUNKY/TILE sources crossing a page, mirroring and a 31-row overlay across
 all seven build variants, both IIe and IIc, plus VIA interrupt and VBL checks.
 
+The overlay now advances its source pointer between contiguous rows of a
+piece, rebuilding it on the first piece row or at overlay-relative row zero.
+Its four byte operations are unrolled and keep X untouched. This adds 17
+code bytes and saves five BSS bytes, with unchanged zero page and stacks.
+Against the preceding packing version, the 4×31 overlay takes **18,498
+instead of 27,892 cycles**, the 4×6 overlay 5,566 instead of 6,307, and a
+moving overlay 11,872 instead of 13,125. The sole blitter's existing row
+order supplies this reuse; no persistent cache or public restriction is
+added. `test_dhgr_overlay.py` checks 327,680 raw calls per CPU and public
+piece boundaries, rejected rows, source wrap, IRQs and actual code-window
+reloads. `--reference PATH_OR_REV` checks an old kernel; `--bench --out PATH`
+measures eleven compositor cases separately.
+
 Historical core sizes (6502, 2026-10-31): calls 252 B (`dhgr_spr_set`,
 `dhgr_spr_invalidate`, `dhgr_spr_solid`), init + update 872 B, write 304 B
 (with the 16-byte table and the 51-byte patch list), canvas painters 532 B:

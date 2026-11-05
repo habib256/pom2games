@@ -1,16 +1,11 @@
 ; VERHILLE Arnaud — GPL-3.0. Main-bank cc65 MLI wrapper.
+; Writable main RAM; non-reentrant. Public command/parameter fields are the
+; inline MLI record itself: initially zero, retaining the last request.
 .export _prodos_call, _prodos_command, _prodos_params, _prodos_format_ram
-.segment "BSS"
-_prodos_command: .res 1
-_prodos_params: .res 2
+_prodos_command = command
+_prodos_params = params
 .code
 _prodos_call:
-        lda _prodos_command
-        sta command
-        lda _prodos_params
-        sta params
-        lda _prodos_params+1
-        sta params+1
         jsr $BF00
 command: .byte 0
 params: .word 0

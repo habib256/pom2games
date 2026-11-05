@@ -6,14 +6,14 @@
 ; part outside the area goes to dhgr_spr_cursor.s's one-pass save-under,
 ; unless DHGR_SPR_OVERLAY_INSIDE=1: then only the part inside the area is
 ; ever drawn, `under` is not used and dhgr_spr_cursor.s is not linked.
-; A/X/Y, ptr1, tmp1-tmp4 destroyed; non-reentrant, never from an IRQ.
+; A/X/Y, ptr1/ptr2, tmp1-tmp4 destroyed; non-reentrant, never from an IRQ.
 ; DHGR_SPR_CODE_SEGMENT=1: code and tables in segment DHGRSPRCODE.
 .export _dhgr_spr_overlay, cur_args, cur_take
 .import cur_nbx, cur_ny, cur_nw, cur_nh, cur_bits, cur_under
 .import _dhgr_spr_v_dirty, _dhgr_spr_cur_jmp, _dhgr_spr_ov_on, _dhgr_spr_add
 .import _dhgr_spr_w_g0, w_g1, w_y0, w_y1, spr_row, spr_ovhook
 .import _dhgr_spr_rg0, _dhgr_spr_rg1, _dhgr_spr_ry0, _dhgr_spr_ry1
-.import _dhgr_spr_goff, _dhgr_spr_gend, popa, popax
+.import _dhgr_spr_goff, _dhgr_spr_gend, _dhgr_cv_y0, popa, popax
 INSIDE .set 0
 .if .defined(DHGR_SPR_OVERLAY_INSIDE)
 .if DHGR_SPR_OVERLAY_INSIDE
@@ -23,7 +23,7 @@ INSIDE .set 1
 .if !INSIDE
 .import dhgr_spr_pass
 .endif
-.importzp ptr1, tmp1, tmp2, tmp3, tmp4
+.importzp ptr1, ptr2, tmp1, tmp2, tmp3, tmp4
 
 .bss
 t_bx:   .res 1                  ; arguments (cur_args), as cur_n*
@@ -32,8 +32,6 @@ t_w:    .res 1
 t_h:    .res 1
 t_bits: .res 2
 t_under: .res 2
-ob:     .res 4                  ; ov_group: b0..b3
-xsave:  .res 1
 NONE = $FF
 
 .if .defined(DHGR_SPR_CODE_SEGMENT)
@@ -171,7 +169,10 @@ ovdamage:
 
 ; dhgr_spr_blit, each row: its group code calls ov_group (JSR at
 ; spr_ovhook) if the row and the piece's groups cross the overlay, then
-; ptr1 = bits + r * w; else it skips it (BIT abs). X kept.
+; ptr1 = bits + r * w; else it skips it (BIT abs). X kept. The sole
+; blitter caller walks contiguous rows and starts each piece at cv_y0.
+; ptr1 survives its SMC stores and ov_group, so later valid rows advance
+; one stride; the first piece row and r=0 always rebuild the address.
 ov_row: lda #$2C
         sta spr_ovhook
         lda spr_row
@@ -189,7 +190,18 @@ ov_row: lda #$2C
         asl a
         cmp _dhgr_spr_goff
         bcc @none
-        lda cur_bits+1
+        cpy #0
+        beq @fresh
+        lda spr_row
+        cmp _dhgr_cv_y0
+        beq @fresh              ; first piece row may start inside the overlay
+        lda ptr1                ; previous valid row: advance exactly one stride
+        clc
+        adc cur_nw
+        bcc @pointer
+        inc ptr1+1
+        bcs @pointer
+@fresh: lda cur_bits+1
         sta ptr1+1
         lda cur_bits
         cpy #0
@@ -210,39 +222,37 @@ ov_row: lda #$2C
 ; dhgr_spr_blit, each group of such a row: b0..b2 in tmp1..tmp3, b3 in A,
 ; tmp4 = 2g. OR in the overlay bytes 4g..4g+3 it covers (Y = 4g + j - bx
 ; < w). Returns b3 in A; X kept.
+; Each byte is independent; unrolling preserves X without saved state.
+; ptr2 is private blit scratch (already clobbered by packing); ptr1 stays
+; live as the overlay source across groups and contiguous rows.
+.macro OVERLAY_BYTE target
+        .local skip
+        cpy cur_nw
+        bcs skip
+        lda (ptr1),y
+        and #$7F
+        ora target
+        sta target
+skip:   iny
+.endmacro
 ov_group:
-        sta ob+3
-        lda tmp1
-        sta ob
-        lda tmp2
-        sta ob+1
-        lda tmp3
-        sta ob+2
-        stx xsave
+        sta ptr2                ; b3, private blit scratch
         lda tmp4
         asl a                   ; 4g
         sec
-        sbc cur_nbx             ; negative: >= 176 > w
+        sbc cur_nbx
         tay
-        ldx #0
-@byte:  cpy cur_nw
-        bcs @skip
+        OVERLAY_BYTE tmp1
+        OVERLAY_BYTE tmp2
+        OVERLAY_BYTE tmp3
+        cpy cur_nw
+        bcs @unchanged
         lda (ptr1),y
         and #$7F
-        ora ob,x
-        sta ob,x
-@skip:  iny
-        inx
-        cpx #4
-        bne @byte
-        lda ob
-        sta tmp1
-        lda ob+1
-        sta tmp2
-        lda ob+2
-        sta tmp3
-        ldx xsave
-        lda ob+3
+        ora ptr2
+        rts
+@unchanged:
+        lda ptr2
         rts
 
 

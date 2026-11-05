@@ -91,6 +91,16 @@ included.
 A whole DIRTBIKE tick (3 points, 2 constraint passes, 2 ground probes, the
 bike's own code) is ~14,400 cycles.
 
+The height-map sampler builds the centre pointer once and reads both
+neighbours by indexed addressing, restoring the pointer before continuing.
+This saves 25 code bytes. The focused 48-call benchmark saves 95..106 cycles
+per call (far: 349 → 254; one contact: 3,220 → 3,114), with hardware-stack
+peaks unchanged or two bytes lower. `test_verlet_ground_probes.py` checks all
+127 allowed probe distances, page/word boundaries, restored metadata and
+flags on both CPUs: 195,072 cases each. Use `--bench --out PATH` for the
+integrated model-checked measurements, `--reference PATH` for an old source,
+and `--iie` for the second CPU.
+
 The speed switches (exact: the same results, the tests run with and
 without them), `vl_constrain` on a 12-px fixed-gain link (a2run `call:`):
 

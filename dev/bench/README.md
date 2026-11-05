@@ -1,5 +1,15 @@
 # Current cc65 measurements
 
+The eighteenth-session gate passes **793 cases and 16 frame budgets**.
+Overlay row reuse and unrolled byte operations make the tall overlay
+**33.7% faster**, adding 17 code bytes and freeing five BSS bytes in 35
+clients. Sixteen timings improve, seven stay equal, and twelve rise by
+1..144 cycles (at most 0.766%); previous limits are retained. The other
+758 dictionaries are identical and 49 reference fields tighten.
+Separate focused tests show **18 code/three RAM bytes and 24 cycles saved
+per MLI call**, and **25 code bytes plus 95..106 cycles saved per ground
+call**. See [the eighteenth-session audit](HISTORY.md#audit-de-la-dix-huitième-session-du-6-novembre-2026--mli-sondes-du-terrain-et-overlay).
+
 The seventeenth-session gate passes **793 cases**. Compact DHGR packing
 shrinks 35 clients by five loaded bytes: 24 timings improve, four stay
 equal and seven rise by at most 0.175%; previous limits are retained.

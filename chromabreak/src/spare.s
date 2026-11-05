@@ -43,8 +43,10 @@
 ; bytes in this client. RODATA +23 preserves all game tables and variables.
 ; 2026-11-05, the optional decimal converter saves 17 library CODE bytes.
 ; RODATA +17 preserves those addresses; its five BSS bytes remain free.
+; 2026-11-06, the MLI wrapper saves 18 library CODE bytes by sharing its
+; inline record. RODATA +18 preserves the tables; three BSS bytes stay free.
 CODE_SPARE   = 38
-RODATA_SPARE = 40
+RODATA_SPARE = 58
 BSS_SPARE    = 0
 
 .code

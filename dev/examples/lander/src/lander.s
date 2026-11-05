@@ -1116,6 +1116,7 @@ msg_hi:     .byte >m_help, >m_pad_a, >m_pad_b, >m_pad_c, >m_crash, >m_fuel
 .include "kbd.asm"
 .include "joy.asm"
 .include "hgr.asm"
+.include "vapor.asm"                    ; keep the timed poll within one page
 
 ; both HGR pages black ($2000-$5FFF): the HGR_CLEAR_LOOP macro over 8 groups,
 ; ~92,000 cycles, 79 bytes (after the include that defines the macro)
@@ -1124,7 +1125,6 @@ clear_pages:
         LDX     #>HGR1
         HGR_CLEAR_LOOP 8
         JMP     vapor_mark_both         ; the marker on row 191 of both
-.include "vapor.asm"
 .include "exit.asm"
 .include "hgr_div7_ram.asm"
 .segment "RODATA"

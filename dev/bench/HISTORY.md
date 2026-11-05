@@ -4,6 +4,76 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Audit de la dix-huitième session du 6 novembre 2026 — MLI, sondes du terrain et overlay
+
+Après `f4d3f89`, les champs publics `prodos_command` et `prodos_params`
+désignent directement le record MLI inséré après le JSR. Les copies depuis
+trois octets BSS disparaissent, sans changer l'initialisation à zéro ni les
+appels répétés. Les **16 profils mesurés économisent 18 octets de code,
+trois de RAM et 24 cycles chacun**, sans page zéro ni pile ajoutées.
+Ces mesures utilisent un MLI injecté et excluent les entrées/sorties disque.
+L'oracle vérifie 1 536 états par CPU et version : commandes, pointeurs,
+erreurs, lectures des champs publics, X et piles. Un volume ProDOS réel
+vérifie séparément les appels répétés, préfixe, ouverture, lecture exacte,
+taille, fermeture et fichier absent.
+
+Le terrain physique construit une seule fois son pointeur central, lit les
+voisins par indexation et restaure le pointeur. Le code de sondage passe de
+**62 à 37 octets**. Les 48 appels intégrés par CPU économisent tous
+**95..106 cycles** : éloigné **349 → 254**, un contact **3 220 → 3 114**.
+Les clients perdent 25 octets chargés, sans RAM ni page zéro ajoutées ; le
+pic de pile matérielle reste identique ou baisse de deux octets. L'oracle
+indépendant couvre **195 072 cas par CPU/version**, tous les espacements
+1..127, frontières de pages et bouclage 16 bits, métadonnées restaurées,
+X, drapeaux et pile. Les empreintes d'état avant/après sont identiques,
+et les modèles Verlet, segments, hybrides, cache et buckets passent.
+
+L'overlay DHGR déroule ses quatre opérations OR et conserve X sans
+sauvegarde. Son pointeur source avance d'une largeur entre les lignes
+contiguës du morceau ; la première ligne du morceau ou la ligne relative
+zéro reconstruit l'adresse. Le seul blitter utilisait déjà cet ordre,
+sans cache ni nouvelle restriction publique. Le compromis est de
+**17 octets de code supplémentaires contre cinq octets BSS libérés**,
+page zéro et piles inchangées. L'overlay 4×31 passe de **27 892 à
+18 498 cycles (−33,7 %)**, le 4×6 de **6 307 à 5 566**, le déplacement de
+**13 125 à 11 872**. Les oracles avant/après vérifient **327 680 appels
+bruts par CPU/version**. Dix-neuf mises à jour publiques sous cinq
+configurations couvrent petits morceaux, entrées après rejet, bouclages
+de pointeur, IRQ VIA et rechargement effectif du segment de code à chaque
+mise à jour. Les sept configurations complètes du compositeur passent
+également sur IIe/IIc, avec écritures ordonnées et VBL.
+
+Le banc global reste à **793 cas** : les 35 clients touchés prennent les
+17 octets de code et libèrent cinq octets RAM ; **16 durées diminuent,
+sept restent identiques et douze augmentent de 1..144 cycles**, au plus
+0,766 % (huit cycles sur une fusion vide). Les **758 autres dictionnaires
+sont identiques**, avec page zéro et piles inchangées. Les **16 budgets
+de trame passent**. **49 champs de référence sont abaissés**, aucun
+relevé ; les anciens plafonds restent en place pour les variations de
+placement. Le déplacement du curseur de 127 lignes reste à 70 036 cycles,
+contre 396 612 avant sa passe dédiée.
+
+Les tests dédiés `test_prodos_mli.py`, `test_verlet_ground_probes.py` et
+`test_dhgr_overlay.py` sont intégrés aux cibles habituelles et proposent
+des mesures `--bench --out` et des sources de référence. Les rapports
+physiques enregistrent aussi les empreintes du source, des outils et
+des émulateurs pour rendre ces mesures reproductibles.
+
+CHROMABREAK augmente sa réserve RODATA de 18 octets pour conserver ses
+adresses de tables après la réduction du wrapper ; ses trois octets BSS
+restent libres. LANDER place `vapor.asm` avant son effacement de pages :
+la boucle chronométrée reste dans une page **sans octets de remplissage**,
+et les tests confirment les flips en blanking vertical et la cadence.
+
+`make all` réussit. **CHROMABREAK, DIRTBIKE, MBTRACKER, ROBOTSTATION et
+WARGALAGAII** et leurs WOZ sont reconstruits et passent leurs tests ;
+les **18 paires disque/WOZ** correspondent. LANDER, DHGR ACTION,
+l'intégration HGR, les options de bibliothèque, les tests ProDOS
+fichier/répertoire/vidéo/relocation et la structure du Makefile passent.
+`git diff --check` est propre. Le contrôle `--dhgr --check` passe les
+793 cas et 16 budgets sur les sources finales ; les 49 références
+resserrées proviennent de ce même relevé.
+
 ## Audit de la dix-septième session du 6 novembre 2026 — commandes DOS, packing DHGR et arithmétique
 
 Après `3acf1df`, le packing DHGR calcule le quatrième octet avant le
