@@ -4,6 +4,27 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Série complémentaire du 5 novembre 2026 : contrôles du curseur
+
+`gfx_gotoxy` réutilise la retenue de la comparaison lors du clamp, et
+`gfx_putc` détecte le passage de la ligne 255 à zéro avec le drapeau de
+l'incrément. La ligne stockée ne déborde pas, même pour une grille vide.
+Chaque membre perd deux octets : les clients de position seule gagnent
+2 octets, ceux utilisant position et texte 4. RAM et piles sont inchangées.
+
+| Appel | Cycles avant → après |
+|---|---:|
+| Position hors grille | 103 → 99 |
+| Nouvelle ligne | 45 → 43 |
+| Nouvelle ligne au bord inférieur | 42 → 40 |
+| Caractère avec retour automatique | 17 243 → 17 241 |
+
+Le caractère isolé coûte un cycle de placement supplémentaire
+(16 629 → 16 630), avec sa référence précédente conservée.
+Les 786 432 cas de coordonnées/contrôles passent sur chacun des deux
+processeurs : quatre grilles dont 0×0 et 255×255, tous les caractères,
+256 alignements de chaînes, 768 placements de pile, traces exactes et gardes.
+
 ## Série complémentaire du 5 novembre 2026 : conversion hexadécimale par octets
 
 Le convertisseur saute l'octet haut nul et partage une routine de deux

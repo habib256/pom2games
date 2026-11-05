@@ -9,7 +9,7 @@ _gfx_gotoxy:
         cmp _gfx_text_rows
         bcc row_ready
         lda _gfx_text_rows
-        sec
+        ; CMP left carry set; LDA preserves it, including a zero-sized grid.
         sbc #1
 row_ready:
         sta _gfx_cursor_row
@@ -18,7 +18,6 @@ row_ready:
         cmp _gfx_text_cols
         bcc col_ready
         lda _gfx_text_cols
-        sec
         sbc #1
 col_ready:
         sta _gfx_cursor_col

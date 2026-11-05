@@ -23,9 +23,8 @@ _gfx_putc:
         bcc done
 newline:
         ldx _gfx_cursor_row
-        cpx #255
-        beq carriage
         inx
+        beq carriage            ; row 255 wraps here, never in the stored cursor
         cpx _gfx_text_rows
         bcs carriage
         stx _gfx_cursor_row

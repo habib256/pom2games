@@ -1,5 +1,9 @@
 # Current cc65 measurements
 
+Cursor control removes **two bytes each** from position and character members.
+Clamping takes **99 instead of 103 cycles**; newline **43 instead of 45**.
+All byte coordinates and controls pass on both CPUs, including empty grids.
+
 The follow-up hexadecimal pass reduces the converter from **68 to 64 bytes**.
 Zero takes **207 instead of 308 cycles**, and 65535 **306 instead of 326**.
 Two- to four-digit isolated conversions use **two more hardware-stack bytes**;
