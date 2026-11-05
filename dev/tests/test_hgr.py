@@ -172,6 +172,14 @@ def check_archive(work):
                             'hgr_hud8_asm.o', 'hgr_hud8_digits.o')),
         ('hud8_text', 'hgr_hud8_field_t f; hgr_hud8_init(&f,0,0,5); hgr_hud8_putu(&f,12345); hgr_puts8(0,16,"A");',
          'hgr_text_addr.o', ('hgr_text16_asm.o', 'hgr_hud_asm.o')),
+        ('gfx_plot', 'gfx_plot(139,95);', 'hgr_pixel_asm.o',
+         ('hgr_hline.o', 'hgr_vline.o', 'hgr_fill_span.o', 'gfx_backend_hgr.o')),
+        ('gfx_hline', 'gfx_hline(65535u,0,191);', 'hgr_hline.o',
+         ('hgr_pixel_asm.o', 'hgr_vline.o', 'gfx_backend_hgr.o')),
+        ('gfx_vline', 'gfx_vline(279,255,0);', 'hgr_vline.o',
+         ('hgr_pixel_asm.o', 'hgr_hline.o', 'gfx_backend_hgr.o')),
+        ('gfx_dimensions', 'return gfx_width == 280u && gfx_height == 192u;', 'gfx_backend_hgr.o',
+         ('hgr_pixel_asm.o', 'hgr_hline.o', 'hgr_vline.o', 'hgr_fill_span.o', 'hgr_build_rows.o')),
         ('rectangle', 'gfx_filled_rect(0u, 0u, 279u, 191u);', 'hgr_pixrect_asm.o',
          ('hgr_text_params.o', 'hgr_cell_asm.o', 'hgr_carrier_params.o', 'hgr_sprite_params.o')),
         ('byte_rectangle', 'hgr_fill_rect(191,1,39,1,255);', 'hgr_rect.o',
@@ -272,7 +280,7 @@ def check_archive(work):
         compile_source(source, obj, ['-t', 'none', '-Oirs', '-I', DEV / 'lib/hgrc',
              '-I', DEV / 'lib/apple2c', '-I', DEV / 'lib/gfx'])
         run(['cl65', '-t', 'none', '-C', DEV / 'cc65/apple2_hgr_c.cfg',
-             '-m', mapfile, '-o', binary, work / 'crt0_apple2.o', obj, work / 'hgrc.lib'])
+             '-m', mapfile, '-Ln', binary.with_suffix('.lbl'), '-o', binary, work / 'crt0_apple2.o', obj, work / 'hgrc.lib'])
         linked = set(re.findall(r'hgrc\.lib\(([^)]+)\)', mapfile.read_text()))
         if name.startswith('lores_'):
             assert not linked.intersection(('hgr_set_draw_page.o', 'hgr_build_rows.o',
@@ -283,6 +291,9 @@ def check_archive(work):
             assert 'dhgr_flip.o' not in linked, (name, 'unused flip')
         if name == 'dhgr_clear':
             assert 'dhgr_asm.o' not in linked, (name, 'unused mode manager')
+        if name in ('gfx_plot', 'gfx_hline', 'gfx_vline'):
+            labels = a2test.labels(binary.with_suffix('.lbl'))
+            assert labels['_' + name] == labels['_hgr_' + name[4:]], (name, 'not a direct alias')
         assert required in linked, (name, 'missing kernel', required)
         assert not linked.intersection(excluded), (name, 'unwanted families', linked.intersection(excluded))
     print(f'HGR/DHGR archive: {len(cases)} minimal programs exclude unused code and zero-page families.')

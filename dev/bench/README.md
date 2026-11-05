@@ -1,5 +1,12 @@
 # Current cc65 measurements
 
+Independent GFX HGR aliases resolve points and axis spans directly to the
+matching HGR entries, without copying C arguments or adding a call frame.
+A point takes **249 cycles instead of 382**, saving **623 loaded bytes**,
+14 zero-page bytes and three C-stack bytes in its isolated client.
+Horizontal/vertical clients save **396/430 loaded bytes**; dimension-only
+queries import no drawing primitives. The C backend remains a portable reference.
+
 Native HGR row construction takes **6,921 cycles** instead of 45,783,
 with no C-stack use. Independent row/query/display archive members save
 **687 code bytes and 50 RAM bytes** in a point-only client. A display-only

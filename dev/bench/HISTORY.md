@@ -4,6 +4,34 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Série du 5 novembre 2026 : alias GFX HGR indépendants
+
+Les entrées point et segments horizontal/vertical ont les mêmes signatures
+cc65 que HGR : les symboles GFX deviennent des alias directs, dans trois
+membres d'archive séparés. Les dimensions sont un quatrième membre sans
+code de dessin. La référence C reste disponible.
+
+| Appel C | Cycles avant → après | Binaire avant → après |
+|---|---:|---:|
+| Point (139,95) | 382 → 249 | 1 490 → 867 |
+| Point rejeté | 248 → 114 | 1 488 → 865 |
+| Segment horizontal | 1 021 → 853 | 1 502 → 1 106 |
+| Horizontal trié/découpé | 1 089 → 919 | 1 494 → 1 098 |
+| Segment vertical | 10 612 → 10 405 | 1 494 → 1 064 |
+| Vertical trié/découpé | 11 529 → 11 312 | 1 492 → 1 062 |
+
+Pile C point/horizontal/vertical 5/9/7 → 2/4/3, pile matérielle −2 octets.
+Le point retire 14 octets de page zéro, les segments trois ; RAM identique.
+Les 17 nouveaux cas portent le banc à 496 : 11 cas s'améliorent et
+485 restent identiques. Les références de cycles antérieures ne sont pas
+relevées et les budgets absolus restent inchangés.
+
+Les 63 clients minimaux vérifient notamment l'égalité des adresses GFX/HGR
+et l'absence des primitives inutilisées. Intégration HGR, lignes,
+contours/rectangles, starter II+ et reconstruction complète passent ;
+les 18 jumeaux WOZ correspondent. Seuls HGR.dsk et son WOZ sont reconstruits
+avec un contenu différent.
+
 ## Audit final du 5 novembre 2026
 
 Les 41 séries de cette session se terminent au commit `8ff9b1a`.

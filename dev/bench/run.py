@@ -571,6 +571,29 @@ for suffix,ch,col,row in (('origin',65,0,0),('last',90,34,23),('zero',0,0,0),
         setup='hgr_puts8(0,0," ");',warmup=False)
 SCENES['gfx_color_noop']=dict(call='gfx_cell_color(255);',warmup=False)
 
+# GFX HGR adapters: public C calls, clipped axes and full-width endpoints.
+for suffix,call in (
+    ('plot','gfx_plot(139,95);'),
+    ('plot_reject','gfx_plot(65535u,255);'),
+    ('hline','gfx_hline(14,265,95);'),
+    ('hline_clip','gfx_hline(65535u,0,191);'),
+    ('vline','gfx_vline(139,8,183);'),
+    ('vline_clip','gfx_vline(279,255,0);'),
+    ('clear','gfx_clear(0);'),
+    ('line_h','gfx_line(65535u,95,0,95);'),
+    ('line_v','gfx_line(139,255,139,0);'),
+    ('line_diag','gfx_line(0,0,279,191);'),
+    ('line_reject','gfx_line(65535u,0,0,191);'),
+    ('fill_point','gfx_filled_rect(139,95,139,95);'),
+    ('fill','gfx_filled_rect(14,8,265,183);'),
+    ('fill_reverse','gfx_filled_rect(265,183,14,8);'),
+    ('fill_clip','gfx_filled_rect(65535u,255,100,180);'),
+    ('fill_reject_x','gfx_filled_rect(65535u,0,280,191);'),
+    ('fill_reject_y','gfx_filled_rect(0,255,279,192);'),
+):
+    SCENES['gfx_adapter_'+suffix]=dict(call=call)
+
+
 # Non-default compile-time variants (dev/lib/ABI.md, "Speed/RAM options"):
 # the listed members are reassembled with the define and linked before hgrc.lib.
 for name in ('hgr_diagonal_cold','hgr_hud_cold','hgr_scene_cold'):

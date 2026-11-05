@@ -4,7 +4,7 @@
 
 The vector layer from [POM1](https://github.com/habib256/pom1)
 (`dev/lib/gfx`, GPL-3.0): lines, rectangles, circles, ellipses and numbers, on
-an HGR or DHGR backend. The HGR backend (`gfx_backend_hgr*.c`) calls
+an HGR or DHGR backend. The native HGR backend (`gfx_backend_hgr*.s`, with portable C references) calls
 [`../hgrc`](../hgrc/). Dimensions and colours depend on the chosen backend.
 
 Compile with `-I dev/lib/hgrc -I dev/lib/apple2c -I dev/lib/gfx`, preferably

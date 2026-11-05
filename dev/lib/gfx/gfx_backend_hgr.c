@@ -1,5 +1,6 @@
 /* VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root). */
-/* gfx_backend_hgr.c — Apple II HGR backend for shared geometry.
+/* Portable reference; hgrc.mk selects independent native aliases/metadata.
+ * gfx_backend_hgr.c — Apple II HGR backend for shared geometry.
  * Span primitives use the HGR rectangle fast paths. Fill/clear forwarders
  * are separate so archive links can omit them when unused.
  */

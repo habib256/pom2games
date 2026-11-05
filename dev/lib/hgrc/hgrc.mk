@@ -39,7 +39,8 @@ HGRC_GFX_TEXT_SRCS := $(addprefix $(GFX)/,gfx_text.c gfx_text_backend_hgr.s \
     gfx_putu.s gfx_puti.s gfx_putx.s)
 HGRC_GENERIC_VECTOR_SRCS := $(GFX)/gfx_line.c $(GFX)/gfx_rect.c
 HGRC_VECTOR_SRCS := $(GFX)/gfx_line_hgr.c $(GFX)/gfx_rect.c
-HGRC_BACKEND_SRCS := $(GFX)/gfx_backend_hgr.c $(GFX)/gfx_backend_hgr_rect.c
+HGRC_BACKEND_SRCS := $(addprefix $(GFX)/,gfx_backend_hgr.s gfx_backend_hgr_plot.s \
+    gfx_backend_hgr_hline.s gfx_backend_hgr_vline.s gfx_backend_hgr_rect.c)
 HGRC_GFX_SRCS := $(HGRC_VECTOR_SRCS) $(GFX)/gfx_circle.c $(GFX)/gfx_ellipse.c \
     $(HGRC_BACKEND_SRCS)
 
