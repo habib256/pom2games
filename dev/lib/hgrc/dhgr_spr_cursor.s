@@ -8,6 +8,8 @@
 ; saved if the new cursor covers it, then written once: restored or ORed.
 ; Bytes in the excluded box (the compositor's area: groups eg0..eg1, rows
 ; ey0..ey1) are skipped. IRQs masked only around each banked access.
+; Saved/source pointers are biased by -bx once, then advanced only after a
+; row covered by their box. Rows between the boxes touch neither buffer.
 ; A/X/Y, ptr1-ptr4, tmp1-tmp4 destroyed; non-reentrant, never from an IRQ.
 .include "apple2.inc"
 .export _dhgr_cursor, dhgr_spr_pass
@@ -225,8 +227,29 @@ dhgr_cursor_core:
         clc
         adc oh
         sta uy1
+        lda osave              ; old saved row, biased by -obx
+        sec
+        sbc obx
+        sta ptr2
+        lda osave+1
+        sbc #0
+        sta ptr2+1
 @new:   lda cur_nw
         beq @union
+        lda nsave              ; new saved and source rows, biased by -nbx
+        sec
+        sbc cur_nbx
+        sta ptr3
+        lda nsave+1
+        sbc #0
+        sta ptr3+1
+        lda cur_bits
+        sec
+        sbc cur_nbx
+        sta ptr4
+        lda cur_bits+1
+        sbc #0
+        sta ptr4+1
         lda cur_nbx
         cmp ub0
         bcs :+
@@ -250,8 +273,8 @@ dhgr_cursor_core:
         bcc rows
         jmp done
 
-; One row: flags, the excluded part, the screen row, three row pointers
-; biased by -bx so that Y = b indexes them.
+; One row: flags, the excluded part and the screen row. Saved/source row
+; pointers are already biased by -bx so that Y = b indexes them.
 rows:   lda #0
         sta flags
         ldx ow
@@ -261,12 +284,6 @@ rows:   lda #0
         sbc oy
         cmp oh
         bcs @newrow
-        tax                     ; ptr2 = osave + r * ow - obx
-        lda osave
-        ldy osave+1
-        jsr times_ow
-        sta ptr2
-        sty ptr2+1
         lda #$80
         sta flags
 @newrow:
@@ -277,19 +294,6 @@ rows:   lda #0
         sbc cur_ny
         cmp cur_nh
         bcs @rowok
-        sta tmp4
-        tax                     ; ptr3 = nsave + r * w - bx
-        lda nsave
-        ldy nsave+1
-        jsr times_nw
-        sta ptr3
-        sty ptr3+1
-        ldx tmp4                ; ptr4 = bits + r * w - bx
-        lda cur_bits
-        ldy cur_bits+1
-        jsr times_nw
-        sta ptr4
-        sty ptr4+1
         lda flags
         ora #$40
         sta flags
@@ -427,6 +431,30 @@ next_row:
 @go:    lda row
         cmp uy1
         bcs done
+        bit flags              ; advance boxes covering the previous row
+        bpl @new_pointer
+        lda ptr2
+        clc
+        adc ow
+        sta ptr2
+        bcc @new_pointer
+        inc ptr2+1
+@new_pointer:
+        bit flags
+        bvc @row_ready
+        lda ptr3
+        clc
+        adc cur_nw
+        sta ptr3
+        bcc :+
+        inc ptr3+1
+:       lda ptr4
+        clc
+        adc cur_nw
+        sta ptr4
+        bcc @row_ready
+        inc ptr4+1
+@row_ready:
         jmp rows
 done:   lda cur_nw              ; the new state
         sta ow
@@ -441,31 +469,4 @@ done:   lda cur_nw              ; the new state
         lda nsave+1
         sta osave+1
         rts
-
-; A/Y = base, X = r: A/Y = base + r * w - bx (old: ow, obx; new: nw, nbx).
-times_ow:
-        sta tmp2
-        lda ow
-        sta tmp3
-        lda obx
-        jmp times
-times_nw:
-        sta tmp2
-        lda cur_nw
-        sta tmp3
-        lda cur_nbx
-times:  eor #$FF                ; base - bx
-        sec
-        adc tmp2
-        bcs :+
-        dey
-:       cpx #0
-        beq @done
-@add:   clc
-        adc tmp3
-        bcc :+
-        iny
-:       dex
-        bne @add
-@done:  rts
 

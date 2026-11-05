@@ -120,9 +120,9 @@ put:    ldx _t80_mode
 @done:  rts
 
 _t80_putc:
-        pha
+        tax                     ; setrow preserves X
         jsr setrow
-        pla
+        txa
         jmp put
 
 ; A/X = a NUL-terminated string.
@@ -149,13 +149,11 @@ _t80_fill:
         jsr popa
         sta tmp1
         jsr setrow
-        ldx tmp2
+        lda tmp2
         beq @end
 @next:  lda tmp1
-        phx
         jsr put
-        plx
-        dex
+        dec tmp2                ; put and optional t80_flip preserve tmp2
         bne @next
 @end:   rts
 

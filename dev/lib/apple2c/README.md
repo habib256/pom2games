@@ -255,3 +255,10 @@ holes are in main).
 text and zero/one-row scrolls, with and without the pointer. Zero rows
 are a no-op; scroll ranges must fit in the 24-row page. Both memory banks
 and the screen holes are checked.
+
+Character output keeps its byte in X across the row-address helper; fills
+keep their count in `tmp2` across the writer. This removes one code byte
+and one hardware-stack byte on nonempty calls. An 80-column normal fill
+takes 5,562 instead of 5,883 cycles, or 6,654 instead of 6,974 with the
+pointer enabled. Individual characters save three cycles. The bounds test
+also covers every byte count/character in all modes and every column.

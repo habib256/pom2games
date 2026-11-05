@@ -783,6 +783,26 @@ for value in (0,1,9,10,99,100,255,256,999,1000,9999,10000,32767,32768,65535):
         call=f'digits=gfx_u16_digits({value}u);',
         declarations='static const char * volatile digits;',iie=True,warmup=False)
 
+# Direct 80-column text: pointer off/on, measured after bank/mode setup.
+for pointer in (0,1):
+    pointer_setup='t80_ptr_x=79;t80_ptr_y=7;t80_ptr_show();' if pointer else ''
+    for suffix,x,count,mode in (
+        ('row',0,80,0),('inverse',1,40,1),('raw',0,80,2),
+        ('edge',79,255,0),('empty',79,0,0),
+    ):
+        SCENES['t80_fill_'+suffix+('_ptr' if pointer else '')]=dict(
+            call=f't80_fill(88,{count});',
+            setup=f't80_init();t80_x={x};t80_y=7;t80_mode={mode};'+pointer_setup,
+            declarations='#include "apple2t80.h"',iie=True,warmup=False,t80=pointer)
+    for suffix,x,value,mode in (
+        ('normal',0,88,0),('inverse',1,64,1),('raw',0,255,2),
+        ('lower',0,97,1),('edge',79,88,0),('outside',80,255,0),
+    ):
+        SCENES['t80_putc_'+suffix+('_ptr' if pointer else '')]=dict(
+            call=f't80_putc({value});',
+            setup=f't80_init();t80_x={x};t80_y=7;t80_mode={mode};'+pointer_setup,
+            declarations='#include "apple2t80.h"',iie=True,warmup=False,t80=pointer)
+
 # C PRNG: both feedback paths, zero's fixed point, and both CPUs.
 for iie in (False, True):
     for seed in (0, 1, 2, 0xACE1, 0xFFFF):
@@ -884,6 +904,25 @@ SCENES['dhgr_spr_vbl_move']=dict(SCENES['dhgr_spr_move'],spr=('DHGR_SPR_VBL',),c
     setup='a2_vbl_init();'+SCENES['dhgr_spr_move']['setup']+'a2_frame_wait();')
 SCENES['dhgr_cursor_move']=dict(iie=True,dhgr=True,spr=(),declarations=SPR_DECL,
     setup='dhgr_cursor(20,60,4,6,arrow,under);', call='dhgr_cursor(21,61,4,6,arrow,under);')
+
+# Public byte-domain cursor boxes remain within 80x192 and w*h <= 127.
+# The tall cases use the existing maximum area, with its full save-under.
+for suffix,width,height,mode in (
+    ('hidden',4,1,'hidden'),('show1',4,1,'show'),
+    ('show31',4,31,'show'),('show127',1,127,'show'),
+    ('move1',4,1,'move'),('move6',4,6,'move'),
+    ('move31',4,31,'move'),('move127',1,127,'move'),
+    ('wide',63,2,'move'),('jump',4,6,'jump'),
+    ('hide31',4,31,'hide'),('hide127',1,127,'hide')):
+    setup = 'for(i=0;i<127;++i)cursor_bits[i]=(unsigned char)(i*29u+17u)&127;'
+    if mode not in ('hidden','show'):
+        setup += f'dhgr_cursor(0,20,{width},{height},cursor_bits,under);'
+    shown_width = 0 if mode in ('hidden','hide') else width
+    call = f'dhgr_cursor(1,{170 if mode=="jump" else 21},{shown_width},{height},cursor_bits,under);'
+    SCENES['dhgr_cursor_rows_'+suffix] = dict(iie=True,dhgr=True,spr=(),warmup=False,
+        declarations='static unsigned char cursor_bits[127],under[254],i;',
+        setup=setup,call=call)
+
 for height in (1,6,31):
     SCENES[f'dhgr_spr_overlay_h{height}']=dict(iie=True,dhgr=True,spr=(),warmup=False,
         declarations=SPR_DECL+'static unsigned char ov_bits[252],ov_under[504];',
@@ -972,7 +1011,7 @@ def presentation_source(variant):
 
 def measure(work,name,call,dhgr=False,setup='',sprites=False,warmup=True,
             declarations='',sprite_width=None,sprite_height=4,sprite_stride=2,presentation=None,iie=False,cadence=False,
-            pal=False,damage=False,variant=None,spr=None,clock=False,backend=None,prodos=False,rand=False):
+            pal=False,damage=False,variant=None,spr=None,clock=False,backend=None,prodos=False,rand=False,t80=None):
     source=work/(name+'.c'); obj=source.with_suffix('.o'); binary=source.with_suffix('.bin')
     source.write_text('#include "hgr.h"\n#include "gfx.h"\n#include "dhgr.h"\n#include "apple2io.h"\n'
       'void hgr_build_tables(void); void bench_begin(void); void bench_end(void); void bench_present(void);\n'+
@@ -1027,6 +1066,13 @@ def measure(work,name,call,dhgr=False,setup='',sprites=False,warmup=True,
         rand_obj=work/(name+'_rand.o')
         run(['ca65','-t','none','-I',DEV/'lib/apple2','-o',rand_obj,DEV/'lib/apple2c/apple2rand.s'])
         extra.append(rand_obj)
+    if t80 is not None:
+        members=['apple2t80.s']+(['apple2t80_ptr.s'] if t80 else [])
+        for member in members:
+            t80_obj=work/(name+'_'+Path(member).stem+'.o')
+            run(['ca65','-t','none','-D',f'T80_PTR={int(t80)}','-o',t80_obj,
+                 DEV/'lib/apple2c'/member])
+            extra.append(t80_obj)
     if clock:
         for src in (DEV/'lib/apple2c/apple2vbl.s',DEV/'lib/apple2c/apple2frame.s',DEV/'lib/mouse/mouse.s'):
             clock_obj=work/(name+'_'+src.stem+'.o')

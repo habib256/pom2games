@@ -4,6 +4,66 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Audit de la seizième session du 6 novembre 2026 — curseur DHGR, texte 80 colonnes et contraintes
+
+Après `16a8442`, le curseur DHGR initialise ses trois pointeurs de lignes
+une seule fois. Il les avance après une ligne appartenant à leur boîte,
+sans toucher les tampons pendant les espaces entre les boîtes. Le calcul
+répété `ligne×largeur` disparaît : pour un curseur haut, le travail de
+préparation devient linéaire. Les trois pointeurs sont indépendants,
+sans hypothèse sur leur contiguïté en page zéro. Les limites publiques
+et les séquences d'accès aux banques/IRQ restent identiques.
+
+Le compromis est de **quatre octets de code supplémentaires**, sans RAM,
+page zéro ni pile ajoutées. Un curseur de 1×127 octets utilise les limites
+publiques existantes et un tampon de sauvegarde de 254 octets : son
+déplacement passe de **396 612 à 69 770 cycles (−82,4 %)** ; son affichage
+initial de **262 894 à 45 713**. Douze cas isolent affichage, déplacement,
+masquage, grandes hauteurs, largeurs et sauts.
+
+Le texte 80 colonnes conserve le caractère dans X au travers de `setrow`,
+et le compteur de remplissage dans `tmp2` au travers de `put` et du
+pointeur optionnel. Vingt-deux nouveaux cas mesurent les deux variantes.
+Tous gagnent **un octet de code**, vingt appels non vides gagnent un octet
+au pic de pile matérielle. Un remplissage normal de 80 colonnes passe
+de **5 883 à 5 562 cycles**, avec pointeur de **6 974 à 6 654** ; les douze
+cas de caractère gagnent trois cycles chacun. RAM, page zéro et pile C
+restent inchangées.
+
+Le banc global compte **793 cas**, avec les **34 références nouvelles
+prises avant modification**. **57 dictionnaires changent** : 33 durées
+diminuent, neuf restent identiques, quinze augmentent de **1..16 cycles**
+(moins de 0,2 %, anciennes limites conservées). Les 35 clients du curseur
+prennent quatre octets de code, les 22 clients texte en perdent un.
+Les **736 autres dictionnaires sont identiques**. Les **16 budgets de
+trame passent** ; **97 champs de référence sont abaissés**, aucun relevé.
+
+Hors du banc C, `vl_quarter_abs` calcule directement
+`4*signed(high)+(low>>6)` et sature dès que le haut dépasse les bornes.
+Le helper générique passe de **54 à 38 octets**, les appels positifs de
+**77 à 40 cycles**, négatifs de **95 à 47**, les saturations de 72/90 à
+36/39. Douze contraintes sous les quatre options, sur les deux CPU, sont
+mesurées par `test_verlet_quarter_abs.py --bench --out …`. Les variantes
+génériques économisent **16 octets chargés et 71..99 cycles par appel** ;
+les deux variantes FAST gardent exactement leurs binaires et leurs durées.
+
+Le curseur passe avec les deux versions **3 200 appels / 424 020 écritures
+ordonnées**, sur IIe/IIc et les deux pages, avec gardes, masques IRQ et
+interruptions VIA réelles. Les 1 296 trames de texte par configuration
+de pointeur passent avec l'ancien et le nouveau code : tous les comptes,
+caractères, modes, colonnes, débordements, banques et trous vidéo.
+Le helper physique vérifie les **65 536 entrées sur chaque CPU** : valeur,
+X, ancien résultat de signe dans Y, I/D et pile matérielle. NZCV sont
+explicitement temporaires ; les appelants audités n'en dépendent pas.
+La suite complète des cinq modèles Verlet sous les quatre options passe.
+
+`make all` réussit. Seuls **DIRTBIKE et MBTRACKER** et leurs WOZ changent ;
+les **18 paires disque/WOZ** correspondent. Les suites du compositeur,
+DHGR ACTION, ROBOTSTATION IIe/IIc, LOGO, DIRTBIKE et MBTRACKER passent,
+ainsi que `git diff --check`.
+Le contrôle final `--dhgr --check` reproduit les **793 dictionnaires et
+16 budgets** à l'identique après resserrement des références.
+
 ## Audit de la quinzième session du 6 novembre 2026 — blits par octets et ellipses natives
 
 Après `1a22268`, les trois boucles du blitter HGR parcourent leurs octets

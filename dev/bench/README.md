@@ -1,5 +1,14 @@
 # Current cc65 measurements
 
+The sixteenth-session gate covers **793 cases**. Running cursor row pointers
+make a supported tall DHGR move **82.4% faster**, costing four code bytes.
+T80 character/fill register reuse saves one code byte in 22 clients and one
+hardware-stack byte in twenty. **33 timings improve**; fifteen rise by
+1..16 cycles (under 0.2%), with previous limits retained. 736 dictionaries
+are unchanged, all 16 frame budgets pass, and 97 reference fields tighten.
+Separately, generic physics constraints save 16 loaded bytes and 71..99
+cycles per measured call; FAST variants remain byte-identical. See [the sixteenth-session audit](HISTORY.md#audit-de-la-seizième-session-du-6-novembre-2026--curseur-dhgr-texte-80-colonnes-et-contraintes).
+
 The fifteenth-session benchmark covers **759 cases**, including 17 new
 workloads measured against the old kernels. Backward HGR byte blits,
 indexed DHGR sprite sources and native ellipses shrink **106 clients**

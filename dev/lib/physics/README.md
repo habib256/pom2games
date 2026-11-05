@@ -71,7 +71,7 @@ included.
 | `verlet_con.asm` | `vl_con_pass` | the `VL_NCON` constraints once, in order | ~1,450 c/link |
 | | `vl_constrain` | constraint `vl_cur` (see below) | 1,000-1,500 c |
 | | `vl_heavy` | the heavy-point share (`VL_CON_HEAVY_*`) | ~90 c |
-| | `vl_quarter_abs` | A/X signed → `A = min(|d >> 6|, 180)` (`VL_CON_FAST`: inline in `vl_constrain`) | ~60 c |
+| | `vl_quarter_abs` | A/X signed → `A = min(|d >> 6|, 180)` (`VL_CON_FAST`: inline in `vl_constrain`) | 36..47 c including JSR/RTS |
 | | `vl_square` | A = 0..180 → A/Y = A² from the quarter-square table (`VL_CON_FAST`: from `vl_sq_lo`/`vl_sq_hi`) | ~40 c (~20 c) |
 | | `vl_push` / `vl_push_all` | (`VL_THRUST`) point X / every point but the pinned ones += the push vector `vl_tx`/`vl_ty` (a speed change) | 125 c / 397 c (3 points) |
 | `verlet_rot.asm` | `vl_turn_pair` | turn the axis `VL_AXIS_A`→`VL_AXIS_B` (0→1): B += `vl_turn`·(−dy, dx) >> 8, A −= the same | ~650 c |
@@ -363,6 +363,16 @@ against the same model); a model check that f = 0 moves nothing on the
 plain, heavy and pinned paths; then each switch, left out and defined. `dev/tools/verlet/
 harness.py` is the generic driver (input script, tick label, snapshot
 blocks) for a game's own model-vs-6502 test.
+
+`dev/tests/test_verlet_quarter_abs.py` exhausts every signed input on each
+CPU (`--iie`), retaining X, the legacy Y sign result, I/D and the hardware
+stack. Arithmetic flags are scratch. The generic helper uses
+`4*signed(high)+(low>>6)` and clamps early: 38 code bytes instead of 54,
+36..47 cycles including JSR/RTS. `--bench --out report.json` also measures
+twelve model-checked constraints under all four speed-switch settings;
+`--reference old-verlet_con.asm` repeats them against a saved source.
+Non-FAST clients save 16 loaded bytes and 71..99 cycles per measured
+constraint; both FAST binaries and their timings remain identical.
 
 `dev/tests/test_verlet_seg.py` (in `make test-halfpipe-example`): 22
 segments (a floor, a 45° slope, a vertical wall and a ceiling in one

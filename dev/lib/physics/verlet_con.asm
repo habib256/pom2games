@@ -608,36 +608,36 @@ vl_heavy:
 
 .ifref vl_quarter_abs
 ; A/X = 16-bit signed delta (lo/hi) -> A = min(|floor(d / 64)|, 180)
+; Keeps X, returns the input sign in Y ($00/$ff). NZCV are scratch flags;
+; decimal and IRQ state are unchanged (the library requires D=0).
 vl_quarter_abs:
+        ; floor(d/64) = 4 * signed(high) + (low >> 6). Only high bytes
+        ; -45..44 need arithmetic; all others clamp immediately to 180.
+        ASL     A
+        ROL     A
+        ROL     A
+        AND     #3
         STA     vl_w0
-        STX     vl_w1
         LDY     #0
         TXA
-        BPL     @p
-        DEY
-@p:     STY     vl_w2
-        ASL     vl_w0
-        ROL     vl_w1
-        ROL     vl_w2
-        ASL     vl_w0
-        ROL     vl_w1
-        ROL     vl_w2                   ; w2:w1 = floor(d / 64)
-        LDA     vl_w2
-        BPL     @pos
-        SEC
-        LDA     #0
-        SBC     vl_w1
-        STA     vl_w1
-        LDA     #0
-        SBC     vl_w2
-        STA     vl_w2
-@pos:   LDA     vl_w2
-        BNE     @max
-        LDA     vl_w1
-        CMP     #181
-        BCC     @ok
+        BMI     @neg
+        CMP     #45
+        BCS     @max
+        ASL     A
+        ASL     A
+        ORA     vl_w0
+        RTS
+@neg:   DEY                             ; retain X and the original Y sign result
+        CMP     #<-45
+        BCC     @max
+        ASL     A
+        ASL     A
+        ORA     vl_w0
+        EOR     #$FF
+        ADC     #0                      ; the shifts left C=1: complement plus one
+        RTS
 @max:   LDA     #180
-@ok:    RTS
+        RTS
 .endif
 
 .ifref vl_square

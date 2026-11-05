@@ -113,6 +113,8 @@ test-hgr:
 	$(PYTHON) dev/tests/test_math_products.py
 	$(PYTHON) dev/tests/test_math_division.py
 	$(PYTHON) dev/tests/test_verlet.py
+	$(PYTHON) dev/tests/test_verlet_quarter_abs.py
+	$(PYTHON) dev/tests/test_verlet_quarter_abs.py --iie
 	$(PYTHON) dev/tests/test_gfx_glyph_entry.py
 	$(PYTHON) dev/tests/test_gfx_glyph_entry.py --iie
 	$(PYTHON) dev/tests/test_gfx_number_entries.py
@@ -252,6 +254,7 @@ test-dhgr:
 	$(PYTHON) dev/tests/test_dhgr_extended.py
 	$(PYTHON) dev/tests/test_dhgr_blocks.py
 	$(PYTHON) dev/tests/test_dhgr_sprite_native.py
+	$(PYTHON) dev/tests/test_dhgr_cursor_rows.py
 	$(PYTHON) dev/tests/test_dhgr_pages.py
 	$(PYTHON) dev/tests/test_dhgr_pages.py --iie
 	$(PYTHON) dev/tests/test_dhgr_axes_entry.py

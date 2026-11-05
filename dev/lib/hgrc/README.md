@@ -812,6 +812,15 @@ written once). `dev/tests/test_dhgr_spr.py` checks it with a2shot
 model's damage, each stored once with its final value; aux stores run with
 IRQs masked, main ones not.
 
+The standalone cursor initializes its old/new save-under and source row
+pointers once, then advances only the pointers whose boxes covered the
+previous row. This removes repeated row multiplication, including across
+gaps between the boxes. The public size/buffer limits are unchanged.
+A valid 1×127-byte cursor move takes 69,770 instead of 396,612 cycles,
+for four more code bytes and unchanged RAM, zero page and stack peaks.
+The dedicated cursor oracle checks both devices/pages, guards and real
+VIA interrupts, including the exact order of all stores.
+
 **Canvas borrowing.** The canvas is touched only inside `dhgr_spr_update`
 (and `dhgr_cv_rect` in a paint callback): 255 bytes are enough (2 groups ×
 18 rows, 4 groups × 9 rows), so the start of an idle ProDOS I/O buffer
