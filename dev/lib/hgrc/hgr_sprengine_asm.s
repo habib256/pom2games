@@ -3,13 +3,13 @@
 .export _hgr_spr_move, _hgr_spr_hide, _hgr_spr_render, _hgr_spr_present
 .export _hgr_spr_update, _hgr_spr_invalidate
 .export spr_visible, spr_changed, spr_bits, spr_pgbase
-.import popax, popa, _hgr_set_draw_page, _hgr_show_page
+.import incsp3, _hgr_set_draw_page, _hgr_show_page
 .import _spr_shape, _spr_x, _spr_y, _spr_active, _spr_px, _spr_py, _spr_drawn
 .import _spr_under, _spr_count, _spr_capacity, _spr_invalid, _spr_dbuf, _spr_drawpage
 .import _spr_slots, _spr_block, _spr_dirty, _spr_damage_fn
 .import _hgr_ms_restore_run, _hgr_msu_run, _hgr_ms_block
 .importzp _hgr_ms_x, _hgr_ms_y, _hgr_ms_spr, _hgr_ms_under
-.importzp tmp1
+.importzp sp, tmp1
 .bss
 spr_pgbase: .res 1
 pagebit: .res 1
@@ -17,36 +17,41 @@ first: .res 1
 id: .res 1
 pool: .res 2
 under: .res 2
-newx: .res 2
-newy: .res 1
 .rodata
 spr_bits: .byte 1,2,4,8,16,32,64,128
 .code
 ; y in A, x/id on the cc65 stack. Consume arguments even for invalid ids.
 _hgr_spr_move:
-        sta newy
-        jsr popax
-        sta newx
-        stx newx+1
-        jsr popa
+        sta tmp1                ; y, needed only while validating id
+        ldy #2
+        lda (sp),y
         cmp _spr_count
-        bcs move_done
+        bcs move_return
         tax
-        lda newy
+        lda tmp1
         sta _spr_y,x
         txa
         asl
-        tay
-        lda newx
-        sta _spr_x,y
-        lda newx+1
-        sta _spr_x+1,y
-        lda _spr_shape,y
-        ora _spr_shape+1,y
+        tax                     ; two-byte slot offset; Y reads C arguments
+        ldy #0
+        lda (sp),y
+        sta _spr_x,x
+        iny
+        lda (sp),y
+        sta _spr_x+1,x
+        lda _spr_shape,x
+        ora _spr_shape+1,x
         beq inactive
         lda #1
 inactive:
+        tay
+        txa
+        lsr
+        tax                     ; recover id, preserving visibility in Y
+        tya
         sta _spr_active,x
+move_return:
+        jmp incsp3
 move_done:
         rts
 _hgr_spr_hide:

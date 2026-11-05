@@ -4,6 +4,23 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Nouvelle série du 5 novembre 2026 : déplacement HGR depuis les arguments C
+
+`hgr_spr_move` lit directement les trois octets d'arguments dans la pile C,
+valide l'identifiant avant de lire x, puis libère les arguments en une fois.
+La position y reste dans `tmp1` jusqu'à son stockage ; les trois octets BSS
+de transit disparaissent. Chaque client concerné perd **13 octets chargés
+supplémentaires et trois octets de RAM**. Les déplacements valides gagnent
+**29 cycles** et les identifiants rejetés **44 cycles**. Le pic matériel des
+clients de déplacement isolés passe de six à cinq octets.
+
+Le nouveau test passe d'abord sur l'ancienne entrée puis sur la nouvelle :
+**20 480 appels** couvrent les 256 identifiants, les comptes 0/1/2/8,
+les pointeurs de forme nuls ou avec un seul octet non nul, les coordonnées
+limites sur 16 et 8 bits, l'intégrité des autres slots et les deux piles.
+La nouvelle entrée passe sur 6502 et 65C02. Les trois variantes du test
+d'intégration du moteur passent également.
+
 ## Nouvelle série du 5 novembre 2026 : visibilité HGR dans le scratch partagé
 
 Le résultat temporaire de visibilité de `spr_changed` ne vit que jusqu'au
