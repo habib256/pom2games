@@ -4,6 +4,23 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Nouvelle série du 5 novembre 2026 : stride masqué sans copie temporaire
+
+La préparation masquée lit le stride dans son emplacement déjà nécessaire
+aux boucles de lignes. La copie dans `tmp2` et son import disparaissent :
+**2 octets de code supplémentaires** et une écriture en page zéro en moins
+par appel. L'allocation de page zéro ne change pas. Les trois passes retirent
+donc **16 octets** aux clients masqués et **14** aux clients prédécalés.
+
+Par rapport au début de session, le dessin masqué de hauteur 255 découpé
+en phase zéro passe de **399 à 389 cycles**, le stride 255 découpé à droite
+de **409 à 398**, et le XOR prédécalé découpé de **695 à 678**.
+Le déplacement du code et des données entraîne aussi de petites hausses :
+le dessin masqué générique passe de 2 836 à 2 841 cycles, et le SET prédécalé
+de 2 143 à 2 154. Les anciennes références sont conservées pour ces cas.
+Les **1 827 868 préparations masquées** passent sur chacun des deux CPU,
+avec **200 octets** de code de préparation au lieu de 216.
+
 ## Nouvelle série du 5 novembre 2026 : découpage vertical des sprites
 
 Le même calcul par espace restant s'applique à la hauteur : comparer

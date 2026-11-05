@@ -45,7 +45,7 @@
         .exportzp _hgr_ms_x, _hgr_ms_y, _hgr_ms_spr, _hgr_ms_under
         .import   hgr_fixed_rowlo, hgr_fixed_rowhi, _hgr_base, _hgr_col7, _hgr_phase7
         .import   _hgr_build_columns, _hgr_build_phases
-        .importzp ptr1, ptr2, ptr3, ptr4, tmp1, tmp2, tmp3, tmp4
+        .importzp ptr1, ptr2, ptr3, ptr4, tmp1, tmp3, tmp4
 
         .segment "BSS"
 _hgr_ms_block: .res 1        ; one-call engine block (1..255), zero = generic
@@ -72,7 +72,8 @@ ms_blk_hi = tmp3            ; high byte: full height moves to X before clearing
 ;   ptr2 = data row pointer  (phase-adjusted, advanced by stride per row)
 ;   ptr3 = mask row pointer  (phase-adjusted, advanced by stride per row)
 ;   ptr4 = under row pointer (advanced by stride per row)
-; tmp1 = phase, tmp2 = stride, tmp3 = full (unclipped) h -- setup scratch only.
+; tmp1 = phase, tmp3 = full (unclipped) h -- setup scratch only.
+; Setup reads the stride directly from ms_stride; tmp2 remains untouched.
 
         .segment "CODE"
 
@@ -133,7 +134,6 @@ ms_setup_common:
         lda (ptr1),y              ; stride
         sta ms_stride
         sta ms_w                  ; default w = stride
-        sta tmp2                  ; tmp2 = stride
         iny
         lda (ptr1),y              ; h
         sta ms_h                  ; default h
@@ -144,7 +144,7 @@ ms_setup_common:
         lda #40
         sec
         sbc ms_col
-        cmp tmp2
+        cmp ms_stride
         bcs @wok
         sta ms_w
 @wok:
@@ -173,7 +173,7 @@ ms_setup_common:
 @hloop:
         clc
         ; A keeps the low product across additions; INC/DEX preserve it.
-        adc tmp2                  ; + stride
+        adc ms_stride             ; + stride
         bcc @h2
         inc ms_blk_hi
 @h2:
