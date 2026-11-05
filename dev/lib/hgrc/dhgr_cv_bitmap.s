@@ -80,14 +80,16 @@ dhgr_cv_bitmap:
         sbc _dhgr_cv_sy
         tax
         beq @col
-@skip:  lda ptr2
-        clc
+        lda ptr2
+        ; Keep the low pointer in A while skipping source rows. INC and
+        ; DEX preserve it; store it once before selecting the first column.
+@skip:  clc
         adc sw
-        sta ptr2
         bcc :+
         inc ptr2+1
 :       dex
         bne @skip
+        sta ptr2
 @col:   lda cs                  ; first source column
         sec
         sbc _dhgr_cv_sx

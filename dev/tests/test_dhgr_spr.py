@@ -62,10 +62,12 @@ FLOOR = [(0, 0, 7, 8, 0), (3, 2, 1, 4, 12)]
 SHAPES = [(0, 10, 12, DRONE), (0, 5, 9, TECH), (0, 40, 50, BIG), (0, 2, 2, DOT),
           (1, 6, 5, SHIP), (2, 7, 8, TILE_A), (0, 7, 8, WALL), (0, 7, 8, FLOOR),
           (1, 7, 8, [(x * 5 + y) % 16 for y in range(8) for x in range(7)]),
-          (2, 7, 8, TILE_C), (2, 9, 6, [nib((x * y) % 16) for y in range(6) for x in range(9)])]
+          (2, 7, 8, TILE_C), (2, 9, 6, [nib((x * y) % 16) for y in range(6) for x in range(9)]),
+          (1, 7, 64, [C if (x+y)%5 == 0 else (x*3+y)%16 for y in range(64) for x in range(7)]),
+          (2, 7, 64, [nib((x*3+y)%16) for y in range(64) for x in range(7)])]
 TSET = tuple((5, 6, 7, 8)[(i + i // 128) % 4] for i in range(256))
 # High IDs deliberately differ from their low-seven-bit aliases.
-OVBITS = [0x01, 0x03, 0x07, 0x0F, 0x03, 0x01, 0x40, 0x60, 0x70, 0x78, 0x30, 0x10] * 2
+OVBITS = ([0x01, 0x03, 0x07, 0x0F, 0x03, 0x01, 0x40, 0x60, 0x70, 0x78, 0x30, 0x10] * 11)[:127]
 
 
 def initial_tmap():
@@ -538,6 +540,18 @@ def scenario(inside=False, double=False):
     s.update('overlay bottom-left corner')
     s.overlay(0, 0, 0, 0)
     s.update('overlay hidden')
+    # Skip 40 source rows (280 bytes), crossing a page before the first
+    # visible byte. Cover both bitmap kinds, transparency and mirroring.
+    s.area(28, 60, 34, 63)
+    for shape, flags in ((11, 0), (11, MIRROR), (12, 0)):
+        s.set(0, shape, 28, 20, flags)
+        s.update(f'tall bitmap {shape}, flags {flags}, top 40 rows clipped')
+    s.set(0, None, 0, 0)
+    s.area(0, 16, 139, 175)
+    s.overlay(16, 40, 4, 31)
+    s.update('overlay 31 rows, 124 source bytes')
+    s.overlay(16, 40, 0, 0)
+    s.update('tall overlay hidden')
     if double:                  # (dhgr_cursor draws on one page: left out)
         s.overlay(60, 2, 4, 6)
         s.update('overlay above the area')

@@ -4,6 +4,21 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Nouvelle série du 5 novembre 2026 : saut de lignes des bitmaps DHGR
+
+Le peintre CHUNKY/TILE garde l'octet bas du pointeur source dans A pendant
+le saut des lignes masquées au-dessus de la zone de dessin. Le pointeur
+est stocké une seule fois après les additions. Taille, RAM, page zéro et
+piles restent identiques. Sauter 40 lignes de sept octets économise
+**234 cycles** : **5 909 → 5 675** pour CHUNKY et **5 563 → 5 329** pour
+TILE. La scène animée CHUNKY passe de **9 450 à 9 390 cycles**.
+
+Le modèle du compositeur couvre désormais les deux bitmaps hauts, leur
+découpage de 280 octets, la transparence, le miroir et une surimpression
+de 31 lignes. Les **66 mises à jour** passent sur IIe et IIc, ainsi que sur
+IIe avec interruptions VIA : images exactes, chaque octet écrit une seule
+fois et aucune interruption pendant un accès à la mémoire auxiliaire.
+
 ## Audit de la sixième session du 5 novembre 2026 — découpage des sprites
 
 Après `9616f46`, les commits `a294012`, `5c7ab37` et `cb864bb` simplifient
