@@ -4,6 +4,20 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Nouvelle série du 5 novembre 2026 : colonnes du petit texte DHGR
+
+La première colonne et le nombre d'octets par ligne utilisent `tmp3/tmp4`.
+Les appels auxiliaires préservent ces temporaires et `ptr4` reste réservé
+à la chaîne. Cette passe retire **six octets de code et deux octets de RAM
+supplémentaires**, soit **19 et quatre** pour la petite police, sans page
+zéro ni pile ajoutées.
+
+Le test complet des caractères, phases, pages, masques IRQ et trois
+implantations de police passe à nouveau après ce changement. Les douze
+profils compacts ne présentent aucune métrique en hausse par rapport au
+début de session ; le dernier caractère affichable passe de **1 499 à
+1 431 cycles**.
+
 ## Nouvelle série du 5 novembre 2026 : encre du petit texte DHGR
 
 L'octet de pixels et l'index d'encre utilisent `tmp1/tmp2`, préservés par
