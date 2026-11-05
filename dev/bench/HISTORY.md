@@ -4,6 +4,28 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Nouvelle série du 5 novembre 2026 : parcours du tampon de fond HGR
+
+Le calcul de fin du tampon et celui du début du suffixe à redessiner
+utilisent un seul appel pour additionner plusieurs capacités. L'octet bas
+reste dans A jusqu'au stockage final. L'avancement d'un slot partage ce
+même corps. Cette passe retire **un octet de code supplémentaire**, sans
+RAM ni pile ajoutées. Le chemin d'un seul avancement coûte six cycles de
+plus hors effets de placement ; les calculs de plusieurs slots évitent
+les appels et accès mémoire répétés.
+
+Entre cette passe et la précédente, la scène animée en phase zéro passe
+de **23 846 à 23 748 cycles**, le grand stress de **37 623 à 37 577** et
+le rendu par dommages isolés de **14 130 à 14 092**. La scène de jeu compact
+coûte 23 cycles de plus dans cette passe, mais reste plus rapide qu'au début
+de la session. Les trois passes retirent **17 octets chargés et quatre
+octets de RAM** par client du moteur.
+
+Un test dédié vérifie **9 180 appels par CPU** : capacités 1..255, comptes
+1..8 et avancement unique, passages de page et retour modulo 65 536. Il
+passe sur 6502 et 65C02. L'intégration, les recouvrements, le stress, les
+préfixes stables et le calcul optionnel des dommages passent également.
+
 ## Nouvelle série du 5 novembre 2026 : déplacement HGR depuis les arguments C
 
 `hgr_spr_move` lit directement les trois octets d'arguments dans la pile C,

@@ -185,10 +185,7 @@ ready:
         lda pool+1
         sta under+1
         ldx _spr_count
-end_pool:
-        jsr add_under
-        dex
-        bne end_pool
+        jsr add_under_n
         lda _spr_count
         sta id
 restore:
@@ -235,10 +232,7 @@ restored:
         sta under+1
         ldx first
         beq draw_start
-start_pool:
-        jsr add_under
-        dex
-        bne start_pool
+        jsr add_under_n
 draw_start:
         lda first
         sta id
@@ -312,12 +306,18 @@ parameters:
         sta _hgr_ms_under+1
         rts
 add_under:
-        clc
+        ldx #1
+; X positive slots: accumulate the low pointer in A and store it once.
+; All callers discard X; first=0 bypasses this entry in the draw setup.
+add_under_n:
         lda under
+@slot:  clc
         adc _spr_capacity
-        sta under
-        bcc added
+        bcc @next
         inc under+1
+@next:  dex
+        bne @slot
+        sta under
 added:
         rts
 damage_call:

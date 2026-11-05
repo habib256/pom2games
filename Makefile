@@ -210,6 +210,8 @@ test-hgr:
 	$(PYTHON) dev/tests/test_sprengine.py
 	$(PYTHON) dev/tests/test_sprengine_move.py
 	$(PYTHON) dev/tests/test_sprengine_move.py --iie
+	$(PYTHON) dev/tests/test_sprengine_pool.py
+	$(PYTHON) dev/tests/test_sprengine_pool.py --iie
 	$(PYTHON) dev/tests/test_sprengine_stress.py
 	$(PYTHON) dev/tests/test_sprengine_dirty.py
 	$(PYTHON) dev/tests/test_tilemap_init.py
