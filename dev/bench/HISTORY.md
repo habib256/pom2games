@@ -4,6 +4,19 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Nouvelle série du 5 novembre 2026 : découpage horizontal des sprites
+
+Les préparations des sprites masqués et prédécalés comparent leur stride
+à `40-colonne`, au lieu de calculer une somme puis de traiter séparément
+son débordement. Chaque noyau perd **7 octets de code**, sans allocation
+supplémentaire. La largeur initiale reste intacte lorsqu'elle tient à
+l'écran, y compris en cas d'égalité ; seule la largeur visible est réduite.
+Les dimensions source et le décalage des banques restent identiques.
+
+Les contrôles de préparation passent pour tous les strides, sept phases,
+deux placements et la sélection courante de hauteurs ; les sprites masqués
+vérifient aussi les deux modes et les 256 indicateurs de cache.
+
 ## Audit de la cinquième session du 5 novembre 2026 — sprites masqués
 
 Après `9812ef8`, les commits `22594f9`, `477b613` et `52ef795` partagent la

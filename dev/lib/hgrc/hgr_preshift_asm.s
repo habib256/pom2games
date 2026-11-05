@@ -61,17 +61,12 @@ _hgr_xs_setup:
         sta tmp3                  ; tmp3 = full h (for the phase offset)
         lda _hgr_xs_y
         sta _hgr_b_y
-        ; right clip: col + stride > 40 ? w = 40 - col
-        lda _hgr_b_col
-        clc
-        adc tmp2
-        bcs @clipw                ; col+stride >= 256 still exceeds the row
-        cmp #41
-        bcc @wok
-@clipw:
+        ; Right clip against the remaining columns: no overflowing sum.
         lda #40
         sec
         sbc _hgr_b_col
+        cmp tmp2
+        bcs @wok
         sta _hgr_b_w
 @wok:
         ; bottom clip: y + h > 192 ? h = 192 - y

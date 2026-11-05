@@ -140,17 +140,12 @@ ms_setup_common:
         sta tmp3                  ; tmp3 = full h (for the phase offset)
         lda _hgr_ms_y
         sta ms_yy
-        ; right clip: col + stride > 40 ? w = 40 - col
-        lda ms_col
-        clc
-        adc tmp2
-        bcs @clipw                ; 8-bit overflow still exceeds the 40-byte row
-        cmp #41
-        bcc @wok
-@clipw:
+        ; Right clip against the remaining columns: no overflowing sum.
         lda #40
         sec
         sbc ms_col
+        cmp tmp2
+        bcs @wok
         sta ms_w
 @wok:
         ; bottom clip: y + h > 192 ? h = 192 - y
