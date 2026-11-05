@@ -4,6 +4,44 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Série du 5 novembre 2026 : préparation native des sprites DHGR
+
+L'entrée native empile uniquement le pointeur de masque reçu en A/X :
+les neuf octets sont tous des arguments, sans cadre local. Elle vérifie
+l'étendue complète avant de clipper à droite. La banque utilise le produit
+hauteur d'origine × pas en huit étapes, sans calcul pour la phase zéro ;
+le décalage total de phase est appliqué une seule fois à chaque pointeur.
+La hauteur visible est bornée ensuite. Le parcours de lignes adresse les
+tables directement et réutilise les arguments pour les deux pointeurs,
+la ligne, la hauteur restante et la colonne. Le noyau masqué est inchangé.
+
+| Appel C | Cycles avant → après | Binaire avant → après |
+|---|---:|---:|
+| Petit sprite | 2 272 → 1 205 | 2 397 → 2 077 |
+| 14×8, masque partiel | 12 210 → 10 442 | 2 477 → 2 251 |
+| 14×8, masque opaque | 10 105 → 8 331 | 2 469 → 2 243 |
+| Huit lignes, phase 0 | 5 839 → 4 062 | 2 399 → 2 079 |
+| Huit lignes, phase 1 | 5 952 → 4 309 | 2 399 → 2 079 |
+| Huit lignes, phase 6 | 6 525 → 4 435 | 2 399 → 2 079 |
+| Hauteur 255, une ligne visible | 1 999 → 987 | 2 400 → 2 080 |
+| Largeur 255 clippée à droite | 1 995 → 958 | 2 401 → 2 081 |
+| Pas insuffisant | 467 → 304 | 2 399 → 2 079 |
+
+Économies de 320 octets isolés, ou 226 lorsque d'autres helpers C sont
+déjà liés. Pile C 18 → 9 (rejets 16 → 9), sans changement de RAM, page zéro
+ou pic matériel. Les 17 cas concernés s'améliorent, 415 sont identiques ;
+14 nouveaux cas portent le banc à 432.
+
+Le C puis l'assembleur NMOS/65C02 passent 787 456 appels : tous les couples
+x/largeur, largeur/pas et y/hauteur, tous les pointeurs source et masque,
+tous les produits hauteur/pas aux sept phases, chaque paramètre de ligne
+comparé à un oracle indépendant, états rejetés, scratch écrasé, gardes et
+1 024 positions de pile. Les tests étendus et renderer comparent les pixels
+aux sept phases, le clipping et les restaurations. Transferts/masques,
+compositeur IIe/IIc/IRQ, intégration HGR et 57 clients minimaux passent aussi.
+Le client sprite seul exclut le helper d'adresse et le contrôleur de blocs.
+`make all` et le gate complet passent ; les disques livrés restent identiques.
+
 ## Série du 5 novembre 2026 : contrôleur natif des transferts DHGR
 
 Les entrées lecture/écriture sont des membres d'archive indépendants ;

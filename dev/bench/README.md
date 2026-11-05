@@ -176,6 +176,26 @@ scratch registers and 2,048 stack placements. The C reference passes the
 same fixture. Eighteen new cases bring the benchmark to **418 cases**:
 21 improve and 397 remain identical.
 
+The sprite controller is native too. It validates the full color-pixel
+extent against stride before right clipping, computes the bank from the
+original height, then clips the visible rows. An eight-step product gives
+`height * stride`; phase zero skips it. The total phase offset is formed
+once and added once to each pointer. Row addresses and pointer advances use
+only the nine argument bytes, including the fastcall mask saved on entry.
+Isolated clients save **320 loaded bytes** (226 in the partial/opaque
+fixtures that already link other runtime helpers), C-stack peak **18 → 9**
+(rejections **16 → 9**), with unchanged RAM, zero page and hardware peaks.
+The small sprite takes **1,205 instead of 2,272 cycles**; partial/opaque
+14×8 sprites **10,442 / 8,331 instead of 12,210 / 10,105**. Phase-0/6
+8-row cases fall **5,839 / 6,525 → 4,062 / 4,435**, and a height-255 sprite
+clipped to one row **1,999 → 987**.
+`test_dhgr_sprite_entry.py` checks **787,456 calls per CPU**: all x/width,
+width/stride and y/height pairs, all data/mask pointers, every height/stride
+product at all seven phases, every row address/bank/count/pointer, rejected
+state, scratch clobbers, guards and 1,024 stack placements. The original C
+passes the same fixture. Fourteen new cases bring the benchmark to **432**;
+17 improve and 415 remain identical.
+
 The common DHGR rectangle preparation now validates and clips directly
 from its five argument bytes, using the carry out of `x+width` to saturate
 large widths safely. It releases the arguments before tail-calling the

@@ -538,6 +538,17 @@ for direction in ('read','write'):
             call=f'dhgr_{direction}_block({bx},{y},{width},{height},data,{stride});',
             declarations='static unsigned char data[512];',dhgr=True,iie=True,warmup=False)
 
+for suffix,x,y,width,height,stride in (
+    *((f'phase{(x*4)%7}',x,40,2,8,8) for x in range(7)),
+    ('height255',6,191,1,255,2), ('wide',139,191,255,1,255),
+    ('zero_width',1,0,0,1,2), ('zero_height',1,0,1,0,2),
+    ('bad_stride',1,0,2,1,1), ('outside',255,0,1,1,2),
+    ('below',1,255,1,1,2)):
+    SCENES['dhgr_sprite_entry_'+suffix]=dict(
+        call=f'dhgr_sprite({x},{y},{width},{height},{stride},data,mask);',
+        declarations='static unsigned char data[2048],mask[2048];',
+        dhgr=True,iie=True,warmup=False)
+
 # Non-default compile-time variants (dev/lib/ABI.md, "Speed/RAM options"):
 # the listed members are reassembled with the define and linked before hgrc.lib.
 for name in ('hgr_diagonal_cold','hgr_hud_cold','hgr_scene_cold'):
