@@ -4,6 +4,26 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Nouvelle série du 5 novembre 2026 : fin de ligne des sprites masqués
+
+L'avancement du pointeur de sauvegarde et des compteurs de lignes est
+partagé entre dessin, sauvegarde et restauration. Le chemin dessin continue
+directement dans celui de sauvegarde, sans appel ni saut supplémentaire.
+La suppression du doublon retire **16 octets chargés**, sans changement
+de RAM, page zéro ou piles.
+
+Les quatre clients génériques gardent exactement leurs durées : dessin
+2 876 cycles, sauvegarde 1 782, restauration 1 793 et sauvegarde/dessin 3 223.
+Les 200 scènes des quatre noyaux passent sur 6502 et 65C02, avec grands
+strides, sept phases, deux pages, palette, trous et limites du tampon de fond.
+
+Un nouveau test de préparation vérifie **1 827 868 appels** en mode complet :
+toutes les dimensions non nulles, sept phases, deux placements, préparation
+du dessin ou de la sauvegarde, et les 256 valeurs du cache. Les pointeurs
+16 bits, le découpage et la consommation du cache sont comparés au modèle.
+Le modèle passe également sur le noyau d'origine. La sélection courante
+des hauteurs est ajoutée aux suites HGR et IIe ; `--full` étend le parcours.
+
 ## Audit de la quatrième session du 5 novembre 2026 — texte et tuiles
 
 Après `f56a608`, les commits `13cd560` et `325c4b5` regroupent trois passes

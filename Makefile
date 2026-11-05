@@ -164,6 +164,7 @@ test-hgr:
 	$(PYTHON) dev/tests/test_preshift_bounds.py --folded
 	$(PYTHON) dev/tests/test_preshift_setup.py
 	$(PYTHON) dev/tests/test_sprmask_bounds.py
+	$(PYTHON) dev/tests/test_sprmask_setup.py
 	$(PYTHON) dev/tests/test_sprite16_bounds.py
 	$(PYTHON) dev/tests/test_text8_strings.py
 	$(PYTHON) dev/tests/test_hgr_native.py
@@ -262,6 +263,7 @@ test-dhgr:
 	$(PYTHON) dev/tests/test_hgr_hud_init.py --iie
 	$(PYTHON) dev/tests/test_hgr_hud.py --iie
 	$(PYTHON) dev/tests/test_sprmask_bounds.py --iie
+	$(PYTHON) dev/tests/test_sprmask_setup.py --iie
 	$(PYTHON) dev/tests/test_hgr_color.py --iie
 	$(PYTHON) dev/tests/test_hgr_text16.py --iie
 	$(PYTHON) dev/tests/test_hgr_text_cells.py --iie

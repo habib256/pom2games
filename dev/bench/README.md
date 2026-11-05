@@ -1,5 +1,11 @@
 # Current cc65 measurements
 
+Masked-sprite row advancement shares its save-under tail, saving **16 loaded
+bytes** without extra instructions, RAM or stack. The four generic drawing,
+saving and restoration cases retain their cycle counts. A new setup oracle
+covers all dimensions, phases, placements and one-call cache values
+(1,827,868 calls with `--full`).
+
 The fourth session measures three passes on text and tile restoration.
 The expanded gate passes **651 cases**: **32 smaller clients**, 619 unchanged
 measurements, and nine new cases measured before and after. 125 reference

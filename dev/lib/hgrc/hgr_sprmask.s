@@ -251,6 +251,8 @@ ms_next_row:
         bcc @u
         inc ptr3+1
 @u:
+        ; Save/restore enters this same tail, without data/mask advancement.
+ms_next_under:
         clc
         lda ptr4                ; under += stride (linear buffer, row-major)
         adc ms_stride
@@ -347,19 +349,6 @@ restore2:
         restore_rows 2
 restore4:
         restore_rows 4
-
-; Copies need only the under pointer; data/mask phase arithmetic is irrelevant.
-ms_next_under:
-        clc
-        lda ptr4
-        adc ms_stride
-        sta ptr4
-        bcc @row
-        inc ptr4+1
-@row:
-        inc ms_yy
-        dec ms_h
-        rts
 
 ; --- _hgr_msu_run : save-under + masked draw, ONE pass -----------------------
 ; The engine's hot path: per row the background byte is copied to the under
