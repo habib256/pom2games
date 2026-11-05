@@ -177,3 +177,11 @@ identical instructions. If `byte_to_dec` is first referenced after an
 earlier division-only include, its 10-byte prefix uses a 3-byte jump back
 to the existing division tail. `test_math.py` checks all 256 inputs in
 these configurations, X preservation and repeated includes.
+
+The 16-bit decimal converter counts down through the four powers of ten.
+Testing the index's sign removes two code bytes and four explicit comparisons
+(eight instruction cycles per call, before placement effects). Digits, leading
+zero suppression and NUL termination stay unchanged. The GFX signed wrapper
+also propagates the sign-test carry through the complement, saving two more
+bytes. `test_gfx_decimal.py` checks every signed and unsigned word, lengths and
+buffer guards on both 6502 and 65C02 (`--iie`).

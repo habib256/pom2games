@@ -70,7 +70,7 @@ dec_d:   .res 1
 .endif
 .segment "CODE"
 u16_to_dec:
-        LDX     #0              ; power index: 10000, 1000, 100, 10
+        LDX     #3              ; descending indexes: 10000, 1000, 100, 10
         LDY     #0              ; output index, nonzero once a digit is out
 @pw:    LDA     #'0'
         STA     dec_d
@@ -93,9 +93,8 @@ u16_to_dec:
         BEQ     @skip           ; leading zero
 @emit:  STA     (dec_ptr),Y
         INY
-@skip:  INX
-        CPX     #4
-        BNE     @pw
+@skip:  DEX
+        BPL     @pw
         LDA     dec_lo          ; units, always written
         ORA     #'0'
         STA     (dec_ptr),Y
@@ -103,7 +102,7 @@ u16_to_dec:
         LDA     #0
         STA     (dec_ptr),Y
         RTS
-dec_pw_lo: .byte <10000, <1000, <100, <10
-dec_pw_hi: .byte >10000, >1000, >100, >10
+dec_pw_lo: .byte <10, <100, <1000, <10000
+dec_pw_hi: .byte >10, >100, >1000, >10000
 .endif
 .endif

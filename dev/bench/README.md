@@ -1,5 +1,10 @@
 # Current cc65 measurements
 
+Decimal conversion saves **2 loaded bytes** in unsigned clients and **4**
+in signed clients, with no extra RAM or stack. GFX unsigned zero takes
+**1,825 instead of 1,833 cycles**, signed −1 **3,008 instead of 3,024**.
+All 131,072 signed/unsigned strings pass on both 6502 and 65C02.
+
 LORES row-page switching now uses a fixed XOR mask, saving **7 loaded bytes**.
 A page-2/page-1 round trip with LORES ready takes **5,487 instead of 5,615
 cycles**. The HGR-only round trip costs 34 extra layout cycles (+0.73%);

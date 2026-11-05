@@ -9,14 +9,13 @@ _gfx_itoa:
         cpx #$80
         bcc positive
         eor #$FF                ; 0 - value (-32768 stays 32768)
+        adc #0                  ; CPX left C=1; complement plus one
         sta _hgr_u_lo
         txa
         eor #$FF
+        adc #0                  ; propagate the low-byte carry
         sta _hgr_u_hi
-        inc _hgr_u_lo
-        bne :+
-        inc _hgr_u_hi
-:       jsr gfx_num_buffer
+        jsr gfx_num_buffer
         lda #'-'
         ldy #0
         sta (_hgr_u_ptr),y

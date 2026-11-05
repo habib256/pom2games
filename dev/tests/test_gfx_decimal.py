@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """All signed/unsigned 16-bit decimal strings, lengths and buffer guards."""
+import argparse
 from pathlib import Path
 import tempfile
 from test_hgr import DEV, run, compile_source, a2test
 
 
-def check(work):
+def check(work, iie=False):
     source = work/'numbers.c'
     source.write_text('''#include "gfx.h"
 void begin(void); void end(void);
@@ -42,7 +43,8 @@ int main(void) {
     steps = a2test.bin_steps(binary)
     for _ in range(512):
         steps += [labels.until('_begin'),labels.until('_end'),labels.peek('_records',2560)]
-    data = a2test.run(None,steps).data
+    disk = a2test.build_disk(work, 'TEST', binary) if iie else None
+    data = a2test.run(disk,steps,iie=iie).data
     assert len(data) == 2*65536*10
     for mode in range(2):
         for bits in range(65536):
@@ -51,9 +53,12 @@ int main(void) {
             expected = b'\xA5'+digits+b'\0'+b'\xA5'*(7-len(digits))+bytes([len(digits)])
             offset = (mode*65536+bits)*10
             assert data[offset:offset+10] == expected, (mode,value,data[offset:offset+10],expected)
-    print('Decimal: all 131072 signed/unsigned strings, digit counts, NULs and guards OK.')
+    print(f'Decimal: all 131072 signed/unsigned strings, digit counts, NULs and guards OK; IIe={iie}.')
 
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--iie', action='store_true')
+    args = parser.parse_args()
     with tempfile.TemporaryDirectory(prefix='gfx-decimal-') as tmp:
-        check(Path(tmp))
+        check(Path(tmp), args.iie)

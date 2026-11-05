@@ -4,6 +4,29 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Nouvelle série du 5 novembre 2026 : compteurs et signe décimaux
+
+`u16_to_dec` parcourt les puissances de dix avec un indice décroissant,
+en terminant sur le signe de l'indice plutôt qu'une comparaison explicite.
+Le noyau perd **2 octets** et quatre comparaisons de deux cycles par appel.
+Le convertisseur signé réutilise la retenue du test du signe pour calculer
+le complément à deux, sans incréments mémoire : **2 octets supplémentaires**
+en moins, y compris pour −32768 et les mots dont l'octet bas est nul.
+RAM, page zéro et piles restent inchangées.
+
+| Texte numérique | Cycles avant → après | Binaire avant → après |
+|---|---:|---:|
+| GFX non signé 0 | 1 833 → 1 825 | 2 191 → 2 189 |
+| GFX non signé 65535 | 8 686 → 8 678 | 2 191 → 2 189 |
+| GFX signé −1 | 3 024 → 3 008 | 2 236 → 2 232 |
+| GFX signé −32768 | 10 250 → 10 238 | 2 237 → 2 233 |
+| Champ HGR zéro | 4 721 → 4 713 | 2 937 → 2 935 |
+
+Les **131 072 chaînes signées/non signées** passent sur 6502 et 65C02,
+avec longueurs, NUL et gardes. Le test IIe est ajouté à `test-hgr`.
+Les conversions d'octets et les règles d'inclusions répétées restent
+identiques et passent aussi les contrôles de `test_math.py`.
+
 ## Nouvelle série du 5 novembre 2026 : bascule des lignes LORES
 
 Les octets hauts des lignes LORES sont dans 4…7 ou 8…11. Le gestionnaire
