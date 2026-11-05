@@ -191,6 +191,7 @@ test-hgr-example:
 	$(PYTHON) dev/tests/test_hgr_example.py
 
 test-dhgr:
+	$(PYTHON) dev/tests/test_dhgr_points.py
 	$(PYTHON) dev/tests/test_dhgr_sprite_entry.py
 	$(PYTHON) dev/tests/test_dhgr_sprite_entry.py --iie
 	$(PYTHON) dev/tests/test_dhgr_transfer_entry.py

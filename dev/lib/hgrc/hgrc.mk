@@ -55,7 +55,7 @@ HGRC_ASM_DEPS := $(wildcard $(HGRC)/*.inc $(HGRC)/../apple2/*.inc $(HGRC)/../app
 # IIe/IIc DHGR stays opt-in, independent from HGR and gfx.
 HGRC_DHGR_STATE_SRCS := $(HGRC)/dhgr_state.c $(HGRC)/dhgr_draw_page.s $(HGRC)/dhgr_get_draw_page.s $(HGRC)/dhgr_get_display_page.s $(HGRC)/dhgr_flip.s $(HGRC)/dhgr_asm.s
 HGRC_DHGR_TABLE_SRCS := $(HGRC)/dhgr_rows.s $(HGRC)/dhgr_cells.s
-HGRC_DHGR_PIXEL_SRCS := $(addprefix $(HGRC)/,dhgr_pixel_asm.s dhgr_getpixel_asm.s) $(HGRC_DHGR_TABLE_SRCS)
+HGRC_DHGR_PIXEL_SRCS := $(addprefix $(HGRC)/,dhgr_pixel_asm.s dhgr_getpixel_asm.s dhgr_locate.s) $(HGRC_DHGR_TABLE_SRCS)
 HGRC_DHGR_CLEAR_SRCS := $(addprefix $(HGRC)/,dhgr_clear.s dhgr_pattern_asm.s dhgr_clear_asm.s dhgr_clear_rows.s dhgr_clear_rows_asm.s dhgr_rows.s)
 HGRC_DHGR_FILL_SRCS := $(sort $(HGRC_DHGR_CLEAR_SRCS) $(addprefix $(HGRC)/,dhgr_fill.s dhgr_plot_color_asm.s dhgr_fill_bits.s dhgr_bit_rect.s dhgr_span_asm.s) $(HGRC_DHGR_TABLE_SRCS))
 HGRC_DHGR_TRANSFER_SRCS := $(addprefix $(HGRC)/,dhgr_address_asm.s dhgr_block.s dhgr_read_block.s dhgr_write_block.s dhgr_sprite.s dhgr_transfer_params.c dhgr_block_asm.s) $(HGRC_DHGR_TABLE_SRCS)

@@ -549,6 +549,14 @@ for suffix,x,y,width,height,stride in (
         declarations='static unsigned char data[2048],mask[2048];',
         dhgr=True,iie=True,warmup=False)
 
+for suffix,x,y in (('aux',0,0),('main',7,0),('phase6',6,40),
+                   ('last',559,191),('outside',560,191),('high',65535,0),('below',0,255)):
+    for value in (0,255):
+        SCENES[f'dhgr_point_plot_{suffix}_{value}']=dict(call=f'dhgr_plot({x}u,{y},{value});',
+            dhgr=True,iie=True,warmup=False)
+    SCENES['dhgr_point_read_'+suffix]=dict(call=f'dhgr_getpixel({x}u,{y});',
+        setup='dhgr_clear(15);',dhgr=True,iie=True,warmup=False)
+
 # Non-default compile-time variants (dev/lib/ABI.md, "Speed/RAM options"):
 # the listed members are reassembled with the define and linked before hgrc.lib.
 for name in ('hgr_diagonal_cold','hgr_hud_cold','hgr_scene_cold'):

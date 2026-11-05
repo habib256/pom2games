@@ -4,6 +4,37 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Série du 5 novembre 2026 : lecture et écriture de points DHGR indépendantes
+
+Le calcul d'adresse/masque devient `dhgr_locate.s`, sans changement de son
+corps. Un lecteur seul ne lie plus le code d'écriture. Les entrées passent
+les coordonnées via le scratch existant ; le traceur libère directement
+ses trois arguments, le lecteur incrémente deux fois la pile en gardant
+son résultat octet dans A/X. L'accès bancaire et le masque IRQ sont inchangés.
+
+| Appel C | Cycles avant → après | Binaire avant → après |
+|---|---:|---:|
+| Tracé auxiliaire, bit posé | 318 → 305 | 1 629 → 1 621 |
+| Tracé principal, bit posé | 293 → 277 | 1 631 → 1 623 |
+| Tracé du dernier point | 303 → 287 | 1 633 → 1 625 |
+| Lecture auxiliaire | 285 → 279 | 1 900 → 1 801 |
+| Lecture principale | 265 → 259 | 1 904 → 1 805 |
+| Lecture du dernier point | 273 → 266 | 1 906 → 1 807 |
+| Tracé hors écran | 171 → 155 | 1 633 → 1 625 |
+| Lecture hors écran | 160 → 155 | 1 906 → 1 807 |
+
+Les clients lecteurs gagnent 99 octets, les traceurs huit. RAM, page zéro
+et pics de pile mesurés sont inchangés. Les 21 nouveaux cas s'améliorent ;
+les 432 précédents restent identiques, soit 453 mesures au total.
+
+La fixture passe avant/après sur IIe et IIc : 694 336 appels par machine,
+tous les points des deux pages, les 256 sélecteurs, tous les mots x invalides
+et octets y invalides, lecture indépendante des banques et des trous vidéo,
+restauration des banques et du masque IRQ, résultat A/X et 2 048 placements
+de pile. Les tests DHGR, étendus, renderer, intégration HGR et 57 clients
+minimaux passent. Le client de lecture exclut explicitement le traceur.
+`make all` et le gate complet passent ; les disques livrés sont identiques.
+
 ## Série du 5 novembre 2026 : préparation native des sprites DHGR
 
 L'entrée native empile uniquement le pointeur de masque reçu en A/X :

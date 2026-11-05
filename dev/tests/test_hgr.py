@@ -231,7 +231,7 @@ def check_archive(work):
         ('dhgr_pixel', 'dhgr_plot(1u,1u,1u);', 'dhgr_pixel_asm.o',
          ('dhgr_fill.o', 'dhgr_address_asm.o', 'dhgr_block.o', 'dhgr_small_asm.o', 'dhgr_getpixel_asm.o')),
         ('dhgr_read', 'return dhgr_getpixel(1u,1u);', 'dhgr_getpixel_asm.o',
-         ('dhgr_fill.o', 'dhgr_block.o', 'dhgr_span_asm.o')),
+         ('dhgr_fill.o', 'dhgr_block.o', 'dhgr_span_asm.o', 'dhgr_pixel_asm.o')),
         ('dhgr_fill', 'dhgr_fill_rect(1u,1u,2u,2u,9u);', 'dhgr_fill.o',
          ('dhgr_pixel_asm.o', 'dhgr_address_asm.o', 'dhgr_block.o', 'dhgr_small_asm.o',
           'dhgr_clear.o', 'dhgr_clear_asm.o', 'dhgr_fill_bits.o', 'dhgr_plot_color_asm.o')),

@@ -575,6 +575,21 @@ state, scratch clobbers, guards and 1,024 stack placements. The original C
 passes the same fixture. Fourteen new cases bring the benchmark to **432**;
 17 improve and 415 remain identical.
 
+DHGR point address/mask calculation is a separate archive member shared
+by plotting and readback. A read-only client no longer links the writer.
+The wrappers pass coordinates through existing scratch and release their
+arguments directly; readback preserves A/X while incrementing the stack
+pointer twice. Isolated readers save **99 loaded bytes**, writers **8**,
+with unchanged RAM, zero page and measured stack peaks. Auxiliary/main-bank
+reads take **279 / 259 instead of 285 / 265 cycles**; writes of a set bit
+**305 / 277 instead of 318 / 293**. Offscreen reads/writes improve too.
+The shared locator body is unchanged. `test_dhgr_points.py` checks
+**694,336 calls on each IIe/IIc**: every pixel on both pages, all selector
+bytes, every invalid 16-bit x and y byte, bank/IRQ restoration, video holes,
+byte return values and 2,048 stack placements. It passes before and after
+the change. Twenty-one new cases bring the benchmark to **453**; all improve
+and the previous 432 remain identical.
+
 - `dhgr_capabilities()`: bits `DHGR_CAP_EXTENDED` and `DHGR_CAP_AUX_VIDEO`.
   The probe keeps the display and the bytes used in the video holes.
 - `dhgr_init()`: returns 1 if the ROM model and auxiliary RAM are suitable,
