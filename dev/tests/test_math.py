@@ -382,22 +382,24 @@ results: .res 256
             for _ in range(256):
                 steps += [L.until('page_done'), L.peek('results', 256), L.until('resume')]
             steps += [L.until('done')]
-            result = a2test.run(None, steps)
-            squares = [n*n // 4 for n in range(512)]
-            mirrored = [squares[abs(n-255)] for n in range(512)]
-            expected = bytes(v >> shift & 255 for table in (squares, mirrored)
-                             for shift in (0, 8) for v in table)
-            assert result.dumps[0] == expected, ('quarter squares', base)
-            assert result.dumps[1] == bytes(math.isqrt(n*256) for n in range(256))
-            for high in range(256):
-                assert result.dumps[high+2] == bytes(math.isqrt(high*256+low)
-                                                     for low in range(256)), high
-            print(f'Squares ${base:04X}: all 2,048 table bytes and 65,536 roots OK; '
-                  f'mul_init {L["code_end"]-L["mul_init"]} B / '
-                  f'{result.cycles[1]-result.cycles[0]} cycles; '
-                  f'sqrt_init {result.cycles[2]-result.cycles[1]} cycles; '
-                  f'root kernel {L["mul_init"]-L["isqrt16"]} B; '
-                  f'root sweep {result.cycles[-1]-result.cycles[2]} cycles.')
+            disk = a2test.build_disk(work, 'TEST', binary)
+            for iie in (False, True):
+                result = a2test.run(disk if iie else None, steps, iie=iie)
+                squares = [n*n // 4 for n in range(512)]
+                mirrored = [squares[abs(n-255)] for n in range(512)]
+                expected = bytes(v >> shift & 255 for table in (squares, mirrored)
+                                 for shift in (0, 8) for v in table)
+                assert result.dumps[0] == expected, ('quarter squares', base)
+                assert result.dumps[1] == bytes(math.isqrt(n*256) for n in range(256))
+                for high in range(256):
+                    assert result.dumps[high+2] == bytes(math.isqrt(high*256+low)
+                                                         for low in range(256)), high
+                print(f'Squares ${base:04X}: all 2,048 table bytes and 65,536 roots OK; '
+                      f'mul_init {L["code_end"]-L["mul_init"]} B / '
+                      f'{result.cycles[1]-result.cycles[0]} cycles; '
+                      f'sqrt_init {L["isqrt16"]-L["sqrt_init"]} B / {result.cycles[2]-result.cycles[1]} cycles; '
+                      f'root kernel {L["mul_init"]-L["isqrt16"]} B; '
+                      f'root sweep {result.cycles[-1]-result.cycles[2]} cycles; IIe={iie}.')
 
 
 def main():

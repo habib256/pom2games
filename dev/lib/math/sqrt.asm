@@ -37,7 +37,7 @@ sqrt_init:
 @h:     JSR     isqrt_from_y
         LDX     mul_x+1
         STA     sqrt_seed,X
-        TAY
+        ; isqrt_from_y already returns the root in both A and Y.
         INC     mul_x+1
         BNE     @h
         RTS

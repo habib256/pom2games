@@ -118,14 +118,17 @@ runs it in a2run on about 2,100 cases (edges, sign patterns, fixed
 random) and compares against the Python computation. It is built twice: tables at
 `$0800`, then tables and `sqrt_seed` in HGR page 2.
 It also checks all 2,048 generated quarter-square bytes, all 256 seed bytes,
-and all 65,536 square roots at both table placements in a separate fixture.
+and all 65,536 square roots at both table placements in a separate fixture,
+on both 6502 and 65C02.
 
-`mul_init` advances the quarter-square difference every other entry and keeps
-the 9-bit index in X/Y. A single pass copies both halves of the mirrored
-table. In the exhaustive fixture this takes 37,691 cycles including JSR/RTS,
-down from 48,707, and 110 code bytes instead of 128. The square-root kernel
+`mul_init` advances the quarter-square difference every other entry and uses
+a descending half counter in X and a low index in Y. A single pass copies both
+halves of the mirrored table. In the exhaustive fixture this takes **37,687
+cycles and 109 bytes**, down from 37,691/110 before the counter pass
+(originally 48,707/128). The square-root kernel
 uses the candidate's wrap to detect the maximum root: 42 bytes instead of 44.
-Seed construction takes 24,031 instead of 25,049 cycles; the complete root
+Seed construction reuses the root already returned in Y: **23,519 cycles
+and 20 bytes**, down from 24,031/21 (originally 25,049 cycles). The complete root
 sweep, including the fixture's stores and loop, takes 5,529,438 instead of
 5,727,330 cycles. Returning the maximal root 255 costs two extra cycles;
 other candidate steps save two. Table storage and zero page are unchanged.

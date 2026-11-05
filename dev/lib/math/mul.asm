@@ -232,10 +232,10 @@ mul_init:
         STA     mul_p0                  ; f = sqr1[x]
         STA     mul_p1
         STA     mul_t                   ; next difference, incremented on odd x
-        TAX                             ; high byte of x, 9 bits
+        LDX     #1                      ; halves left minus one: low, then high
         TAY                             ; low byte
 @s1:    TXA
-        BNE     @hi
+        BEQ     @hi
         LDA     mul_p0
         STA     mul_sqr1_lo,Y
         LDA     mul_p1
@@ -257,9 +257,8 @@ mul_init:
         INC     mul_p1
 @nc:    INY
         BNE     @s1
-        INX
-        CPX     #2
-        BNE     @s1
+        DEX
+        BPL     @s1
         LDX     #0
         LDY     #255                    ; mirror first half while copying second
 @s2:    LDA     mul_sqr1_lo,Y

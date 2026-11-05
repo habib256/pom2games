@@ -1,5 +1,10 @@
 # Current cc65 measurements
 
+Math-table initialization saves **2 code bytes and 516 cycles** across
+`mul_init`/`sqrt_init`: **61,206 instead of 61,722 cycles** including calls.
+All table bytes, seeds and 65,536 roots pass at two table placements on
+6502 and 65C02; the runtime square-root kernel and its timing stay unchanged.
+
 Decimal conversion saves **2 loaded bytes** in unsigned clients and **4**
 in signed clients, with no extra RAM or stack. GFX unsigned zero takes
 **1,825 instead of 1,833 cycles**, signed −1 **3,008 instead of 3,024**.

@@ -4,6 +4,25 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Nouvelle série du 5 novembre 2026 : initialisation des tables mathématiques
+
+Le constructeur des carrés compte ses deux demi-tables à rebours et
+termine sur le signe du compteur. Le constructeur des graines de racine
+réutilise le résultat déjà présent dans Y. Chaque initialiseur perd un
+octet, sans changement des tables, de la page zéro ou de la pile.
+
+| Initialiseur | Cycles avant → après | Code avant → après |
+|---|---:|---:|
+| `mul_init` | 37 691 → 37 687 | 110 → 109 |
+| `sqrt_init` | 24 031 → 23 519 | 21 → 20 |
+| Les deux | 61 722 → 61 206 | 131 → 129 |
+
+Les **2 048 octets des tables**, 256 graines et **65 536 racines** passent
+aux deux placements $0800/$4000, désormais sur 6502 et 65C02. Le noyau
+des racines reste à 42 octets et son parcours exhaustif à 5 529 438 cycles.
+Les 1 572 864 produits constants signés/non signés, les inclusions optionnelles
+et les tests mathématiques généraux passent également.
+
 ## Nouvelle série du 5 novembre 2026 : compteurs et signe décimaux
 
 `u16_to_dec` parcourt les puissances de dix avec un indice décroissant,
