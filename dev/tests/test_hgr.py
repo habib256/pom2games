@@ -78,6 +78,18 @@ def compile_source(source, obj, flags):
         run(['cl65', *flags, '-c', '-o', obj, source])
 
 
+def gfx_backend_sources(work, backend):
+    """Resolve the selected archive family, retaining explicit custom C backends."""
+    families={'gfx_backend_dhgr_mono.c':'HGRC_DHGR_MONO_BACKEND',
+              'gfx_backend_dhgr_color.c':'HGRC_DHGR_COLOR_BACKEND'}
+    if backend not in families:return [DEV/'lib/gfx'/backend]
+    mk=work/'gfx_backend.mk'
+    mk.write_text(f'HGRC := {DEV}/lib/hgrc\nGFX := {DEV}/lib/gfx\n'
+                  f'include {DEV}/lib/hgrc/hgrc.mk\n'
+                  'print:\n\t@echo $('+families[backend]+')\n')
+    return [Path(s) for s in run(['make','-s','-f',mk,'print']).split()]
+
+
 def build(work, fixture=None, extra_sources=(), gfx_backend=None, cflags=()):
     # A tiny pre-shift bank: 10101 / 01110 / 11011, seven phases, two bytes/row.
     data = []
@@ -96,7 +108,7 @@ def build(work, fixture=None, extra_sources=(), gfx_backend=None, cflags=()):
     if gfx_backend:
         sources = [s for s in sources if not Path(s).name.startswith('gfx_backend_hgr')
                    and Path(s).stem != 'gfx_line_hgr']
-        sources.extend([DEV/'lib/gfx/gfx_line.c', DEV/'lib/gfx'/gfx_backend])
+        sources.extend([DEV/'lib/gfx/gfx_line.c', *gfx_backend_sources(work,gfx_backend)])
     sources.extend(extra_sources)
     objects = []
     for source in sources:

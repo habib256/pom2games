@@ -1,5 +1,6 @@
 /* VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root). */
-/* Link exactly one DHGR backend. Mono coordinates are 560x192. */
+/* Portable reference; HGRC_DHGR_MONO_BACKEND selects independent native members.
+ * Link exactly one DHGR backend. Mono coordinates are 560x192. */
 #include "gfx.h"
 #include "dhgr.h"
 const unsigned gfx_width = 560u;

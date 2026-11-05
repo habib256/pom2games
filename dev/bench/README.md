@@ -1,5 +1,12 @@
 # Current cc65 measurements
 
+Independent native DHGR monochrome adapters reduce a point-only client
+from **3,256 to 1,672 loaded bytes**, and the point from **432 to 322 cycles**.
+A pen-only client saves **2,439 loaded bytes**. Generic diagonal/circle
+workloads also improve: **496,434 → 433,885** and **47,424 → 37,419 cycles**.
+The benchmark selects each explicit backend in its own archive, including
+both monochrome and color cases in the DHGR gate.
+
 The native inflate-and-blit entry saves another **36 loaded bytes** and
 reduces valid/rejected C-stack peaks from 18/11 to **14/8 bytes**. An
 oversized source is rejected in **152 cycles instead of 570**; drawing a

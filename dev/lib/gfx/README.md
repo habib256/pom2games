@@ -14,7 +14,8 @@ into an `ar65` archive so that only the functions actually called get linked
 ## Apple II DHGR
 
 Two explicit backends: `gfx_backend_dhgr_color.c` (140×192, LORES colour
-0..15) or `gfx_backend_dhgr_mono.c` (560×192, bit 0/1). Link exactly one
+0..15) or the native `HGRC_DHGR_MONO_BACKEND` family (560×192, bit 0/1;
+`gfx_backend_dhgr_mono.c` remains the portable reference). Link exactly one
 backend with `HGRC_GENERIC_VECTOR_SRCS` and the DHGR library. The current
 colour is set with `dhgr_set_color`. Coordinates are those of the chosen
 backend; native blocks and sprites keep their own API in `dhgr.h`.
@@ -201,3 +202,9 @@ The cc65 archive selects independent native cursor state, `gfx_gotoxy`,
 `gfx_putc` and `gfx_text` members. Positioning alone imports no glyph renderer;
 character-only clients omit string iteration. Strings keep their iterator
 on the C stack across backend calls. `gfx_text.c` remains the portable reference.
+
+The monochrome DHGR archive separates dimensions, pen state/selection and
+all drawing entries. Points and axes append the selected pen directly to
+the existing C frame. Filled rectangles sort/clip full-width corners before
+reusing a six-byte frame. `gfx_clear` maps nonzero values to white without
+changing the pen; dimension/pen-only clients omit all drawing kernels.

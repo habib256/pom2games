@@ -571,6 +571,30 @@ for suffix,ch,col,row in (('origin',65,0,0),('last',90,34,23),('zero',0,0,0),
         setup='hgr_puts8(0,0," ");',warmup=False)
 SCENES['gfx_color_noop']=dict(call='gfx_cell_color(255);',warmup=False)
 
+for backend,width,pen in (('mono',560,1),('color',140,9)):
+    for suffix,call in (
+        ('pen_zero','dhgr_set_color(0);'),('pen_byte','dhgr_set_color(255);'),
+        ('dimensions','extent=gfx_width;rows=gfx_height;'),
+        ('point',f'gfx_plot({width-1},191);'),('point_reject_x','gfx_plot(65535u,191);'),
+        ('point_reject_y','gfx_plot(0,255);'),
+        ('hline',f'gfx_hline(0,{width-1},95);'),('hline_clip','gfx_hline(65535u,0,191);'),
+        ('vline',f'gfx_vline({width-1},8,183);'),('vline_clip',f'gfx_vline({width-1},255,0);'),
+        ('fill_point',f'gfx_filled_rect({width-1},191,{width-1},191);'),
+        ('fill',f'gfx_filled_rect(0,0,{width-1},191);'),
+        ('fill_reverse',f'gfx_filled_rect({width-1},191,0,0);'),
+        ('fill_clip',f'gfx_filled_rect(65535u,255,{width-10},180);'),
+        ('fill_reject_x',f'gfx_filled_rect(65535u,0,{width},191);'),
+        ('fill_reject_y',f'gfx_filled_rect(0,255,{width-1},192);'),
+        ('clear_black','gfx_clear(0);'),('clear_white','gfx_clear(255);'),
+        ('diagonal',f'gfx_line(0,0,{width-1},191);'),
+        ('circle',f'gfx_circle({width//2},96,16);'),
+        ('outline',f'gfx_rect(10,10,{width-10},180);'),
+    ):
+        SCENES[f'gfx_dhgr_{backend}_{suffix}']=dict(iie=True,dhgr=True,backend=backend,
+            declarations='static volatile unsigned extent;static volatile unsigned char rows;',
+            setup='' if suffix.startswith(('pen','dimensions','clear')) else f'dhgr_set_color({pen});',call=call)
+
+
 for suffix,x,y,w,h,color,mode in (
     ('one',0,0,1,1,1,0),('max_w',0,0,64,1,4,2),
     ('max_h',14,190,1,64,5,1),('empty_w',0,0,0,64,1,0),
@@ -768,7 +792,7 @@ def presentation_source(variant):
 
 def measure(work,name,call,dhgr=False,setup='',sprites=False,warmup=True,
             declarations='',sprite_width=None,sprite_height=4,sprite_stride=2,presentation=None,iie=False,cadence=False,
-            pal=False,damage=False,variant=None,spr=None,clock=False):
+            pal=False,damage=False,variant=None,spr=None,clock=False,backend=None):
     source=work/(name+'.c'); obj=source.with_suffix('.o'); binary=source.with_suffix('.bin')
     source.write_text('#include "hgr.h"\n#include "gfx.h"\n#include "dhgr.h"\n#include "apple2io.h"\n'
       'void hgr_build_tables(void); void bench_begin(void); void bench_end(void); void bench_present(void);\n'+
@@ -819,7 +843,7 @@ def measure(work,name,call,dhgr=False,setup='',sprites=False,warmup=True,
         asm_obj=work/(name+'_asm.o')
         run(['ca65','-t','none','-o',asm_obj,asm]); extra.append(asm_obj)
     run(['cl65','-t','none','-C',DEV/'cc65/apple2_hgr_c.cfg','-m',mapfile,'-Ln',labels,
-         '-o',binary,work/'crt0_apple2.o',obj,work/'markers.o',work/'apple2io_asm.o',*extra,work/'hgrc.lib'])
+         '-o',binary,work/'crt0_apple2.o',obj,work/'markers.o',work/'apple2io_asm.o',*extra,work/(f'hgrc_{backend}.lib' if backend else 'hgrc.lib')])
     points=a2test.labels(labels)
     disk=a2test.build_disk(work,'BENCH',binary)
     emulator=DEV/'tools'/('a2shot/a2shot' if dhgr or iie else 'a2run/a2run')
@@ -874,6 +898,12 @@ def main():
         markers.write_text('.export _bench_begin, _bench_end\n.segment "CODE"\n_bench_begin: rts\n_bench_end: rts\n')
         run(['ca65','-t','none','-o',work/'markers.o',markers])
         wanted=lambda name:not args.only or name.startswith(tuple(args.only.split(',')))
+        backends={options['backend'] for name,options in SCENES.items()
+                  if options.get('backend') and args.dhgr and wanted(name)}
+        for backend in sorted(backends):
+            backend_work=work/('gfx_'+backend);backend_work.mkdir()
+            build(backend_work,gfx_backend='gfx_backend_dhgr_'+backend+'.c')
+            (work/f'hgrc_{backend}.lib').write_bytes((backend_work/'hgrc.lib').read_bytes())
         results={name:measure(work,name,call,dhgr) for name,(call,dhgr) in CASES.items() if (args.dhgr or not dhgr) and wanted(name)}
         results.update({name:measure(work,name,**options) for name,options in SCENES.items() if (args.dhgr or not options.get('iie',False)) and wanted(name)})
     import subprocess

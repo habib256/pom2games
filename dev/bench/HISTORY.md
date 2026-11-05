@@ -4,6 +4,41 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Série du 5 novembre 2026 : backend GFX DHGR monochrome natif et séparé
+
+Les dimensions, l'état du crayon, son réglage, le point, les deux axes,
+le rectangle et l'effacement sont des membres indépendants. Les entrées
+point/axes ajoutent seulement le crayon au cadre existant. Le rectangle
+trie et découpe les mots complets puis transforme son cadre en celui du
+remplissage de bits, avec un seul octet supplémentaire. Le C reste disponible.
+
+| Appel C | Cycles avant → après | Binaire avant → après |
+|---|---:|---:|
+| Crayon non nul seul | 93 → 24 | 3 218 → 779 |
+| Dimensions seules | inchangés | 3 231 → 785 |
+| Point (559,191) | 432 → 322 | 3 256 → 1 672 |
+| Segment horizontal | 2 380 → 2 234 | 3 246 → 2 300 |
+| Segment vertical | 19 450 → 19 183 | 3 242 → 2 236 |
+| Rectangle découpé | 3 300 → 2 963 | 3 250 → 2 339 |
+| Effacement blanc | 112 525 → 112 400 | 3 218 → 975 |
+| Grande diagonale générique | 496 434 → 433 885 | 3 986 → 3 336 |
+| Cercle de rayon 16 | 47 424 → 37 419 | 4 520 → 2 982 |
+
+Piles C point/horizontal/vertical/rectangle 6/11/10/15 → 3/6/6/6 ;
+pile matérielle −2 pour ces appels. Crayon et effacement n'utilisent plus
+la pile C. Point/cercle/crayon seuls gagnent 25 octets de RAM, dimensions
+et effacement 26 ; page zéro inchangée. Les 42 nouveaux cas distinguent
+les deux backends : 21 cas monochromes améliorés, 555 autres mesures identiques,
+pour un banc de 576 cas.
+
+Le C de référence est vérifié. Le natif passe sur II+ et IIe 525 568
+rectangles avec 1 024 positions de pile, et 196 608 appels point/axes
+sur les mots complets avec toutes les valeurs du crayon. Les 256 couleurs
+d'effacement et l'indépendance du crayon sont contrôlées. Sept clients
+minimaux excluent les familles inutiles ; lignes génériques, 48 étapes
+DHGR étendues (pages/banques/texte/transitions), intégration HGR, gate et
+reconstruction passent. Disques et 18 WOZ inchangés.
+
 ## Série du 5 novembre 2026 : entrée native du dessin de sprites doublés
 
 L'entrée refuse les dimensions nulles, les coordonnées hors écran et les

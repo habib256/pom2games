@@ -66,7 +66,10 @@ HGRC_DHGR_SRCS := $(sort $(HGRC_DHGR_CORE_SRCS) $(HGRC)/dhgr_hline.s $(HGRC)/dhg
 HGRC_DHGR_SMALL_TEXT_SRCS := $(HGRC)/dhgr_small.s $(HGRC)/dhgr_small_params.c $(HGRC)/dhgr_small_asm.s $(HGRC)/dhgr_small_string.s
 HGRC_65C02_NUM_SRCS := $(GFX)/gfx_u16_digits.s
 HGRC_DHGR_COLOR_BACKEND := $(GFX)/gfx_backend_dhgr_color.c
-HGRC_DHGR_MONO_BACKEND := $(GFX)/gfx_backend_dhgr_mono.c
+HGRC_DHGR_MONO_BACKEND := $(addprefix $(GFX)/,gfx_backend_dhgr_mono.s \
+    gfx_backend_dhgr_mono_state.s gfx_backend_dhgr_mono_set_color.s \
+    gfx_backend_dhgr_mono_plot.s gfx_backend_dhgr_mono_hline.s \
+    gfx_backend_dhgr_mono_vline.s gfx_backend_dhgr_mono_rect.s gfx_backend_dhgr_mono_clear.s)
 
 # Flicker-free DHGR sprite compositor (dhgr.h dhgr_spr_*, dhgr_cursor): opt-in,
 # NOT in HGRC_ALL_SRCS, so programs that do not ask for it keep the same

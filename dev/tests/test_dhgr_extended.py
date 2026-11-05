@@ -11,6 +11,7 @@ spec=importlib.util.spec_from_file_location('assets',DEV/'tools/assets/convert.p
 assets=importlib.util.module_from_spec(spec); spec.loader.exec_module(assets)
 sys.path.insert(0,str(DEV/'tools'))
 import fonts
+from test_hgr import gfx_backend_sources
 
 
 def build(work, mono):
@@ -20,7 +21,7 @@ def build(work, mono):
     assets.convert(work/'sprite.png',work/'sprite','dhgr','sprite','sprite')
     sources=[DEV/'cc65/crt0_apple2.s',DEV/'tests/dhgr_extended_fixture.c',
              *[DEV/'lib/hgrc'/name for name in ('dhgr_state.c','dhgr_draw_page.s','dhgr_get_draw_page.s','dhgr_get_display_page.s','dhgr_flip.s','dhgr_locate.s','dhgr_pixel_asm.s','dhgr_getpixel_asm.s','dhgr_rows.s','dhgr_cells.s','dhgr_fill.s','dhgr_clear.s','dhgr_pattern_asm.s','dhgr_plot_color_asm.s','dhgr_fill_bits.s','dhgr_bit_rect.s','dhgr_clear_asm.s','dhgr_span_asm.s','dhgr_address_asm.s','dhgr_asm.s','dhgr_hline.s','dhgr_vline.s','dhgr_block.s','dhgr_read_block.s','dhgr_write_block.s','dhgr_sprite.s','dhgr_transfer_params.c','dhgr_block_asm.s','dhgr_text_asm.s','dhgr_small.s','dhgr_small_params.c','dhgr_small_asm.s','dhgr_small_string.s','hgr_font.c','hgr_mode_asm.s','hgr_native_asm.s')],
-             DEV/'lib/gfx'/('gfx_backend_dhgr_mono.c' if mono else 'gfx_backend_dhgr_color.c'),
+             *gfx_backend_sources(work,'gfx_backend_dhgr_mono.c' if mono else 'gfx_backend_dhgr_color.c'),
              DEV/'lib/apple2c/apple2io_asm.s']
     objects=[]
     for source in sources:
