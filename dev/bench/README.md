@@ -1,5 +1,13 @@
 # Current cc65 measurements
 
+The seventeenth-session gate passes **793 cases**. Compact DHGR packing
+shrinks 35 clients by five loaded bytes: 24 timings improve, four stay
+equal and seven rise by at most 0.175%; previous limits are retained.
+758 dictionaries are unchanged, all 16 frame budgets pass and 90 reference
+fields tighten. Separate measured DOS wrappers save eleven code/five RAM
+bytes; physics helpers save ten code bytes in generic clients and three
+in FAST clients, with no measured constraint slowdown. See [the seventeenth-session audit](HISTORY.md#audit-de-la-dix-septième-session-du-6-novembre-2026--commandes-dos-packing-dhgr-et-arithmétique).
+
 The sixteenth-session gate covers **793 cases**. Running cursor row pointers
 make a supported tall DHGR move **82.4% faster**, costing four code bytes.
 T80 character/fill register reuse saves one code byte in 22 clients and one

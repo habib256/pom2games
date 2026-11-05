@@ -4,6 +4,72 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Audit de la dix-septième session du 6 novembre 2026 — commandes DOS, packing DHGR et arithmétique
+
+Après `3acf1df`, le packing DHGR calcule le quatrième octet avant le
+troisième afin de réutiliser la retenue issue de `n5`. Un temporaire cc65
+déjà disponible conserve cet octet. Les adresses des opérandes à modifier
+et leurs offsets occupent trois tableaux parallèles : une seule décrémentation
+suffit par entrée. Le noyau perd **deux octets de code et trois de table**,
+sans RAM, page zéro ni pile ajoutées. Le patch à froid passe de **988 à
+863 cycles**, et un changement de canvas de **1 001 à 860**.
+
+La revue confirme que `ptr2` est libre au seul appel du blitter, effectué
+en tail-call après les callbacks ; l'overlay conserve son pointeur dans
+`ptr1`. Une autre proposition de déplacement de CLC dans `cv_begin` est
+écartée : elle ne conservait pas son comportement brut à hauteur zéro.
+`cv_begin` reste inchangé, sans cache ni nouvelle précondition.
+
+Le contrôle global reste à **793 cas**. **35 clients perdent cinq octets
+chargés**, 24 durées diminuent et quatre restent identiques. Sept durées
+augmentent de **2..122 cycles, au plus 0,175 %**, par placement ; les
+anciennes limites sont conservées. Les **758 autres dictionnaires sont
+identiques**. RAM, page zéro et piles ne changent pas. Les **16 budgets de
+trame passent** et **90 champs de référence sont abaissés**, aucun relevé.
+Le déplacement du curseur haut reste à 69 892 cycles après ce placement,
+contre 396 612 avant l'optimisation de la session précédente.
+
+En mesure séparée, le wrapper BLOAD/BSAVE conserve son adresse, sa longueur
+et son drapeau dans `ptr2`/`ptr3`/`tmp1`, préservés par les constructeurs.
+Ces valeurs sont mortes avant DOS/COUT et le changement de page zéro.
+Les **18 profils perdent onze octets de code et cinq de RAM** ; seize
+préparations accélèrent de 1..18 cycles et deux restent identiques, sans
+page zéro ni pile ajoutées. Ces durées s'arrêtent à l'entrée d'`a2_dos_run` :
+elles ne mesurent pas le débit disque. Le membre contient désormais
+84 octets de code, 22 de données immuables et aucun BSS.
+
+Les aides physiques génériques utilisent directement la case de quart
+de carré à l'indice `2*n`, et conservent dans A l'octet haut de deux
+boucles de décalage. `vl_square` passe de **25 à 18 octets**, de **52 à
+26/27 cycles** ; `vl_heavy` de **56 à 54 octets**, de **128 à 112 cycles**
+au décalage trois ; `vl_damp` de **41 à 40 octets**, de **114 à 105** pour
+Y=3. Sur les 48 contraintes mesurées par CPU, 40 accélèrent et huit
+restent identiques : les clients génériques économisent dix octets et
+50..85 cycles, les FAST trois octets et 0..33 cycles. La variante FAST
+du carré lui-même garde son binaire et ses mesures.
+
+`test_dhgr_pack.py` vérifie les **4 096 triplets de nibbles**, 256
+alignements, deux pages/banques et **32 768 écritures ordonnées** avec les
+deux versions. Les sept configurations du compositeur passent sur IIe/IIc,
+avec IRQ réelles, VBL, historique, overlay et segment déplacé.
+`test_dosbin.py` vérifie **530 commandes par CPU/version**, tous les
+octets d'adresse/longueur, débordements atomiques, gardes et piles.
+`test_verlet_helpers.py` vérifie **1 179 648 décalages et 874 carrés par
+CPU/version** ; les états et drapeaux des décalages sont identiques.
+Les domaines incluent les décalages lourds 0..8, y compris l'ancien
+compteur zéro, et le domaine documenté de friction 1..7 avec ses voisins.
+Les suites complètes Verlet et contacts passent. Les trois nouveaux
+tests proposent `--bench --out` et une source de référence pour reproduire
+les mesures ciblées séparément du banc C.
+
+`make all` réussit ; **SNAKE, DIRTBIKE, CUTROPE et ROBOTSTATION** et leurs
+WOZ sont reconstruits. Les **18 paires disque/WOZ** correspondent. Les
+quatre jeux passent leurs tests, dont les sauvegardes réelles et la
+protection disque de SNAKE ; DHGR ACTION, l'intégration HGR, les archives
+et les options de bibliothèque passent aussi. `git diff --check` est propre.
+Le contrôle final `--dhgr --check` reproduit les **793 mesures et 16 budgets**
+à l'identique avec les références resserrées.
+
 ## Audit de la seizième session du 6 novembre 2026 — curseur DHGR, texte 80 colonnes et contraintes
 
 Après `16a8442`, le curseur DHGR initialise ses trois pointeurs de lignes

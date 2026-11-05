@@ -581,14 +581,14 @@ vl_heavy:
         BCC     @p
         INY
 @p:     STA     vl_pen
-        STY     vl_pen+1
+        TYA                             ; high byte stays in A during the shift
         LDY     #VL_CON_HEAVY_SHIFT
-@s:     LDA     vl_pen+1
-        CMP     #$80
-        ROR     vl_pen+1
+@s:     CMP     #$80
+        ROR     A
         ROR     vl_pen
         DEY
         BNE     @s
+        STA     vl_pen+1
         SEC
         LDA     vl_val
         SBC     vl_pen
@@ -641,8 +641,8 @@ vl_quarter_abs:
 .endif
 
 .ifref vl_square
-; A = x (0..180) -> A/Y = x^2 (lo/hi) = 4 floor(x^2 / 4) + (x & 1), from the
-; quarter-square table (lib/math): ~40 cycles instead of a product
+; A = x (0..180) -> A/Y = x^2 (lo/hi). The quarter-square entry at 2*x
+; is floor((2*x)^2/4) = x^2 exactly. X/NZCV are clobbered; I/D unchanged.
 vl_square:
 .ifdef VL_CON_FAST
         TAX                             ; the square table (VL_CON_FAST)
@@ -650,19 +650,14 @@ vl_square:
         LDY     vl_sq_hi,X
         RTS
 .else
+        ASL     A                       ; 2*x indexes one of the two table pages
         TAX
-        LDA     mul_sqr1_hi,X
-        STA     vl_w2
+        BCS     @upper
         LDA     mul_sqr1_lo,X
-        ASL     A
-        ROL     vl_w2
-        ASL     A
-        ROL     vl_w2
-        STA     vl_w0
-        TXA
-        AND     #1
-        ORA     vl_w0
-        LDY     vl_w2
+        LDY     mul_sqr1_hi,X
+        RTS
+@upper: LDA     mul_sqr1_lo+256,X
+        LDY     mul_sqr1_hi+256,X
         RTS
 .endif                                  ; (VL_CON_FAST)
 .endif

@@ -107,6 +107,7 @@ test-hgr:
 	$(PYTHON) dev/tests/test_gfx_line_entry.py --iie
 	$(PYTHON) dev/tests/test_asm_boundaries.py
 	$(PYTHON) dev/tests/test_dos_reuse.py
+	$(PYTHON) dev/tests/test_dosbin.py
 	$(PYTHON) dev/tests/test_math.py
 	$(PYTHON) dev/tests/test_rand16.py
 	$(PYTHON) dev/tests/test_rand16.py --iie
@@ -115,6 +116,8 @@ test-hgr:
 	$(PYTHON) dev/tests/test_verlet.py
 	$(PYTHON) dev/tests/test_verlet_quarter_abs.py
 	$(PYTHON) dev/tests/test_verlet_quarter_abs.py --iie
+	$(PYTHON) dev/tests/test_verlet_helpers.py
+	$(PYTHON) dev/tests/test_verlet_helpers.py --iie
 	$(PYTHON) dev/tests/test_gfx_glyph_entry.py
 	$(PYTHON) dev/tests/test_gfx_glyph_entry.py --iie
 	$(PYTHON) dev/tests/test_gfx_number_entries.py
@@ -272,6 +275,7 @@ test-dhgr:
 	$(PYTHON) dev/tests/test_dhgr_clear_rows_entry.py --iie
 	$(PYTHON) dev/tests/test_dhgr_clear_rows.py
 	$(PYTHON) dev/tests/test_dhgr_spr.py
+	$(PYTHON) dev/tests/test_dhgr_pack.py
 	$(PYTHON) dev/tests/test_dhgr_merge.py
 	$(PYTHON) dev/tests/test_gfx_dhgr_lines.py
 	$(PYTHON) dev/tests/test_minimal_examples.py --dhgr

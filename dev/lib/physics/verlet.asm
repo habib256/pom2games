@@ -462,12 +462,13 @@ vl_damp:
         BIT     vl_vt+1
         BPL     @p
         LDA     #$FF
-@p:     STA     vl_w2
+@p:                                     ; sign-extended high byte stays in A
 @s:     ASL     vl_w0
         ROL     vl_w1
-        ROL     vl_w2
+        ROL     A
         DEY
         BNE     @s
+        STA     vl_w2
         SEC
         LDA     vl_vt
         SBC     vl_w1

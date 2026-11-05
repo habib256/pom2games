@@ -767,6 +767,14 @@ shape lying wholly inside the piece is painted without any clipping, one
 inside horizontally with its rows clipped only; its rectangles must lie
 inside its `w`×`h`.
 
+Packing computes `b3` before `b2`, reusing the shift carry from `n5` and
+holding `b3` briefly in `ptr2`. The private blitter destroys this pointer;
+its sole caller tail-calls it and the overlay callbacks retain only `ptr1`.
+Parallel low/high/offset patch arrays contain 48 bytes instead of 51 and
+use one decrement per operand. This saves two code bytes and three table
+bytes; cold patching takes 863 instead of 988 cycles. Screen-store order,
+IRQ windows and raw `cv_begin` behavior are unchanged.
+
 **Update.** `dhgr_spr_set` / `dhgr_spr_palette` / `dhgr_spr_invalidate` /
 `dhgr_spr_overlay` only record. `dhgr_spr_update` collects the damage as
 group/row rectangles (each changed slot's old and new boxes, the
@@ -860,7 +868,7 @@ stack peaks are unchanged. The extended compositor model covers tall
 CHUNKY/TILE sources crossing a page, mirroring and a 31-row overlay across
 all seven build variants, both IIe and IIc, plus VIA interrupt and VBL checks.
 
-Code (6502), the core every program links: calls 252 B (`dhgr_spr_set`,
+Historical core sizes (6502, 2026-10-31): calls 252 B (`dhgr_spr_set`,
 `dhgr_spr_invalidate`, `dhgr_spr_solid`), init + update 872 B, write 304 B
 (with the 16-byte table and the 51-byte patch list), canvas painters 532 B:
 1,960 B (2,120 B before the 2026-10-31 size pass, 2,473 B in the first

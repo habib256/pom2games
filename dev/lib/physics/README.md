@@ -72,7 +72,7 @@ included.
 | | `vl_constrain` | constraint `vl_cur` (see below) | 1,000-1,500 c |
 | | `vl_heavy` | the heavy-point share (`VL_CON_HEAVY_*`) | ~90 c |
 | | `vl_quarter_abs` | A/X signed → `A = min(|d >> 6|, 180)` (`VL_CON_FAST`: inline in `vl_constrain`) | 36..47 c including JSR/RTS |
-| | `vl_square` | A = 0..180 → A/Y = A² from the quarter-square table (`VL_CON_FAST`: from `vl_sq_lo`/`vl_sq_hi`) | ~40 c (~20 c) |
+| | `vl_square` | A = 0..180 → A/Y = A² from the quarter-square entry at 2A (`VL_CON_FAST`: from `vl_sq_lo`/`vl_sq_hi`) | 26..27 c including JSR/RTS (~20 c FAST) |
 | | `vl_push` / `vl_push_all` | (`VL_THRUST`) point X / every point but the pinned ones += the push vector `vl_tx`/`vl_ty` (a speed change) | 125 c / 397 c (3 points) |
 | `verlet_rot.asm` | `vl_turn_pair` | turn the axis `VL_AXIS_A`→`VL_AXIS_B` (0→1): B += `vl_turn`·(−dy, dx) >> 8, A −= the same | ~650 c |
 | | `vl_thrust_axis` / `vl_thrust_perp` | (`VL_THRUST` = n) `vl_tx`/`vl_ty` = the axis (or its perpendicular (−dy, dx)) · `vl_turn` >> (8 + n): with a link of rest length L, L·`vl_turn`/2⁸⁺ⁿ px | 561 c / 620 c (n = 4) |
@@ -373,6 +373,15 @@ twelve model-checked constraints under all four speed-switch settings;
 `--reference old-verlet_con.asm` repeats them against a saved source.
 Non-FAST clients save 16 loaded bytes and 71..99 cycles per measured
 constraint; both FAST binaries and their timings remain identical.
+
+`test_verlet_helpers.py` checks the direct square lookup and register-held
+high bytes in the heavy-point and damping shifts. Each CPU covers 874
+square cases and 1,179,648 shift calls, including heavy shifts 0..8 (zero
+retains its legacy 256 iterations) and damping's documented 1..7 plus
+neighbor values. Shift results/registers/flags match the reference exactly.
+The helpers save 7/2/1 code bytes respectively; their representative calls
+take 26..27/112/105 cycles instead of 52/128/114. `--bench --out report.json`
+adds integrated constraints; `--reference DIR` loads saved assembly files.
 
 `dev/tests/test_verlet_seg.py` (in `make test-halfpipe-example`): 22
 segments (a floor, a 45° slope, a vertical wall and a ceiling in one

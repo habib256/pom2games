@@ -7,12 +7,14 @@
 ; with one 16-byte table t4[n] = n << 4 (~77 cycles a group):
 ;   b0 = (t4[n1] | n0) & $7F       b1 = rol(t4[n3] | n2, C = n1 >= 8) & $7F
 ;   b2 = ror(t4[n4] | n3, C = n5 & 1) >> 1       b3 = (t4[n6] | n5) >> 1
+; Compute b3 first: its shift supplies n5 bit 0 for b2, so n5 is read
+; once. ptr2 keeps b3 until b2 has been formed.
 ; The piece's groups are consecutive in the canvas (X += 7). Self-modifying:
 ; the canvas operands are patched by dhgr_cv_patch at each update when they
 ; do not hold the canvas address (a reloaded overlay window), the screen
 ; operands per row. IRQs are masked only around each group's two auxiliary
 ; stores (~30 cycles); RAMWRT is main again before each plp. Bit 7 of every
-; byte is 0. A/X/Y, tmp1-tmp4, ptr1 destroyed; non-reentrant, never from an
+; byte is 0. A/X/Y, tmp1-tmp4, ptr1/ptr2 destroyed; non-reentrant, never from an
 ; IRQ. DHGR_SPR_PACK_TABLES is accepted and has no effect (one table now).
 .include "apple2.inc"
 .export _dhgr_spr_blit, _dhgr_spr_goff, _dhgr_spr_gend, dhgr_cv_patch
@@ -20,7 +22,7 @@
 .import _dhgr_cv_buf, _dhgr_cv_y0, _dhgr_cv_h, cv_seq
 .import _dhgr_spr_ov_on, _dhgr_spr_ovr_jmp, _dhgr_spr_ovg_jmp
 .import _dhgr_base, dhgr_rowlo, dhgr_rowhi
-.importzp tmp1, tmp2, tmp3, tmp4, ptr1
+.importzp tmp1, tmp2, tmp3, tmp4, ptr1, ptr2
 
 .bss
 spr_row: .res 1
@@ -78,18 +80,18 @@ c2:     ora $FFFF,x
         rol a
         and #$7F
         sta tmp2                ; b1
-c5:     lda $FFFF,x
-        lsr a                   ; C = n5 bit 0
+c6:     ldy $FFFF,x
+        lda t4,y
+c5:     ora $FFFF,x
+        lsr a                   ; b3, C = n5 bit 0 for b2
+        sta ptr2
 c4:     ldy $FFFF,x
         lda t4,y
 c3b:    ora $FFFF,x
         ror a
         lsr a
         sta tmp3                ; b2
-c6:     ldy $FFFF,x
-        lda t4,y
-c5b:    ora $FFFF,x
-        lsr a                   ; b3
+        lda ptr2                ; b3 for the overlay and main odd store
 spr_ovhook:
         jsr _dhgr_spr_ovg_jmp   ; (BIT abs unless the row crosses the overlay; X kept)
         ldy tmp4
@@ -130,12 +132,12 @@ dhgr_cv_patch:
         lda _dhgr_cv_buf+1
         cmp c0+2
         beq @done
-@do:    ldx #PATCHES * 3 - 3
-@op:    lda patches,x
+@do:    ldx #PATCHES - 1
+@op:    lda patch_lo,x
         sta ptr1
-        lda patches+1,x
+        lda patch_hi,x
         sta ptr1+1
-        lda patches+2,x
+        lda patch_off,x
         clc
         adc _dhgr_cv_buf
         ldy #0
@@ -144,8 +146,6 @@ dhgr_cv_patch:
         adc #0
         iny
         sta (ptr1),y
-        dex
-        dex
         dex
         bpl @op                 ; (c0, entry 0, last)
 @done:  rts
@@ -157,30 +157,25 @@ dhgr_cv_patch:
 .else
 .rodata
 .endif
-patches:                        ; operand address, canvas offset
-        .addr c0+1
-        .byte 0
-        .addr c1+1
-        .byte 1
-        .addr c2+1
-        .byte 2
-        .addr c3+1
-        .byte 3
-        .addr c3b+1
-        .byte 3
-        .addr c4+1
-        .byte 4
-        .addr c5+1
-        .byte 5
-        .addr c5b+1
-        .byte 5
-        .addr c6+1
-        .byte 6
+; Parallel arrays keep one index per operand (c0 is patched last).
+patch_lo:
+        .lobytes c0+1,c1+1,c2+1,c3+1,c3b+1,c4+1,c5+1,c6+1
 .repeat 8, J
-        .addr cv_seq + 1 + 3 * J
+        .byte <(cv_seq + 1 + 3 * J)
+.endrepeat
+patch_hi:
+        .hibytes c0+1,c1+1,c2+1,c3+1,c3b+1,c4+1,c5+1,c6+1
+.repeat 8, J
+        .byte >(cv_seq + 1 + 3 * J)
+.endrepeat
+patch_off:
+        .byte 0,1,2,3,3,4,5,6
+.repeat 8, J
         .byte 7 - J
 .endrepeat
-PATCHES = (* - patches) / 3
+PATCHES = * - patch_off
+.assert patch_hi-patch_lo = PATCHES, error, "low patch table length"
+.assert patch_off-patch_hi = PATCHES, error, "high patch table length"
 t4:
 .repeat 16, N
         .byte N << 4

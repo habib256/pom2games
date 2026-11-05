@@ -5,16 +5,18 @@
 ; "BLOAD NAME,A$hhhh" / "BSAVE NAME,A$hhhh,L$hhhh" built and run with the
 ; a2_dos_* calls of apple2dos_asm.s (link both). A separate object
 ; (APPLE2C_DOSBIN_SRCS): only the programs that call it pay for it.
-; 6502; 95 bytes of code, 22 of RODATA, 5 of BSS.
+; 6502; borrows cc65 ptr2/ptr3/tmp1 before tail-calling DOS.
+; popax and the new/add/hex builders preserve this scratch. It is dead
+; before a2_dos_run can invoke DOS/COUT and swap page zero.
 ; ----------------------------------------------------------------------------
         .export _a2_dos_bload, _a2_dos_bsave
         .import _a2_dos_new, _a2_dos_add, _a2_dos_hex, _a2_dos_run
         .import popax
 
-        .segment "BSS"
-bin_addr:       .res 2
-bin_len:        .res 2
-bin_save:       .res 1
+        .importzp ptr2, ptr3, tmp1
+bin_addr = ptr2
+bin_len = ptr3
+bin_save = tmp1
 
         .segment "CODE"
 ; void __fastcall__ a2_dos_bsave(const char *name, void *addr, unsigned len)
