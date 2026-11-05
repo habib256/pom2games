@@ -4,6 +4,41 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Série du 5 novembre 2026 : lignes GFX génériques natives
+
+Le Bresenham générique conserve ses comparaisons strictes et l'ordre des
+pixels, avec 14 octets privés sur la pile C. Le double de l'erreur ne vit
+dans les temporaires qu'entre deux appels au backend. Les axes réutilisent
+le cadre original, et les diagonales invalides sont rejetées avant de créer
+les temporaires. La version HGR spécialisée et le C de référence restent disponibles.
+
+| Appel C | Cycles avant → après | Binaire avant → après |
+|---|---:|---:|
+| Grande diagonale DHGR monochrome | 433 885 → 300 683 | 3 336 → 3 085 |
+| Grande diagonale DHGR couleur | 152 003 → 106 646 | 3 532 → 3 281 |
+| Pente forte monochrome | 138 320 → 98 674 | 3 338 → 3 087 |
+| Égalités de pente couleur | 25 960 → 17 951 | 3 536 → 3 285 |
+| Horizontal découpé couleur | 2 674 → 2 518 | 3 531 → 3 280 |
+| Vertical découpé couleur | 21 393 → 21 231 | 3 534 → 3 283 |
+| Diagonale rejetée en x, couleur | 254 → 192 | 3 534 → 3 283 |
+
+Piles C des diagonales mono/couleur 29/28 → 17/16 ; axes couleur 31 → 5 ;
+rejets 26 → 5. Les axes gagnent aussi deux octets de pile matérielle.
+RAM et page zéro inchangées. Les 24 cas concernés s'améliorent en taille
+et vitesse ; 586 autres sont identiques. Les 22 nouveaux cas portent le
+banc à 610 mesures.
+
+La référence C et le natif passent 18 020 tracés exacts (3 601 461 pixels),
+tous les mots x pour axes/rejets, toutes les paires y invalides, des grilles
+vides ou réduites, des temporaires hostiles et 2 048 placements de pile.
+Le natif passe sur II+ et IIe. Les images DHGR sont vérifiées sur les deux
+pages et banques ; DHGR étendu, tests rapides Robot Station IIe/IIc,
+reconstruction, 18 jumeaux WOZ et gate passent.
+
+Robot Station sélectionne explicitement la famille vectorielle native,
+avec vérification des objets et de la conservation des références homonymes.
+Les disques et leurs 18 WOZ restent identiques.
+
 ## Série du 5 novembre 2026 : contours GFX natifs communs
 
 Le contour trie les coins complets dans le cadre de l'appelant, puis prépare
@@ -735,7 +770,7 @@ pages et banques, les trous mémoire, l'affichage et le masque IRQ ; le
 test VIA vérifie le service périodique réel avec gardes et pixels.
 Validation complémentaire : 50 clients minimaux, intégration HGR, `make all`,
 exemples DHGR (1 000 images NTSC/PAL), ROBOTSTATION IIe/IIc, WOZ, relevé
-complet de 347 cas et gate. ROBOTSTATION.po et son WOZ sont reconstruits.
+complet de 347 cas et gate. Les disques et leurs 18 WOZ restent identiques.
 
 ## Série du 5 novembre 2026 : validation native des cartes de tuiles
 

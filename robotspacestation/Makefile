@@ -25,7 +25,7 @@ DISK := $(DIST)/ROBOTSTATION.po
 SRCS := src/main.c src/ui.c src/board_ui.c src/zone.c src/sim.c src/title.c src/help.c src/hover.c src/sprites.c src/symbol.s \
         src/pointer.s src/swap.s src/text.s src/overlay.s src/sprites_asm.s
 LIB_SRCS := $(sort $(HGRC_DHGR_SRCS) $(HGRC_DHGR_SMALL_TEXT_SRCS) $(HGRC_DHGR_SPR_SRCS)) $(HGRC_DHGR_COLOR_BACKEND) \
-            $(GFX)/gfx_line.c $(APPLE2C_SRCS) $(APPLE2C_FRAME_SRCS) $(APPLE2C_VBL_GATE_SRCS) \
+            $(HGRC_GENERIC_VECTOR_SRCS) $(APPLE2C_SRCS) $(APPLE2C_FRAME_SRCS) $(APPLE2C_VBL_GATE_SRCS) \
             $(APPLE2C_AUX_SRCS) $(APPLE2C_AUXFETCH_SRCS) \
             $(PRODOS_SRCS) $(PRODOS_FILE_AUX_AT_SRCS) $(MOUSE_SRCS)
 # (the speaker's tone right after crt0: its timed loops must not cross a
@@ -43,7 +43,7 @@ all: $(DISK)
 
 # Select the native backend sources explicitly: the portable .c references
 # share their stems, so vpath's C-first fallback must not choose them.
-GFX_BACKEND_OBJS := $(addprefix $(BUILD)/,$(notdir $(HGRC_DHGR_COLOR_BACKEND:.s=.o)))
+GFX_BACKEND_OBJS := $(addprefix $(BUILD)/,$(notdir $(HGRC_DHGR_COLOR_BACKEND:.s=.o) $(HGRC_GENERIC_VECTOR_SRCS:.s=.o)))
 $(GFX_BACKEND_OBJS): $(BUILD)/%.o: $(GFX)/%.s Makefile $(HGRC)/hgrc.mk
 	@mkdir -p $(@D)
 	$(CA65) -t none $(HGRC_AFLAGS) -o $@ $<

@@ -108,7 +108,7 @@ def build(work, fixture=None, extra_sources=(), gfx_backend=None, cflags=()):
     if gfx_backend:
         sources = [s for s in sources if not Path(s).name.startswith('gfx_backend_hgr')
                    and Path(s).stem != 'gfx_line_hgr']
-        sources.extend([DEV/'lib/gfx/gfx_line.c', *gfx_backend_sources(work,gfx_backend)])
+        sources.extend([DEV/'lib/gfx/gfx_line.s', *gfx_backend_sources(work,gfx_backend)])
     sources.extend(extra_sources)
     objects = []
     for source in sources:

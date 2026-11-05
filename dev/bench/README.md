@@ -1,5 +1,11 @@
 # Current cc65 measurements
 
+Native generic Bresenham lines save **251 loaded bytes** per client. The
+DHGR mono/color diagonals take **300,683/106,646 cycles**, down from
+433,885/152,003; their C-stack peaks fall from 29/28 to **17/16 bytes**.
+Exact ordered traces cover 3.6 million pixels, with exhaustive axis/rejection
+coordinates and hostile backend scratch. HGR keeps its specialized line path.
+
 Native generic outlines save **249 loaded bytes** in HGR clients and **244**
 in either DHGR backend. A clipped HGR outline takes **2,207 cycles instead
 of 2,573**; point/axis C-stack peaks fall from 9–10 to **6 bytes**. Exact
