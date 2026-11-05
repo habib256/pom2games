@@ -65,8 +65,10 @@ static unsigned char gfx_clamp_y(signed int v)
 void gfx_ellipse(unsigned x0, unsigned char y0, unsigned x1, unsigned char y1)
 {
     unsigned xc, rx, ax;
-    signed int yc, ry, ay;
-    unsigned char i;
+    /* Byte y inputs bound the centre to 255 and the radius to 127. The
+     * clamped previous y is also a byte; signed offset sums still promote
+     * to int before gfx_clamp_y, so upper/lower clipping is unchanged. */
+    unsigned char yc, ry, ay, i;
 
     /* Reject invisible boxes before clamping points or doing signed math. */
     if ((x0 >= gfx_width && x1 >= gfx_width) ||
@@ -93,12 +95,14 @@ void gfx_ellipse(unsigned x0, unsigned char y0, unsigned x1, unsigned char y1)
 
     ax = gfx_clamp_x(xc + rx);
     ay = gfx_clamp_y(yc);
-    for (i = 0; i < 64U; ++i) {
-        unsigned char j = (unsigned char)((i + 1U) & 63U);
-        unsigned bx = gfx_clamp_x(xc + gfx_ellipse_offset(rx, kEllipseCos64[j]));
-        unsigned char by = gfx_clamp_y(yc + gfx_ellipse_offset((unsigned)ry, kEllipseSin64[j]));
-        gfx_line(ax, (unsigned char)ay, bx, by);
+    /* Walk angles 1..63,0 directly: no second index in the cc65 frame. */
+    i = 1;
+    do {
+        unsigned bx = gfx_clamp_x(xc + gfx_ellipse_offset(rx, kEllipseCos64[i]));
+        unsigned char by = gfx_clamp_y(yc + gfx_ellipse_offset((unsigned)ry, kEllipseSin64[i]));
+        gfx_line(ax, ay, bx, by);
         ax = bx;
         ay = by;
-    }
+        i = (unsigned char)((i + 1U) & 63U);
+    } while (i != 1U);
 }

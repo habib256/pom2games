@@ -119,7 +119,13 @@ def ellipse_coordinates(work):
              (0, 20, 1022, 100), (0, 20, 1024, 100),
              (0, 20, 32767, 100), (10, 20, 32768, 100),
              (0, 20, 65535, 100), (279, 20, 65535, 100),
-             (0, 50, 65535, 50), (10, 20, 11, 100)]
+             (0, 50, 65535, 50), (10, 20, 11, 100),
+             # Byte centres/radii: sums above 255, clipped lower edges,
+             # odd one-pixel boxes, vertical degeneracies and full rejection.
+             (0, 0, 279, 255), (0, 128, 279, 255), (0, 190, 65535, 255),
+             (10, 191, 11, 255), (10, 0, 11, 255), (0, 191, 0, 255),
+             (0, 0, 279, 1), (0, 192, 279, 255), (10, 255, 200, 255),
+             (10, 127, 200, 128), (0, 0, 1, 1)]
     cases += [(x1, y1, x0, y0) for x0, y0, x1, y1 in cases]
     calls = '\n'.join(f'count = 0; gfx_ellipse({x0}u,{y0}u,{x1}u,{y1}u); apple2_getkey();'
                       for x0, y0, x1, y1 in cases)
@@ -147,28 +153,29 @@ int main(void) {
         steps = ['wait:1100']
         for _ in cases:
             steps += [labels.peek('count'), labels.peek('records', 512), 'key: ', 'wait:60']
-        result = test_hgr.a2test.run(disk, steps)
-        clamp = lambda x, y: (min(x, width - 1), min(y, 191))
-        scale = lambda c, r: (1 if c >= 0 else -1) * (abs(c) * r // 64)
-        for i, (x0, y0, x1, y1) in enumerate(cases):
-            xc, yc = (x0 + x1) // 2, (y0 + y1) // 2
-            rx, ry = abs(x1 - x0) // 2, abs(y1 - y0) // 2
-            if min(x0, x1) >= width:
-                expected = []
-            elif rx == 0 and (x0 == x1 or y0 != y1):
-                expected = [clamp(xc, y0) + clamp(xc, y1)]
-            elif ry == 0:
-                expected = [clamp(min(x0, x1), yc) + clamp(max(x0, x1), yc)]
-            else:
-                points = [clamp(xc + scale(c, rx), yc + scale(s, ry))
-                          for c, s in zip(cosine, sine)]
-                expected = [points[j] + points[(j + 1) % 64] for j in range(64)]
-            record = result.data[i * 513:(i + 1) * 513]
-            count = record[0]
-            assert count == len(expected), (width, cases[i], count)
-            actual = list(struct.iter_unpack('<4H', record[1:1 + count * 8]))
-            assert actual == expected, (width, cases[i], actual, expected)
-    print('cc65 ellipse coordinates: 60 boxes match the reference in HGR and both DHGR dimensions.')
+        for iie in (False, True):
+            result = test_hgr.a2test.run(disk, steps, iie=iie)
+            clamp = lambda x, y: (min(x, width - 1), min(y, 191))
+            scale = lambda c, r: (1 if c >= 0 else -1) * (abs(c) * r // 64)
+            for i, (x0, y0, x1, y1) in enumerate(cases):
+                xc, yc = (x0 + x1) // 2, (y0 + y1) // 2
+                rx, ry = abs(x1 - x0) // 2, abs(y1 - y0) // 2
+                if min(x0, x1) >= width or min(y0, y1) >= 192:
+                    expected = []
+                elif rx == 0 and (x0 == x1 or y0 != y1):
+                    expected = [clamp(xc, y0) + clamp(xc, y1)]
+                elif ry == 0:
+                    expected = [clamp(min(x0, x1), yc) + clamp(max(x0, x1), yc)]
+                else:
+                    points = [clamp(xc + scale(c, rx), yc + scale(s, ry))
+                              for c, s in zip(cosine, sine)]
+                    expected = [points[j] + points[(j + 1) % 64] for j in range(64)]
+                record = result.data[i * 513:(i + 1) * 513]
+                count = record[0]
+                assert count == len(expected), (width, cases[i], count)
+                actual = list(struct.iter_unpack('<4H', record[1:1 + count * 8]))
+                assert actual == expected, (width, cases[i], actual, expected)
+    print(f'cc65 ellipse coordinates: {len(cases) * 3} boxes per CPU match the reference in HGR and both DHGR dimensions (6502 and 65C02).')
 
 
 if __name__ == '__main__':

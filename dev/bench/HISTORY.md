@@ -4,6 +4,40 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Série complémentaire du 5 novembre 2026 : cadre et parcours des ellipses
+
+La boucle parcourt directement les angles 1…63,0, dans le même ordre,
+sans second indice local. Les coordonnées y bornent le centre à 255 et
+le rayon à 127 : centre, rayon et précédent y tiennent dans des octets.
+Leurs sommes avec les offsets restent promues en `int` signé avant le clamp.
+Le scaler natif applique la négation par complément et retenue, sans sauver
+l'octet haut dans un temporaire supplémentaire.
+
+Chaque client perd **24 octets chargés**. Les ellipses ordinaires passent
+de **28 à 24 octets de pile C**, les dégénérescences de 28 à 25 et les
+rejets de 19 à 16. RAM, page zéro et pile matérielle restent inchangées.
+
+| Appel | Cycles avant → après |
+|---|---:|
+| Petite ellipse | 156 385 → 151 885 |
+| Plein écran | 186 761 → 182 519 |
+| Boîte maximale découpée | 190 971 → 186 388 |
+| Boîte très large | 171 778 → 167 148 |
+| Rayon 512 | 188 629 → 183 992 |
+| Point | 1 910 → 1 851 |
+| Segment horizontal | 2 328 → 2 251 |
+
+Le segment vertical coûte 12 830 cycles au lieu de 12 738 (+0,72 %),
+avec son ancienne référence conservée. Les sept ellipses non dégénérées
+mesurées gagnent entre 4 242 et 4 637 cycles.
+
+L'oracle des coordonnées passe de 60 boîtes sur 6502 à **126 par processeur**,
+sur 6502 et 65C02, dans les trois dimensions de backend. Il vérifie l'ordre
+exact des 64 segments, les sommes y supérieures à 255, coins inversés,
+clipping, rejets et dégénérescences. Les sanitizers hôte et les gardes des
+pages passent aussi. Le scaler vérifie à nouveau ses **4 227 072 couples**
+rayon/coefficient et 2 048 placements de pile sur chacun des deux processeurs.
+
 ## Série complémentaire du 5 novembre 2026 : contrôles du curseur
 
 `gfx_gotoxy` réutilise la retenue de la comparaison lors du clamp, et

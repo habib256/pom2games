@@ -54,14 +54,14 @@ whole:
 sign:
         bit tmp3
         bpl done
+        ; Complement AX and add one; carry propagates without saving X.
+        eor #$ff
+        clc
+        adc #1
         sta tmp1
-        stx tmp2
-        sec
-        lda #0
-        sbc tmp1
-        sta tmp1
-        lda #0
-        sbc tmp2
+        txa
+        eor #$ff
+        adc #0
         tax
         lda tmp1
 done:

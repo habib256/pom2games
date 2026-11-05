@@ -1,5 +1,12 @@
 # Current cc65 measurements
 
+The follow-up ellipse pass saves another **24 loaded bytes** and reduces
+ordinary C-stack peaks **28 → 24**. A small ellipse takes **151,885 cycles**
+(formerly 156,385); the widest box **167,148** (formerly 171,778).
+The vertical degenerate case costs 92 more cycles (+0.72%); its old budget
+is retained. Exact chord traces cover 126 boxes per CPU, and the signed
+scaler passes all 4,227,072 legal pairs on both 6502 and 65C02.
+
 Cursor control removes **two bytes each** from position and character members.
 Clamping takes **99 instead of 103 cycles**; newline **43 instead of 45**.
 All byte coordinates and controls pass on both CPUs, including empty grids.
