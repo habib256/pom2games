@@ -180,8 +180,11 @@ def check_archive(work):
          ('hgr_pixel_asm.o', 'hgr_hline.o', 'gfx_backend_hgr.o')),
         ('gfx_dimensions', 'return gfx_width == 280u && gfx_height == 192u;', 'gfx_backend_hgr.o',
          ('hgr_pixel_asm.o', 'hgr_hline.o', 'hgr_vline.o', 'hgr_fill_span.o', 'hgr_build_rows.o')),
+        ('gfx_clear', 'gfx_clear(255);', 'hgr_clear_asm.o',
+         ('gfx_backend_hgr_rect.o', 'hgr_pixrect_asm.o', 'hgr_columns.o', 'hgr_masks.o')),
         ('rectangle', 'gfx_filled_rect(0u, 0u, 279u, 191u);', 'hgr_pixrect_asm.o',
-         ('hgr_text_params.o', 'hgr_cell_asm.o', 'hgr_carrier_params.o', 'hgr_sprite_params.o')),
+         ('hgr_text_params.o', 'hgr_cell_asm.o', 'hgr_carrier_params.o', 'hgr_sprite_params.o',
+          'gfx_backend_hgr_clear.o', 'hgr_clear_asm.o')),
         ('byte_rectangle', 'hgr_fill_rect(191,1,39,1,255);', 'hgr_rect.o',
          ('hgr_pixrect.o', 'hgr_cell.o', 'hgr_pixrect_asm.o', 'hgr_columns.o', 'hgr_masks.o')),
         ('pixel_rectangle', 'hgr_fill_pixrect(279,191,1,1);', 'hgr_pixrect.o',
@@ -291,7 +294,7 @@ def check_archive(work):
             assert 'dhgr_flip.o' not in linked, (name, 'unused flip')
         if name == 'dhgr_clear':
             assert 'dhgr_asm.o' not in linked, (name, 'unused mode manager')
-        if name in ('gfx_plot', 'gfx_hline', 'gfx_vline'):
+        if name in ('gfx_plot', 'gfx_hline', 'gfx_vline', 'gfx_clear'):
             labels = a2test.labels(binary.with_suffix('.lbl'))
             assert labels['_' + name] == labels['_hgr_' + name[4:]], (name, 'not a direct alias')
         assert required in linked, (name, 'missing kernel', required)

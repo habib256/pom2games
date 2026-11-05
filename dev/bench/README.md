@@ -1,5 +1,11 @@
 # Current cc65 measurements
 
+Native GFX filled rectangles save **256 loaded bytes** and reduce C-stack
+use to **5 bytes**. A clipped rectangle takes **4,549 cycles instead of
+4,944**, a rejected y range **139 instead of 327**. Independent `gfx_clear`
+linking saves **709 loaded bytes**, **947 RAM bytes** and **14 zero-page
+bytes** in the clear-only client, whose C-stack use falls to zero.
+
 Native GFX HGR line dispatch saves **147 loaded bytes** and reduces the
 C-stack peak from 9–11 to **5 bytes**, without extra RAM or zero page.
 A clipped horizontal line takes **986 cycles instead of 1,115**, a rejected

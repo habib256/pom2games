@@ -4,6 +4,36 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Série du 5 novembre 2026 : rectangles GFX HGR natifs et effacement isolé
+
+L'entrée trie les coordonnées complètes, découpe les maxima puis calcule
+la hauteur inclusive. Elle utilise directement les cinq octets d'arguments
+du client et le noyau de spans existant. L'effacement devient un alias
+indépendant vers `hgr_clear`, sans importer le rectangle ni ses tables.
+La référence C reste disponible.
+
+| Appel C | Cycles avant → après | Binaire avant → après |
+|---|---:|---:|
+| Rectangle ponctuel | 612 → 492 | 1 392 → 1 136 |
+| Rectangle 252×176 | 78 914 → 78 615 | 1 390 → 1 134 |
+| Mêmes coins inversés | 79 190 → 78 652 | 1 392 → 1 136 |
+| Rectangle découpé | 4 944 → 4 549 | 1 384 → 1 128 |
+| Rejet x | 422 → 241 | 1 386 → 1 130 |
+| Rejet y | 327 → 139 | 1 386 → 1 130 |
+| Effacement seul | 46 414 → 46 346 | 1 317 → 608 |
+
+Le rectangle économise 256 octets et réduit sa pile C de 6–8 à cinq octets,
+avec RAM/page zéro identiques. L'effacement économise 709 octets de binaire,
+947 de RAM et 14 de page zéro ; piles C/matérielle 1/6 → 0/4.
+Les sept cas concernés s'améliorent ; les 489 autres restent identiques.
+
+La référence C puis l'entrée native passent 525 568 appels sur II+ et IIe :
+tous les mots x dans les deux ordres autour de trois ancres, toutes les
+paires y, cas dégénérés, arguments du span, temporaires écrasés, gardes et
+1 024 positions de pile. Les 64 clients minimaux, l'intégration HGR,
+les 158 scènes de contours/remplissage sur deux pages, les starters II+/IIe
+et le gate complet passent. Reconstruction et 18 WOZ validés, disques inchangés.
+
 ## Série du 5 novembre 2026 : aiguillage natif des lignes GFX HGR
 
 L'entrée réutilise les cinq octets d'arguments du client. Elle conserve

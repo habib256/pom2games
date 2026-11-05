@@ -1,5 +1,6 @@
 /* VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root). */
 /*
+ * Portable reference; hgrc.mk selects native rectangle/clear members.
  * gfx_backend_hgr_rect.c — gfx_filled_rect + gfx_clear forwarders for the
  * Apple II HGR backend.
  *

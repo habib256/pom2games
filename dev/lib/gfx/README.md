@@ -191,3 +191,8 @@ one quarter), saving 48 bytes over two separate 64-byte tables. With cc65
 unchanged apart from table addresses. `test_gfx_boundaries.py` verifies all
 64 chord endpoints for ordinary, reversed, degenerate and large boxes at
 140-, 280- and 560-pixel screen widths.
+
+The native HGR filled-rectangle entry sorts full-width corners, clips before
+inclusive arithmetic, and reuses the caller's five-byte argument frame.
+`gfx_clear` is an independent alias of `hgr_clear`; clear-only clients omit
+span code and column/mask tables. The portable C reference remains available.
