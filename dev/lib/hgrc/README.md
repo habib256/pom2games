@@ -1039,6 +1039,16 @@ checks full screen/buffer contents and 17,592 ordered stores, IRQ status and
 bank state, with `--reference PATH_OR_REV` and `--bench --out PATH` options.
 Unused cc65 scratch has no preservation or output-value guarantee.
 
+The subsequent scratch pass shares `tmp4` between the under-only flag and
+phase product, and sets the page in `tmp3` and row in `tmp1` after that
+product is finished. `tmp2` remains preserved. Phase zero skips the unused
+hint calculation while still clearing the one-call hint. This saves another
+**5 code bytes, two BSS bytes and one zero-page byte**, with unchanged stacks.
+Generic draw/save/restore takes **2,808/1,708/1,719 cycles**; four moving
+16-row sprites take **36,965**. `make test-hgr-masked-full` runs cold setup
+on both CPUs with both normal and folded table builders (7,311,472 calls),
+then checks ordered writes for both builders.
+
 The frame engine now keeps temporary visibility in cc65 scratch, reads movement
 arguments directly from the C stack and advances several save-under slots in
 one call. Together these passes save **17 loaded bytes and four RAM bytes**

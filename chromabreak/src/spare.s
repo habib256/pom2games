@@ -45,8 +45,10 @@
 ; RODATA +17 preserves those addresses; its five BSS bytes remain free.
 ; 2026-11-06, the MLI wrapper saves 18 library CODE bytes by sharing its
 ; inline record. RODATA +18 preserves the tables; three BSS bytes stay free.
+; 2026-11-06, read_free shares its last-page byte with the CPY operand.
+; RODATA +2 preserves every asserted table/workspace address.
 CODE_SPARE   = 38
-RODATA_SPARE = 58
+RODATA_SPARE = 60
 BSS_SPARE    = 0
 
 .code

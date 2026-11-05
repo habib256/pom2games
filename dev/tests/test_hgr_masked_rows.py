@@ -23,7 +23,7 @@ CASES += [(273+p,185,3,16) for p in range(7)]
 CASES += [(0,0,1,192),(0,0,2,128),(21,127,4,65),(7,57,7,31),(256,0,255,1),(0,191,255,255)]
 C='''#include "hgr.h"
 #include "hgr_internal.h"
-void started(void);void finished(void);void ended(void);
+void started(void);void captured(void);void finished(void);void ended(void);
 unsigned char data[2304],mask[2304],under[768],irq_after,intact,serial;
 static hgr_mspr_t shape;
 static const struct {unsigned x;unsigned char y,stride,h;} cases[]={CASES};
@@ -41,6 +41,7 @@ int main(void){
   if(irq){asm("sei");}else{asm("cli");}
   started();
   switch(mode){case 0:hgr_ms_run();break;case 1:hgr_ms_save_run();break;case 2:hgr_ms_restore_run();break;case 3:hgr_msu_run();break;}
+  captured();
   asm("php");asm("pla");asm("sta _irq_after");
   intact=hgr_ms_x==cases[c].x&&hgr_ms_y==cases[c].y&&hgr_ms_spr==&shape&&hgr_ms_under==under+((serial*131u+5u)&255u)
    &&hgr_ms_block==((mode==1||mode==2)&&((serial&2)&&block<=255)?block:0);
@@ -48,8 +49,8 @@ int main(void){
  }
  ended();for(;;){}return 0;
 }'''.replace('CASES',','.join('{%d,%d,%d,%d}'%c for c in CASES))
-ASM='''.export _started,_finished,_ended
-.importzp sp,ptr2,ptr3
+ASM='''.export _started,_captured,_finished,_ended
+.importzp sp,ptr2,ptr3,tmp2
 .bss
 saved:.res 2
 .code
@@ -67,6 +68,13 @@ _started:lda sp
  sta ptr3
  lda #$69
  sta ptr3+1
+ lda #$3c
+ sta tmp2
+ rts
+_captured:
+ lda tmp2
+ cmp #$3c
+ bne bad
  rts
 _finished:lda sp
  cmp saved
@@ -80,12 +88,14 @@ _ended:rts
 '''
 
 
-def check(source_member):
+def check(source_member, folded=False):
     with tempfile.TemporaryDirectory(prefix='hgr-mask-store-') as directory:
         work=Path(directory);source=work/'fixture.c';source.write_text(C);probe=work/'probe.s';probe.write_text(ASM)
         original=test_hgr.compile_source
         def compile_member(source,obj,flags):
-            return original(source_member if Path(source).name=='hgr_sprmask.s' else source,obj,flags)
+            member=source_member if Path(source).name=='hgr_sprmask.s' else source
+            defines=['-D','HGRC_X7_FOLDED=1'] if folded and Path(member).suffix=='.s' else []
+            return original(member,obj,[*flags,*defines])
         test_hgr.compile_source=compile_member
         try:disk=build(work,source,extra_sources=[probe])
         finally:test_hgr.compile_source=original
@@ -126,10 +136,10 @@ def check(source_member):
                 assert tuple(m[i] for i in range(9,12))==('0','0','0'),line
                 observed.append((int(m[2],16),int(m[3],16),1 if int(m[6],16)&4 else 0))
         assert observed==stores,('stores',len(observed),len(stores),next((i for i,(a,b)in enumerate(zip(observed,stores))if a!=b),None))
-        print('HGR masked ordered oracle',frame,'calls',len(stores),'ordered writes; pages, under/source guards, args/stack, IRQ and banks PASS')
+        print('HGR masked ordered oracle',frame,'calls',len(stores),'ordered writes; pages, under/source guards, args/stack, IRQ and banks PASS; folded=',folded)
 
 
-def bench(source, out):
+def bench(source, out, folded=False):
     spec = importlib.util.spec_from_file_location('hgr_masked_bench', DEV / 'bench/run.py')
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
@@ -140,7 +150,9 @@ def bench(source, out):
     original = test_hgr.compile_source
 
     def compile_member(member, obj, flags):
-        return original(source if Path(member).name == 'hgr_sprmask.s' else member, obj, flags)
+        selected = source if Path(member).name == 'hgr_sprmask.s' else member
+        defines = ['-D', 'HGRC_X7_FOLDED=1'] if folded and Path(selected).suffix == '.s' else []
+        return original(selected, obj, [*flags, *defines])
 
     saved = sys.argv
     try:
@@ -152,6 +164,8 @@ def bench(source, out):
         sys.argv = saved
     if out:
         report = json.loads(out.read_text())
+        if folded:
+            report['flags'] += ' -D HGRC_X7_FOLDED=1 (assembler)'
         report['source_artifacts'] = [module.identity(source), module.identity(Path(__file__)),
                                       module.identity(DEV / 'tests/test_sprmask_setup.py')]
         out.write_text(json.dumps(report, indent=2) + '\n')
@@ -161,6 +175,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--source', type=Path, default=DEV / 'lib/hgrc/hgr_sprmask.s')
     parser.add_argument('--reference', help='also check a source file or git revision')
+    parser.add_argument('--folded', action='store_true', help='use HGRC_X7_FOLDED builders')
     parser.add_argument('--bench', action='store_true', help='measure 45 canonical masked/engine cases')
     parser.add_argument('--out', type=Path, help='benchmark JSON; reference gets a -reference sibling')
     args = parser.parse_args()
@@ -182,9 +197,9 @@ def main():
                 out = args.out
                 if label == 'reference' and out:
                     out = out.with_name(out.stem + '-reference' + out.suffix)
-                bench(source, out)
+                bench(source, out, args.folded)
             else:
-                check(source)
+                check(source, args.folded)
 
 
 if __name__ == '__main__':

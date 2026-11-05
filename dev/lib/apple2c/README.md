@@ -269,3 +269,10 @@ and one hardware-stack byte on nonempty calls. An 80-column normal fill
 takes 5,562 instead of 5,883 cycles, or 6,654 instead of 6,974 with the
 pointer enabled. Individual characters save three cycles. The bounds test
 also covers every byte count/character in all modes and every column.
+
+The pointer's character inversion uses a mask for $80..$DF, preserving the
+original carry and all other output flags. It saves nine code bytes without
+extra state or stack. `test_t80_flip.py` checks all 256 inputs exactly and
+runs the pointer bounds/bank checks; 96 inputs save 3..7 cycles, the rest
+keep their timing. `--reference PATH --bench --out PATH` records comparable
+measurements and source/compiler/environment identities.

@@ -1,5 +1,14 @@
 # Current cc65 measurements
 
+The twenty-second-session gate passes **793 cases and 16 frame budgets**.
+HGR scratch reuse and T80 inversion shrink **88 clients**; **67 timings
+improve, 18 are equal**, with three placement costs of 3..19 cycles (at
+most 0.27%). All 705 other dictionaries are identical. **389 limits are
+lowered**, none raised. Dedicated helpers also shrink ProDOS reads by two
+bytes; a ten-byte pinned-pair precheck cuts CATAPULT's median flying work
+from 11,339 to 10,294 cycles. Six rebuilt games, CATAPULT and all 18 WOZ
+pairs pass. See [the twenty-second-session audit](HISTORY.md#audit-de-la-vingt-deuxième-session-du-6-novembre-2026--temporaires-hgr-texte-et-collisions).
+
 The twenty-first-session gate passes **793 cases and 16 frame budgets**.
 Masked save/restore setup and row carries improve **51 timings**, with
 every footprint/stack metric unchanged and no regression; 742 dictionaries

@@ -207,6 +207,14 @@ list. C: `prodos_file_mark` (an `unsigned long`, low 24 bits) then
 so `file.s` alone stays byte-identical. User: ROBOT SPACE STATION
 (`read_room`: mission m's record of RSS.ROOMS at m × 256).
 
+`read_free` now keeps its last-page bound in the immediate operand of its
+comparison, within the existing writable, non-reentrant helper. It clears
+`pf_got` through ordinary READ, or explicitly for a rejected buffer. This
+saves two loaded bytes and eight cycles plus two per page on valid reads;
+zero-length reads save eight cycles and invalid ranges retain their timing.
+`test_prodos_file.py` also checks 200 successive calls with changing bounds.
+Its `--reference PATH --bench --out PATH` reports cover 18 ASM/C profiles.
+
 All three C entrypoints cost 367 loaded bytes (formerly 314), including
 the parameters and bitmap scratch; no zero-page bytes are allocated or
 modified by the helpers. In isolation, assembly load/load_free/save cost

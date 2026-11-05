@@ -429,6 +429,15 @@ random probes where the bucket scan (Python) == `probe_at`'s full scan,
 every pixel column's list checked against the boxes; the switch errors;
 `--cycles` prints the costs above (and with the buckets).
 
+With `VL_PIN`, `vl_contact_all` skips pairs whose two points are pinned
+before entering the contact helper. It reloads both pins for every pair,
+since an earlier collision can wake either point. This adds ten code bytes
+and no RAM, zero page or stack; no-pin builds and single-pair calls are
+unchanged. `test_verlet_contact_all.py` checks 438,532 public states per CPU,
+including ordered wakes; `--bench` measures an actual CATAPULT disk. Its
+median flying work falls from 11,339 to 10,294 cycles, with the same model
+and passing cadence budget. The aiming path gains one placement cycle.
+
 `dev/tests/test_verlet_contact.py` (`make test-verlet-contact`):
 configuration A (4 circles, y 8.8, Q = 5, restitution, VMIN, heavy points,
 pins, friction, sleep, 3 boxes) runs 1,460 single calls — 700

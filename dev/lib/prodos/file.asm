@@ -224,8 +224,7 @@ prodos_load_aux:
 ; Only the 192 pages represented by $BF58-$BF6F may be changed. Validate
 ; the inclusive last byte BEFORE touching the bitmap; reject 16-bit wrap.
 prodos_read_free:
-        stz pf_got
-        stz pf_got+1
+        ; prodos_read clears pf_got; rejected ranges clear it at @bad_buffer.
         lda pf_len
         ora pf_len+1
         beq prodos_read           ; zero bytes claim no destination pages
@@ -263,7 +262,7 @@ prodos_read_free:
         and $BF58,x
         sta $BF58,x
         ply
-        cpy pf_last
+@last:  cpy #$00                 ; pf_last is this writable immediate operand
         beq @read
         iny
         bne @page
@@ -280,8 +279,11 @@ prodos_read_free:
         ply
         rts
 @bad_buffer:
+        stz pf_got
+        stz pf_got+1
         lda #$56
         jmp pf_fail
+pf_last = @last+1
 pf_bits:    .byte $80, $40, $20, $10, $08, $04, $02, $01
 .endif
 
@@ -343,5 +345,4 @@ pa_page:    .byte 0
 .endif
 .ifref prodos_read_free
 pf_bitmap:  .res 24
-pf_last:    .res 1
 .endif

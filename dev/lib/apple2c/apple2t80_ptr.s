@@ -60,13 +60,8 @@ t80_flip:
         bcc @ton
         cmp #$E0
         bcs @lo                  ; $E0-$FF lower case
-        cmp #$A0
-        bcc @up                  ; $80-$9F
-        cmp #$C0
-        bcs @up                  ; $C0-$DF
-        and #$3F                 ; $A0-$BF
-        rts
-@up:    and #$1F
+        cmp #$C0                 ; retain the original carry result
+        and #$3F                 ; $80-$DF: inverse uppercase/punctuation
         rts
 @lo:    and #$7F
         rts

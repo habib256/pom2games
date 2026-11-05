@@ -4,6 +4,62 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Audit de la vingt-deuxième session du 6 novembre 2026 — temporaires HGR, texte et collisions
+
+Après `0da577b`, les sprites masqués réutilisent `tmp4` pour le mode puis
+le produit de phase, `tmp3` pour la page et `tmp1` pour la ligne. Page et
+ligne sont affectées après le calcul de phase ; `tmp2` reste préservé.
+La phase zéro évite une lecture et consomme toujours l'indication à usage
+unique. Chaque client économise **5 octets CODE, deux BSS et un de page
+zéro**, sans hausse de pile. Dessin générique **2 825 → 2 808 cycles**,
+sauvegarde **1 727 → 1 708**, restauration **1 738 → 1 719** ; quatre
+sprites mobiles de 16 lignes **37 115 → 36 965**.
+
+Les préparations à froid vérifient **7 311 472 appels** sur les deux CPU,
+avec les constructeurs normaux et repliés. Les deux variantes passent
+les 544 appels et 17 592 écritures ordonnées ancien/nouveau, les gardes,
+arguments, piles, banques et IRQ ; 400 scènes de pixels et 72 du moteur
+passent aussi. `test-hgr-masked-full` expose cette matrice exhaustive.
+
+Le retournement du caractère sous le pointeur T80 simplifie les codes
+$80..$DF en conservant tous les drapeaux : **neuf octets CODE en moins**.
+Les 256 entrées gardent A/X/Y/P, page zéro et pile ; 96 gagnent 3..7 cycles,
+les 160 autres sont identiques. Le helper ProDOS `read_free` conserve sa
+borne dans l'opérande immédiate de sa comparaison et évite une remise
+à zéro redondante du compteur : **deux octets chargés en moins**, huit
+cycles plus deux par page gagnés sur une lecture valide, erreurs inchangées.
+Les 18 profils ASM/C, 113 scénarios injectés, 200 lectures successives et
+les volumes réels, y compris aux/LOWBSS, passent. Ces bancs enregistrent
+compilateur, options, CPU/ROM et empreintes des sources et tests.
+
+Avec `VL_PIN`, `vl_contact_all` écarte tôt les paires dont les deux points
+sont immobilisés. Les pins sont relus pour chaque paire : un contact
+précédent peut réveiller un point. L'entrée prend **dix octets CODE**
+supplémentaires, sans autre mémoire ni pile ; les versions sans pins et
+l'appel de contact individuel restent identiques. **438 532 états publics
+par CPU** couvrent tous les octets de pins, les rayons, les limites de
+compteur et les réveils ordonnés, dont 176 paires après réveil du point
+extérieur. CATAPULT garde son modèle exact ; ses trames en vol passent
+de **11 339 à 10 294 cycles médians**, pire cas **44 326 → 44 263**.
+La visée coûte un cycle de plus (placement) ; les ticks dépassant leur
+budget passent de huit à sept sur 2 598, cadence et blanking vérifiés.
+
+Le gate global passe **793 cas et 16 budgets**. **88 clients rétrécissent**
+(77 HGR, 11 T80) ; **67 durées baissent, 18 restent identiques**. Deux
+scènes HGR prennent 19 cycles (+0,27 %) et une attente VBL trois cycles
+(+0,009 %) à cause du placement. Les 705 autres dictionnaires sont
+identiques ; données constantes et piles restent inchangées. **389 plafonds
+sont abaissés**, aucun relevé : 88 CODE, 88 chargés, 77 RAM, 77 page zéro,
+59 cycles. Les helpers ASM hors banc global ont leurs mesures dédiées.
+
+`make all test-woz` passe, avec les 18 paires vérifiées. Deux octets ajoutés
+à la réserve de CHROMABREAK maintiennent ses adresses imposées après la
+réduction de ProDOS. Les six disques modifiés **CHROMABREAK, HGR,
+LIGHT3DBALL, MBTRACKER, ROBOTSTATION et WARGALAGAII** passent leurs tests,
+ainsi que CATAPULT. MBTRACKER dispose désormais de **694 octets libres**
+avant OVL2, inchangé à 4 266 octets. Options de bibliothèque, structure
+du Makefile et vérification des espaces passent.
+
 ## Audit de la vingt-et-unième session du 6 novembre 2026 — sprites masqués, décalages et commandes
 
 Après `b56bfb9`, la préparation HGR save/restore saute les lectures de

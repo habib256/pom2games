@@ -9,12 +9,15 @@ from test_hgr import DEV, run, a2test
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--full',action='store_true')
+    parser.add_argument('--source',type=Path,default=DEV/'lib/hgrc/hgr_sprmask.s')
+    parser.add_argument('--cold',action='store_true',help='first setup builds its own tables')
+    parser.add_argument('--folded',action='store_true',help='use HGRC_X7_FOLDED builders')
     parser.add_argument('--iie',action='store_true');args=parser.parse_args()
     heights=range(1,256) if args.full else (1,2,3,7,8,9,10,16,31,32,63,64,127,128,254,255)
     with tempfile.TemporaryDirectory(prefix='sprmask-setup-') as directory:
         work=Path(directory)
         kernel=work/'kernel.s'
-        kernel.write_text((DEV/'lib/hgrc/hgr_sprmask.s').read_text()+
+        kernel.write_text(args.source.read_text()+
             '\n.export ms_setup,ms_setup_under,ms_rowbase,ms_page\n'
             '.exportzp ms_col,ms_yy,ms_w,ms_h,ms_stride\n')
         source=work/'fixture.s'
@@ -126,6 +129,9 @@ page_done: nop
 resume: jmp prepare
 .export start,height,under_mode,hint_mode,page_done,resume,results
 """)
+        if args.cold:
+            source.write_text(source.read_text().replace(
+                ' jsr _hgr_build_columns\n jsr _hgr_build_phases\nprepare:', 'prepare:'))
         cfg=work/'fixture.cfg'
         cfg.write_text("""MEMORY {
  ZP: start=$50,size=$B0,type=rw;
@@ -138,10 +144,14 @@ SEGMENTS {
  BSS: load=TABLE,type=bss;
 }
 """)
+        if args.folded:
+            # The combined builder additionally reserves the unused mask table.
+            cfg.write_text(cfg.read_text().replace('TABLE: start=$4000,size=$1000',
+                                                   'TABLE: start=$4000,size=$2000'))
         objects=[]
         for src in (source,kernel,DEV/'lib/hgrc/hgr_columns.s',DEV/'lib/hgrc/hgr_phases.s'):
             obj=work/(src.stem+'.o');objects.append(obj)
-            run(['ca65','-o',obj,src])
+            run(['ca65',*(['-D','HGRC_X7_FOLDED=1'] if args.folded else []),'-o',obj,src])
         binary=work/'fixture.bin';labels=work/'fixture.lbl'
         run(['ld65','-C',cfg,'-Ln',labels,'-o',binary,*objects])
         L=a2test.labels(labels);disk=a2test.build_disk(work,'TEST',binary) if args.iie else None
@@ -178,7 +188,8 @@ SEGMENTS {
                             assert result.dumps[batch][start:]==wanted[start:],(x,y,under,hints,h,[(i//256,i%256,a,b) for i,(a,b) in enumerate(zip(result.dumps[batch][start:],wanted[start:]),start) if a!=b][:12])
         print(f'Masked setup: {count:,} calls, all strides/seven phases/two placements, '
               f'full offsets and clipping, both modes and all 256 hints; '
-              f'{L["ms_rowbase"]-L["ms_setup"]} setup bytes; IIe={args.iie}.')
+              f'{L["ms_rowbase"]-L["ms_setup"]} setup bytes; '
+              f'IIe={args.iie}, cold={args.cold}, folded={args.folded}.')
 
 
 if __name__=='__main__':main()

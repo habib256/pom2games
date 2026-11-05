@@ -367,6 +367,15 @@ test-hgr-spr-control-full: $(A2RUN)
 	$(PYTHON) dev/tests/test_hgr_spr_control.py --full --reference
 .PHONY: test-hgr-spr-control-full
 
+test-hgr-masked-full: $(A2RUN)
+	$(PYTHON) dev/tests/test_sprmask_setup.py --full --cold
+	$(PYTHON) dev/tests/test_sprmask_setup.py --full --cold --iie
+	$(PYTHON) dev/tests/test_sprmask_setup.py --full --cold --folded
+	$(PYTHON) dev/tests/test_sprmask_setup.py --full --cold --folded --iie
+	$(PYTHON) dev/tests/test_hgr_masked_rows.py
+	$(PYTHON) dev/tests/test_hgr_masked_rows.py --folded
+.PHONY: test-hgr-masked-full
+
 test-dos-append-full: $(A2RUN)
 	$(PYTHON) dev/tests/test_dos_append.py --full
 .PHONY: test-dos-append-full
@@ -413,6 +422,7 @@ test-tools:
 	$(PYTHON) dev/tests/test_prodos_name.py
 	$(PYTHON) dev/tests/test_prodos_name.py --iie
 	$(PYTHON) dev/tests/test_t80_bounds.py
+	$(PYTHON) dev/tests/test_t80_flip.py
 	$(PYTHON) dev/tests/test_prodos_sysreloc.py
 	$(PYTHON) dev/tests/test_apple2game.py
 	$(PYTHON) dev/tests/test_mouse_context.py
@@ -461,6 +471,8 @@ test-catapult-example:
 # lib/physics circle contacts (verlet_circ.asm) == dev/tools/verlet/contact.py.
 test-verlet-contact:
 	$(PYTHON) dev/tests/test_verlet_contact.py
+	$(PYTHON) dev/tests/test_verlet_contact_all.py
+	$(PYTHON) dev/tests/test_verlet_contact_all.py --iie
 .PHONY: test-verlet-contact
 
 # HALFPIPE (dev/examples/halfpipe): its 6502 physics == tools/halfpipe.py, and

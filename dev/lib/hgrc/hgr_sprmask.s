@@ -49,8 +49,10 @@
 
         .segment "BSS"
 _hgr_ms_block: .res 1        ; one-call engine block (1..255), zero = generic
-ms_under_only: .res 1
-ms_page: .res 1
+; tmp4 mode survives both table builders, then becomes the phase block.
+ms_under_only = tmp4
+; The page is latched only after tmp3's product-high lifetime ends.
+ms_page = tmp3
 
 ; --- interface variables (zero page) ----------------------------------------
         .segment "ZEROPAGE"
@@ -60,7 +62,7 @@ _hgr_ms_spr:   .res 2       ; -> hgr_mspr_t {data lo/hi, mask lo/hi, stride, h}
 _hgr_ms_under: .res 2       ; -> linear save-under buffer (stride*h bytes)
 ; asm-internal state (derived by ms_setup, persists across the row loop):
 ms_col:    .res 1            ; start byte column (x / 7)
-ms_yy:     .res 1            ; current scanline (advanced per row)
+ms_yy = tmp1                 ; current scanline after phase arithmetic
 ms_w:      .res 1            ; bytes drawn per row (right-clipped)
 ms_h:      .res 1            ; rows remaining (bottom-clipped)
 ms_stride: .res 1            ; source bytes per row (uniform across phases)
@@ -72,7 +74,9 @@ ms_blk_hi = tmp3            ; high byte: full height moves to X before clearing
 ;   ptr2 = data row pointer  (phase-adjusted, advanced by stride per row)
 ;   ptr3 = mask row pointer  (phase-adjusted, advanced by stride per row)
 ;   ptr4 = under row pointer (advanced by stride per row)
-; tmp1 = phase, tmp3 = full (unclipped) h -- setup scratch only.
+; tmp1 = phase during setup, then ms_yy. tmp3 = full height/product high,
+; then ms_page. tmp4 = under-only mode, then phase block. All table builders
+; preserve tmp3/tmp4; folded builders borrow tmp1 before phase is assigned.
 ; Setup reads the stride directly from ms_stride; tmp2 remains untouched.
 
         .segment "CODE"
@@ -92,11 +96,6 @@ ms_setup_common:
         ; Prepare optional x tables before using any shared scratch.
         jsr _hgr_build_columns
         jsr _hgr_build_phases
-        lda _hgr_base
-        bne @page
-        lda #$20
-@page:
-        sta ms_page
         ; col = hgr_col7[x] ; phase = hgr_phase7[x] (LUTs, no divide).
         ; x >= 256 (only 256..279 on a 280-px screen) indexes the tables at
         ; +256 with the low byte -- a 6502 index register is 8-bit.
@@ -127,8 +126,6 @@ ms_setup_common:
         lda (ptr1),y              ; h
         sta ms_h                  ; default h
         sta tmp3                  ; tmp3 = full h (for the phase offset)
-        lda _hgr_ms_y
-        sta ms_yy
         ; Right clip against the remaining columns: no overflowing sum.
         lda #40
         sec
@@ -160,13 +157,12 @@ ms_setup_common:
         lda (ptr1),y              ; mask high
         sta ptr3+1
 
-        ; The draw consumes its one-call hint even when phase zero needs
-        ; no multiplication or bank adjustment. Save/restore keeps it intact.
+        ; Phase zero skips hint/product reads; both paths consume the hint
+        ; through X=0 at @consume. Save/restore branches past that clear.
+        ldx tmp1
+        beq @consume
         ldy _hgr_ms_block
         lda #0
-        sta _hgr_ms_block
-        ldx tmp1
-        beq @poff
         ; phase block = h * stride via loop-add (h iterations, no multiply)
         ldx tmp3                  ; capture full h before reusing its scratch
         sta ms_blk_hi
@@ -203,7 +199,17 @@ ms_setup_common:
         sta ptr3+1
         dex
         bne @ploop
+@consume:
+        stx _hgr_ms_block       ; phase zero or the completed loop leaves X=0
 @poff:
+        ; Phase arithmetic is finished: tmp3/tmp1 now hold page/current row.
+        lda _hgr_base
+        bne @latepage
+        lda #$20
+@latepage:
+        sta ms_page
+        lda _hgr_ms_y
+        sta ms_yy
         ; ptr4 = under buffer
         lda _hgr_ms_under
         sta ptr4

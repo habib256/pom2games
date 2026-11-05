@@ -107,9 +107,20 @@ vl_contact_all:
         BEQ     @na
         INX
 @b:     STX     vl_cb
+.ifdef VL_PIN
+        ; A prior pair may wake either point: reload their pins each time.
+        LDY     vl_ca
+        LDA     vl_pin,Y
+        BEQ     @live
+        LDA     vl_pin,X
+        BNE     @nb
+@live:
+.endif
         LDA     vl_rad,X
         BEQ     @nb
+.ifndef VL_PIN
         LDY     vl_ca
+.endif
         CLC
         ADC     vl_rad,Y
         JSR     vl_contact_pair

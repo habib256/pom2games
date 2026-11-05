@@ -5,7 +5,11 @@ The stub only implements the MLI calling convention and controlled results;
 it does not replace the helpers under test. Real ProDOS separately checks
 replacement with shorter/empty files and missing-file creation on disk.
 """
+import argparse
+import hashlib
+import json
 from pathlib import Path
+import shutil
 import re
 import subprocess
 import sys
@@ -229,7 +233,7 @@ def invoke(binary, labels, fn, buf=0x2000, length=0x100, errors=(), actual=0x100
             byte('pf_mark', mark >> 8 * i & 255, i)
     for command, error in errors:
         byte('errors', error, command)
-    steps += ['regs:77:88:9A', f'call:{L[fn]:04X}:3', L.peek('pf_err'),
+    steps += ['regs:77:88:9A', 'hwstackwatch', f'call:{L[fn]:04X}:3', 'hwstack', L.peek('pf_err'),
               L.peek('pf_got', 2), L.peek('log_count'), L.peek('log', 16),
               L.peek('refs', 16), L.peek('eof_seen', 5), L.peek('mark_seen', 5),
               L.peek('actual_seen', 2),
@@ -240,6 +244,8 @@ def invoke(binary, labels, fn, buf=0x2000, length=0x100, errors=(), actual=0x100
     r = a2test.run(disk, steps, iie=True)
     calls = re.findall(r'call [0-9A-F]+ cycles=\d+ elapsed=(\d+) A=([0-9A-F]+) X=([0-9A-F]+) Y=([0-9A-F]+) P=([0-9A-F]+)', r.out)
     elapsed, a, x, y, p = (int(v, 10 if i == 0 else 16) for i, v in enumerate(calls[-1]))
+    peak, available, overflow = map(int, re.search(r'hwstack peak=(\d+) available=(\d+) overflow=(\d+)', r.out).groups())
+    assert not overflow and peak < available, (fn, 'hardware stack overflow')
     err = r.mem(L['pf_err'], 1)[0]
     assert a == err and (p & 1) == int(err != 0), (fn, err, a, p)
     assert y == 0x9A, (fn, 'Y changed', y)
@@ -251,7 +257,8 @@ def invoke(binary, labels, fn, buf=0x2000, length=0x100, errors=(), actual=0x100
     return dict(error=err, actual=int.from_bytes(r.mem(L['pf_got'], 2), 'little'),
                 log=r.mem(L['log'], 16)[:count], refs=r.mem(L['refs'], 16)[:count],
                 eof=r.mem(L['eof_seen'], 5), mark=r.mem(L['mark_seen'], 5), bitmap=r.mem(L['bitmap_seen'], 26),
-                initial_actual=r.mem(L['actual_seen'], 2), cycles=elapsed, original=bitmap)
+                initial_actual=r.mem(L['actual_seen'], 2), cycles=elapsed, original=bitmap,
+                hardware_stack_peak_bytes=peak, hardware_stack_available_bytes=available)
 
 
 def injected(work):
@@ -744,11 +751,128 @@ length: lda #0
     print('AUXMOVE chunked: simultaneous, late and scoped store includes, repeated round trips OK.')
 
 
-if __name__ == '__main__':
+def repeated(work):
+    """Keep one loaded kernel across changing ranges, errors and stale counts."""
+    binary, labels = asm_fixture(work, name='repeated', entrypoints=('prodos_read_free',))
+    bitmap = bytes((i * 37 + 0xA5) & 255 for i in range(26))
+    zp = bytes(i ^ 0xA5 for i in range(256))
+    cases = [(0x2000, 0x2000), (0x20FF, 2), (0xBFFF, 1), (0xBFFF, 2),
+             (0xFFFF, 2), (0xC000, 0), (0, 0xC000), (0, 0xFFFF)]
+    cases += [(page * 256 + (page * 67 & 255),
+               (0, 1, 255, 256, 257, 0x2000, 65535)[page % 7]) for page in range(192)]
+    steps = [f'load:{binary}@6000', *a2test.pokes(0, zp), *a2test.pokes(0xBF57, bitmap)]
+    for index, (buf, length) in enumerate(cases):
+        error = 0x27 if index % 3 == 0 else 0
+        leave = index % 5 == 0
+        steps += [f'call:{labels["setup"]:04X}:2',
+                  *a2test.pokes(labels['pf_buf'], buf.to_bytes(2, 'little')),
+                  *a2test.pokes(labels['pf_len'], length.to_bytes(2, 'little')),
+                  *a2test.pokes(labels['pf_got'], b'\xEF\xBE'),
+                  *a2test.pokes(labels['actual'], min(length, 17).to_bytes(2, 'little')),
+                  labels.poke('leave_actual', int(leave)), labels.poke('errors', error, 0xCA),
+                  'regs:77:88:9A', 'hwstackwatch',
+                  f'call:{labels["prodos_read_free"]:04X}:3', 'hwstack',
+                  labels.peek('pf_err'), labels.peek('pf_got', 2), labels.peek('log_count'),
+                  labels.peek('log', 16), labels.peek('actual_seen', 2),
+                  labels.peek('bitmap_seen', 26), 'peek:BF57:26', 'peek:0000:256']
+    disk = work / 'repeated.dsk'; disk.write_bytes(bytes(143360))
+    result = a2test.run(disk, steps, iie=True)
+    calls = re.findall(r'call ([0-9A-F]+) cycles=\d+ elapsed=\d+ A=([0-9A-F]+) X=([0-9A-F]+) Y=([0-9A-F]+) P=([0-9A-F]+)', result.out)
+    calls = [row for row in calls if int(row[0], 16) == labels['prodos_read_free']]
+    assert len(calls) == len(cases) and len(result.data) == len(cases) * 330
+    for index, ((buf, length), call) in enumerate(zip(cases, calls)):
+        data = result.data[index * 330:(index + 1) * 330]
+        valid = length == 0 or buf + length <= 0xC000
+        error = (0x27 if index % 3 == 0 else 0) if valid else 0x56
+        actual = 0 if not valid or index % 5 == 0 else min(length, 17)
+        context = (index, hex(buf), length)
+        assert data[:4] == bytes((error, actual & 255, actual >> 8, int(valid))), context
+        assert data[4:20] == (b'\xCA' + bytes(15) if valid else bytes(16)), context
+        assert data[20:22] == b'\0\0', (*context, 'actual not cleared before READ')
+        expected = bytearray(bitmap)
+        if valid and length:
+            for page in range(buf >> 8, ((buf + length - 1) >> 8) + 1):
+                expected[1 + page // 8] &= ~(0x80 >> (page % 8))
+        assert data[22:48] == (expected if valid else bytes(26)), (*context, 'READ bitmap')
+        assert data[48:74] == bitmap and data[74:] == zp, (*context, 'bitmap/ZP restoration')
+        _, a, _, y, flags = call
+        assert (int(a, 16), int(y, 16), int(flags, 16) & 1) == (error, 0x9A, int(error != 0)), context
+    stacks = re.findall(r'hwstack peak=(\d+) available=(\d+) overflow=(\d+)', result.out)
+    assert len(stacks) == len(cases)
+    assert all(int(peak) < int(available) and int(overflow) == 0 for peak, available, overflow in stacks)
+    print(f'ProDOS read_free: {len(cases)} repeated varying ranges, stale counts, READ errors, '
+          'bitmap/Y/ZP restoration and balanced hardware stack OK.')
+
+
+READ_PROFILES = (
+    ('one', 0x2000, 1), ('page', 0x2000, 256), ('two', 0x20FF, 2),
+    ('hgr', 0x2000, 0x2000), ('max', 0, 0xC000), ('last', 0xBFFF, 1),
+    ('zero', 0xC000, 0), ('bad', 0xBFFF, 2), ('wrap', 0xFFFF, 2),
+)
+
+
+def benchmark(work):
+    asm, labels = asm_fixture(work, name='bench', entrypoints=('prodos_read_free',))
+    c, clabels = c_fixture(work)
+    results = {}
+    for kind, binary, names, fn in (('asm', asm, labels, 'prodos_read_free'),
+                                    ('c', c, clabels, '_c_free')):
+        for name, buf, length in READ_PROFILES:
+            result = invoke(binary, names, fn, buf=buf, length=length, actual=min(length, 17))
+            results[kind + '_' + name] = dict(cycles=result['cycles'], binary_bytes=binary.stat().st_size,
+                hardware_stack_peak_bytes=result['hardware_stack_peak_bytes'],
+                hardware_stack_available_bytes=result['hardware_stack_available_bytes'])
+            print(f'prodos_read_free_{kind}_{name}: {result["cycles"]} cycles, '
+                  f'{binary.stat().st_size} loaded bytes; injected MLI, no device I/O.')
+    return results
+
+
+
+def report(kernel, results):
+    sys.path.insert(0, str(DEV / 'bench'))
+    import run as bench
+    version = subprocess.run(['cl65', '--version'], capture_output=True, text=True, check=True)
+    digest = lambda path: dict(name=Path(path).name, sha256=hashlib.sha256(Path(path).read_bytes()).hexdigest())
+    return dict(schema=1, scope='ASM and zero-argument C calls with injected MLI; no device I/O',
+                source=digest(kernel), test_source=digest(__file__),
+                support_sources=[digest(DEV / 'lib/prodos/file.s'), digest(DEV / 'lib/prodos/file_at.s')],
+                compiler=(version.stdout + version.stderr).strip(), flags='-Oirs --cpu 65c02',
+                asm_flags='ca65 --cpu 65c02; file.s also selects 65C02',
+                environments={'iie': bench.environment(True)},
+                case_environments={name: 'iie' for name in results}, results=results)
+
+
+def main():
+    global PD
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--reference', type=Path, help='assemble this file.asm instead')
+    parser.add_argument('--bench', action='store_true', help='measure bitmap handling with an injected MLI')
+    parser.add_argument('--out', type=Path, help='write measurement report (requires --bench)')
+    args = parser.parse_args()
+    if args.out and not args.bench:
+        parser.error('--out requires --bench')
+    kernel = (args.reference or PD / 'file.asm').resolve()
     if a2test.have_a2shot('ProDOS files (65C02)'):
         with tempfile.TemporaryDirectory(prefix='prodos-file-') as tmp:
-            dependencies(Path(tmp))
-            injected(Path(tmp))
-            native(Path(tmp))
-            native_aux(Path(tmp))
-            aux_include_order(Path(tmp))
+            work = Path(tmp)
+            # Shadow all wrappers so C, ASM, resident and auxiliary clients use
+            # the selected member while retaining the original include paths.
+            shadow = work / 'prodos'
+            shutil.copytree(PD, shadow)
+            shutil.copyfile(kernel, shadow / 'file.asm')
+            PD = shadow
+            dependencies(work)
+            injected(work)
+            repeated(work)
+            native(work)
+            native_aux(work)
+            aux_include_order(work)
+            if args.bench:
+                results = benchmark(work)
+                measurement = report(kernel, results)
+                if args.out:
+                    args.out.write_text(json.dumps(measurement, indent=2) + '\n')
+
+
+if __name__ == '__main__':
+    main()
