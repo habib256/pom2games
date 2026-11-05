@@ -4,6 +4,17 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Audit final du 5 novembre 2026
+
+Les 41 séries de cette session se terminent au commit `8ff9b1a`.
+Les suites complètes `make test-hgr` et `make test-dhgr` passent.
+Un checkout propre de ce commit, avec les outils reconstruits, reproduit
+exactement les 479 dictionnaires de mesures du rapport final ;
+`dev/bench/run.py --dhgr --check` passe sans assouplir les budgets absolus.
+Après récupération des ressources historiques de Wilderness, `make all`
+ne modifie aucun fichier suivi, et `make test-woz` confirme les 18 jumeaux
+WOZ des disques livrés.
+
 ## Série du 5 novembre 2026 : backend de caractères GFX HGR natif et séparé
 
 Le backend distingue ses dimensions constantes, son rendu de caractère et
