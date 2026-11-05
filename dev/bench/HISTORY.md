@@ -4,6 +4,47 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Audit de la douzième session du 5 novembre 2026 — texte DHGR
+
+Après `ba6ef09`, les commits `af42b1e`, `c7bbe8c` et `83663b1` placent
+l'encre et la géométrie des lignes de texte dans les temporaires cc65.
+La petite police utilise `tmp1..tmp4` tout en préservant son curseur de
+chaîne dans `ptr4`. Le texte standard utilise `ptr4` pour ses colonnes et
+conserve sa chaîne dans `ptr3`. Le trampoline auxiliaire ne détruit aucun
+de ces temporaires. Les contrats sont documentés ; les noyaux restent
+non réentrants.
+
+Dix nouveaux cas couvrent les alignements manquants des deux polices,
+avec leurs références prises avant modification. Les dix profils existants
+remesurés reproduisent exactement le rapport précédent. Le gate complet
+`--dhgr --check` passe pour **707 cas**, dans le même environnement :
+**douze clients compacts perdent 19 octets chargés et quatre octets de RAM**,
+**huit clients standard perdent six octets chargés et deux octets de RAM**.
+**17 durées diminuent**, trois restent identiques et **aucune métrique
+n'augmente**. Les **687 autres dictionnaires sont identiques**. Page zéro
+et piles sont inchangées ; tous les budgets absolus de trame passent.
+
+« APPLE II » compact passe de **13 186 à 12 552 cycles** (−4,8 %), sa
+variante x=3 de **13 377 à 12 720**, et le dernier caractère affichable
+de **1 499 à 1 431**. Le texte standard passe de **32 080 à 31 648 cycles**
+(−1,35 %), de **32 390 à 31 950** en x=3 et de **31 874 à 31 442** en x=6.
+**77 champs de référence sont abaissés**, sans relever de seuil ni modifier
+les budgets absolus.
+
+Le modèle compact vérifie 256 caractères × sept phases × deux pages ×
+deux états IRQ, pour trois implantations de police (liée, déplacée et
+non alignée). Il vérifie aussi la chaîne aux bords, les banques, les voisins,
+les palettes et les trous vidéo. Le modèle standard vérifie **238 captures**,
+les 255 caractères non NUL, les chaînes vides, les phases, pages/banques,
+états IRQ et découpages. Les **48 contrôles DHGR étendus** passent avec
+les deux moteurs. Les tests généraux HGR, les 69 programmes de sélection
+d'archives et les 20 options booléennes de bibliothèque passent aussi.
+
+`make all` réussit. Les disquettes **DHGR et ROBOTSTATION** et leurs WOZ
+sont reconstruits ; les **18 paires disque/WOZ** correspondent. Les tests
+CHROMABREAK, les scènes et missions ROBOTSTATION sur IIe/IIc, DHGR ACTION
+sur IIe/IIc, ainsi que le démarrage et l'animation de l'exemple DHGR passent.
+
 ## Nouvelle série du 5 novembre 2026 : colonnes du texte DHGR standard
 
 Le premier octet entrelacé et le nombre d'octets de la ligne utilisent

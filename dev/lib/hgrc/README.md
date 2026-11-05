@@ -627,12 +627,15 @@ and the previous 432 remain identical.
   `stride * height` bytes. Saving then restoring a block gives save-under.
 - `dhgr_puts`: opaque white/black text, 8×8 glyphs in **colour pixels**,
   four DHGR bits per font dot, to avoid an artifact tint.
-  `"APPLE II"` takes 32,246 cycles at x=0, including C arguments, instead
-  of 44,259 (−27.1 %). Alternating auxiliary/main writes retains the page
+  `"APPLE II"` takes **31,648 cycles** at x=0, including C arguments
+  (32,080 before the latest scratch pass). Alternating auxiliary/main writes retains the page
   column in Y; the row counter uses cc65 scratch and the temporary row
   buffer is six bytes. Fresh pair bytes are stored directly; only one
-  possible gap needs zeroing. The kernel saves 19 loaded bytes and three BSS bytes,
-  without changing zero page or stack peaks. IRQ masking remains per row,
+  possible gap needs zeroing. Those earlier changes saved 19 loaded bytes
+  and three BSS bytes. The first column and byte count now use `ptr4`,
+  saving another **six code bytes and two BSS bytes**. The string cursor
+  remains in `ptr3`; the auxiliary-read trampoline preserves both pointers.
+  Zero-page allocation and stack peaks are unchanged. IRQ masking remains per row,
   with main RAMRD/RAMWRT restored between rows. Tests cover all 255 non-NUL
   input bytes, empty strings, seven phases, both pages/banks and IRQ masks,
   plus right/bottom clipping and untouched pixels and screen holes.
@@ -640,11 +643,16 @@ and the previous 432 remain identical.
   pixel** glyphs, five-column advance. Accepts every DHGR alignment,
   converts lower case to upper case and keeps the neighbouring pixels.
   An incomplete cell at the right or bottom edge is not drawn.
-  The `dhgr_small_text` benchmark (`"APPLE II"`) takes **13,253 cycles**,
-  including the C arguments and calls (previously 14,483). The renderer
+  The `dhgr_small_text` benchmark (`"APPLE II"`) takes **12,552 cycles**,
+  including C arguments and calls (13,186 before the latest scratch passes).
+  The renderer
   prepares the column, ink-table base and edge masks once per glyph, and
-  skips auxiliary reads for fully covered bytes: 4 fewer code bytes and
-  2 fewer BSS bytes, with unchanged tables and zero-page use.
+  skips auxiliary reads for fully covered bytes. That earlier pass removed
+  four code bytes and two BSS bytes. Ink, ink index, first column and byte
+  count now use `tmp1..tmp4`, saving another **19 code bytes and four BSS
+  bytes**. Tables, zero-page allocation and stack peaks remain unchanged.
+  The auxiliary-read trampoline preserves these temporaries, and `ptr4`
+  stays intact for the string renderer. The character kernel is non-reentrant.
 - `dhgr_small_char`: same font, one character per fast call; set
   `dhgr_small_x` and `dhgr_small_y` for a banner updated progressively.
   Auxiliary accesses are brief and preserve the interrupt state.

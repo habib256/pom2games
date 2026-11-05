@@ -1,5 +1,18 @@
 # Current cc65 measurements
 
+The twelfth-session gate passes **707 cases**, including ten text alignments
+measured before optimization. Reusing existing cc65 scratch shrinks all
+**20 affected clients**: twelve compact-text clients save **19 loaded bytes
+and four RAM bytes**, eight standard-text clients save **six loaded bytes
+and two RAM bytes**. **17 timings improve**, three are unchanged, with no
+metric increase. The other **687 result dictionaries are identical**;
+zero page and stacks are unchanged. Compact `"APPLE II"` takes **12,552
+instead of 13,186 cycles**; standard text **31,648 instead of 32,080**.
+All frame budgets pass and 77 reference fields are tightened without raising
+limits. Character/bank/IRQ oracles and game integration tests pass, including
+relocated fonts and IIe/IIc consumers. DHGR/ROBOTSTATION disks and WOZ twins
+are rebuilt; all 18 pairs match. See [the twelfth-session audit](HISTORY.md#audit-de-la-douzième-session-du-5-novembre-2026--texte-dhgr).
+
 The eleventh-session gate passes **697 cases**. Shared cc65 scratch reduces
 zero page in **132 profiles**, code in **84**, and other RAM in **27**.
 Text-only clients save four zero-page bytes and one code byte; pixel
