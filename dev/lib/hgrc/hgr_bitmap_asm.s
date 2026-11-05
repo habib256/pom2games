@@ -43,6 +43,8 @@ _hgr_blit_run:
         ora curmask
         sta acc
 @advance:
+        dex                     ; final byte is applied once at its current column
+        beq @rowdone            ; stop before pen movement or source refill
         asl curmask             ; bit 6 passed: byte complete, next column
         bpl @consumed
         jsr apply
@@ -50,8 +52,6 @@ _hgr_blit_run:
         sta curmask
         inc curcol
 @consumed:
-        dex                     ; stop before any source refill on the last pixel
-        beq @rowdone
         asl curbits             ; C = next pixel; zero only after the sentinel
         bne @px
         inc b_srcidx            ; byte exhausted -> next source byte
@@ -62,7 +62,7 @@ _hgr_blit_run:
         sta curbits
         jmp @px
 @rowdone:
-        jsr apply               ; partial last byte
+        jsr apply               ; final byte, partial or complete
         clc                     ; next source row + next scanline
         lda _hgr_b_src
         adc _hgr_b_stride

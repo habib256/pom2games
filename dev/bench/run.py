@@ -256,7 +256,7 @@ SCENES = {
  'hgr_scene_warm': dict(call=FRAME, setup=SPRITE_SETUP, sprites=True, warmup=2),
 }
 BITMAP = 'static const unsigned char packed[]={240,15,165,90,255,129,66,36,24,60,126,195,153,102,128,1};'
-for phase in (0, 3, 6):
+for phase in range(7):
     for mode in ('SET', 'CLEAR', 'XOR'):
         SCENES['hgr_bitmap_'+mode.lower()+'_phase'+str(phase)] = dict(
             call='hgr_blit(%du,40,16,8,packed,HGR_%s);' % (28+phase, mode),
@@ -754,6 +754,12 @@ for suffix,call,setup in (
     SCENES['gfx_cursor_'+suffix]=dict(call=call,setup=setup,warmup=False)
 
 
+# Optional CMOS decimal conversion: decimal boundaries and the full word range.
+for value in (0,1,9,10,99,100,255,256,999,1000,9999,10000,32767,32768,65535):
+    SCENES[f'gfx_u16_digits_{value}']=dict(
+        call=f'digits=gfx_u16_digits({value}u);',
+        declarations='static const char * volatile digits;',iie=True,warmup=False)
+
 # C PRNG: both feedback paths, zero's fixed point, and both CPUs.
 for iie in (False, True):
     for seed in (0, 1, 2, 0xACE1, 0xFFFF):
@@ -870,6 +876,26 @@ for kind in ('CHUNKY','TILE'):
 SCENES['dhgr_spr_overlay_move']=dict(SCENES['dhgr_spr_move'],
     setup=SCENES['dhgr_spr_move']['setup']+'dhgr_spr_overlay(20,60,4,6,arrow,under); dhgr_spr_update();',
     call='dhgr_spr_overlay(21,61,4,6,arrow,under); dhgr_spr_update();')
+
+# Damage-list scans: sparse lists, transitive overlap and a bounding-box
+# bridge back into a previously finalized rectangle. Include the actual
+# solid repaint so these remain public-API workloads.
+MERGE_LAYOUTS = {
+    'empty': [],
+    'one': [(1,1,10,10)],
+    'bridge': [(0,0,0,0),(0,1,1,1),(1,1,0,1)],
+    'chain': [(i,i+1,10,10) for i in range(18)],
+}
+for count in (4,8,16,22):
+    MERGE_LAYOUTS['disjoint'+str(count)] = [
+        (i%20,i%20,8*(i//20),8*(i//20)) for i in range(count)]
+for suffix, rectangles in MERGE_LAYOUTS.items():
+    setup = 'if(!dhgr_spr_init(canvas,sizeof canvas,4))return 2;'
+    setup += ''.join(f'dhgr_spr_invalidate({7*g0},{y0},{7*(g1-g0+1)},{y1-y0+1});'
+                     for g0,g1,y0,y1 in rectangles)
+    SCENES['dhgr_spr_merge_'+suffix] = dict(iie=True,dhgr=True,spr=(),warmup=False,
+        declarations='static unsigned char canvas[255];',setup=setup,
+        call='dhgr_spr_update();')
 
 
 def segment_sizes(mapfile):

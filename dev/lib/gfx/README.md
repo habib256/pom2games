@@ -104,6 +104,10 @@ call. The assembler kernel `gfx_u16_digits.s` is **65C02-only**; the
 optional family `HGRC_65C02_NUM_SRCS` selects it without changing the
 6502 conversions used on the Apple II+. It preserves the flags, including
 the interrupt and decimal-mode states.
+Its binary input and packed digits reuse `ptr1`, `ptr2` and `tmp1`; only
+the six-byte ASCII buffer persists. This removes 17 code bytes and five
+RAM bytes. An exhaustive 65C02 test covers every input under all four D/I
+combinations, C/V preservation, dirty scratch and both stack pointers.
 
 Diagonal segments reject off-screen endpoints; they do not perform full
 line clipping. Axis-aligned lines go through the clipped spans. Filled rectangles sort and clip

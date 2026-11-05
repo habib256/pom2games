@@ -41,8 +41,10 @@
 ; every asserted address holds, nothing to absorb.
 ; 2026-11-05, independent native DHGR page entries save 23 library CODE
 ; bytes in this client. RODATA +23 preserves all game tables and variables.
+; 2026-11-05, the optional decimal converter saves 17 library CODE bytes.
+; RODATA +17 preserves those addresses; its five BSS bytes remain free.
 CODE_SPARE   = 38
-RODATA_SPARE = 23
+RODATA_SPARE = 40
 BSS_SPARE    = 0
 
 .code

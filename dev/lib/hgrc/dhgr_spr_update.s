@@ -507,16 +507,17 @@ page_moved:
 ; Merge overlapping rectangles until none overlap. Entry i absorbs every
 ; entry j it overlaps (scanning them all again after each absorption);
 ; one before it (j < i) absorbs i instead and becomes i. The entries
-; before i stay disjoint: O(n^2) compares plus n per merge.
-merge:  ldx #0
-        beq m_i
+; before i have already been tested against every remaining entry, so a
+; new i starts at i+1. Every absorption still restarts at zero: its wider
+; bounding box may now touch an earlier entry. O(n^2) compares plus n per merge.
+merge:  ldx #$FF                ; the shared increment starts entry zero
 m_next: inx
 m_i:    cpx _dhgr_spr_dn
         bcc :+
         rts
 :       stx k
-        ldy #0
-        beq m_j
+        txa
+        tay                     ; fall through to test i+1 first
 m_skip: iny
 m_j:    cpy _dhgr_spr_dn
         bcs m_next

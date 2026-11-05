@@ -4,6 +4,72 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Audit de la quatorzième session du 5 novembre 2026 — bitmaps, zones sales et décimal CMOS
+
+Après `1ef8225`, le blitter HGR teste le dernier pixel avant d'avancer son
+masque et sa colonne : le dernier octet est appliqué une seule fois, même
+quand il se termine sur une frontière de sept pixels. Les lectures source
+gardent leur nombre et leurs bornes. Code, RAM, page zéro et piles ne
+changent pas ; un bitmap 16×8 gagne 64 cycles aux phases ordinaires et
+280 à la phase cinq. Douze cas complètent les sept phases dans les trois
+modes, avec leurs références obtenues sur l'ancien membre d'archive.
+
+La fusion des zones DHGR commence une nouvelle entrée à `j=i+1`, les
+entrées précédentes étant déjà disjointes des suivantes. Après chaque
+absorption, elle repart toujours de zéro pour tenir compte des ponts
+créés par la boîte englobante. L'incrément d'entrée est partagé. Le noyau
+perd quatre octets de code sans autre mémoire ; huit nouveaux cas couvrent
+listes vides, uniques, chaînes, ponts et 4/8/16/22 rectangles disjoints.
+
+Le convertisseur optionnel `gfx_u16_digits`, uniquement 65C02, conserve
+son entrée et ses trois chiffres BCD dans des temporaires cc65 existants.
+Son tampon ASCII statique reste inchangé. Il perd **17 octets de code et
+cinq de RAM**, sans page zéro ni pile ajoutées. Quinze nouveaux profils
+couvrent les frontières décimales et les valeurs extrêmes, mesurés avec
+l'ancien noyau avant de changer les références.
+
+Le banc passe de 707 à **742 cas**. La comparaison complète affecte
+**65 dictionnaires** : **63 durées diminuent, deux restent identiques et
+aucune métrique n'augmente**. **38 clients rétrécissent**, 23 de quatre
+octets et quinze de 17 ; ces quinze utilisent cinq octets de RAM en moins.
+Les **677 autres dictionnaires sont identiques**, ainsi que toutes les
+mesures de page zéro et de piles. Les **16 budgets de trame passent** ;
+**149 champs de référence sont abaissés**, sans relever les limites.
+
+| Cas | Cycles avant | Cycles après |
+| --- | ---: | ---: |
+| Bitmap HGR SET 16×8, phase cinq | 5 929 | 5 649 |
+| Bitmap découpé sur deux lignes | 930 | 860 |
+| Fusion de 16 zones disjointes | 22 990 | 19 765 |
+| Fusion de 22 zones disjointes | 35 693 | 29 156 |
+| Conversion CMOS, valeur 65535 et stockage du pointeur | 1 055 | 873 |
+
+Les quatre configurations bitmap (NMOS/65C02, tables séparées/repliées)
+passent chacune 2 190 scènes chaudes et 40 froides ; le contrôle de bus
+vérifie les lectures exactes sans dépassement. La fusion passe **1 107
+listes ordonnées sur chaque CPU avec les deux versions**, notamment tous
+les triplets sur une petite grille et les ponts vers les entrées précédentes.
+Les configurations de compositeur simple/double/VBL passent les images,
+écritures uniques, IRQ, historique et contraintes de faisceau sur IIe/IIc.
+Le décimal CMOS passe **262 144 appels avec chaque version** : toutes les
+valeurs sous quatre états D/I, drapeaux C/V, temporaires salis, tampon
+réutilisé, garde appelante et restauration des deux piles.
+
+La réduction du convertisseur déclenche l'assertion de placement de
+CHROMABREAK. Sa réserve RODATA passe de 23 à 40 octets afin de conserver
+les adresses des tables et des modules ; les cinq octets de RAM libérés
+restent disponibles. Les mesures isolées de bibliothèque ci-dessus ne
+comprennent pas cette réserve propre au jeu.
+
+L'intégration HGR, les 69 programmes de sélection d'archive, la suite du
+compositeur DHGR, les exemples DHGR et DHGR ACTION, ROBOTSTATION sur
+IIe/IIc et tous les profils CHROMABREAK passent. `make all` réussit après
+l'ajustement de réserve. CHROMABREAK et ROBOTSTATION et leurs WOZ sont
+reconstruits ; les **18 paires disque/WOZ** correspondent. Les autres
+disques restent identiques. `git diff --check` ne signale rien.
+Le contrôle final `--dhgr --check` reproduit les 742 dictionnaires et les
+16 budgets du premier rapport à l'identique, avec les références resserrées.
+
 ## Audit de la treizième session du 5 novembre 2026 — tuiles, remplissages et géométrie
 
 Après `8d71903`, trois agents Sol 6.1 travaillent sur des noyaux séparés.

@@ -1,5 +1,15 @@
 # Current cc65 measurements
 
+The fourteenth-session benchmark has **742 cases**, including 35 workloads
+measured with the old kernels first. Bitmap endings, DHGR damage merging
+and CMOS decimal scratch improve **63 timings**, with **no metric increase**;
+677 result dictionaries are identical and two affected timings are unchanged.
+38 clients shrink by 4 or 17 loaded bytes, fifteen save five RAM bytes,
+and zero page/stacks stay unchanged. Merging 22 disjoint rectangles takes
+**29,156 instead of 35,693 cycles**; CMOS conversion takes **873 instead
+of 1,055**. All 16 frame budgets pass and 149 reference fields are tightened.
+See [the fourteenth-session audit](HISTORY.md#audit-de-la-quatorzième-session-du-5-novembre-2026--bitmaps-zones-sales-et-décimal-cmos).
+
 The thirteenth-session gate passes **707 cases and 16 frame budgets**.
 Tile restoration, DHGR span scratch and GFX arithmetic shrink **108 clients**
 by 4..37 loaded bytes; 94 use less RAM and fourteen diagonals save one

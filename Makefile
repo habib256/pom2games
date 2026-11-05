@@ -235,6 +235,7 @@ test-dhgr:
 	$(PYTHON) dev/tests/test_gfx_dhgr_rect_entry.py --iie
 	$(PYTHON) dev/tests/test_gfx_dhgr_mono_entries.py
 	$(PYTHON) dev/tests/test_gfx_dhgr_mono_entries.py --iie
+	$(PYTHON) dev/tests/test_gfx_u16_digits.py
 	$(PYTHON) dev/tests/test_dhgr_points.py
 	$(PYTHON) dev/tests/test_dhgr_sprite_entry.py
 	$(PYTHON) dev/tests/test_dhgr_sprite_entry.py --iie
@@ -265,6 +266,7 @@ test-dhgr:
 	$(PYTHON) dev/tests/test_dhgr_clear_rows_entry.py --iie
 	$(PYTHON) dev/tests/test_dhgr_clear_rows.py
 	$(PYTHON) dev/tests/test_dhgr_spr.py
+	$(PYTHON) dev/tests/test_dhgr_merge.py
 	$(PYTHON) dev/tests/test_gfx_dhgr_lines.py
 	$(PYTHON) dev/tests/test_minimal_examples.py --dhgr
 	$(PYTHON) dev/tests/test_stack_profile.py --iie
