@@ -1,5 +1,17 @@
 # Current cc65 measurements
 
+The sixth-session gate passes **666 cases**. Clipping against remaining
+screen space and removing a redundant stride copy shrink **80 clients**:
+61 by **16 loaded bytes**, 19 by **14**. RAM, zero page and stacks are
+unchanged. A clipped preshifted XOR takes **678 instead of 695 cycles**;
+the tall phase-zero masked case takes **389 instead of 399**. 47 timings
+improve and 30 increase by less than 0.60%; all frame budgets pass.
+204 reference fields are tightened without raising any prior limit.
+Exhaustive setup and rendering checks pass on both CPUs, including separate
+and folded tables for preshifted rendering. HGR/LIGHT3DBALL disks and their
+WOZ twins are rebuilt and tested; all 18 disk/WOZ pairs match. See
+[the sixth-session audit](HISTORY.md#audit-de-la-sixième-session-du-5-novembre-2026--découpage-des-sprites).
+
 The fifth-session gate passes **666 cases**, including 15 new masked-sprite
 workloads measured before and after. **61 clients shrink by 25 loaded bytes**;
 RAM, zero page and stacks are unchanged. 141 reference fields are tightened.

@@ -4,6 +4,34 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Audit de la sixième session du 5 novembre 2026 — découpage des sprites
+
+Après `9616f46`, les commits `a294012`, `5c7ab37` et `cb864bb` simplifient
+les limites horizontales et verticales des sprites, puis éliminent la copie
+temporaire du stride masqué. Les 38 mesures ciblées refaites avant modification
+sont identiques au rapport complet précédent, avec le même environnement.
+
+Le gate complet `--dhgr --check` passe pour **666 cas** : **80 clients plus
+petits** (61 à −16 octets, 19 à −14), 586 dictionnaires inchangés, 47 durées
+réduites et 30 augmentées de moins de **0,60 %**. RAM, page zéro et piles
+restent identiques. Le XOR prédécalé découpé passe de **695 à 678 cycles** ;
+le cas masqué haut découpé en phase zéro de **399 à 389**. Les variations
+de placement du code et des données produisent aussi les petites hausses
+consignées ci-dessous. Tous les budgets absolus de trame restent respectés.
+**204 champs de référence sont abaissés**, aucun seuil ni budget n'est relevé.
+
+Sur chacun des CPU 6502 et 65C02, les préparations passent **1 827 868 appels
+masqués** et **910 350 appels prédécalés**, couvrant toutes les dimensions
+non nulles, les sept phases et les limites des pointeurs 16 bits. Les
+200 scènes masquées passent sur les deux CPU ; les 1 304 trames prédécalées
+et 160 appels à froid passent sur les deux CPU avec tables séparées puis
+regroupées. Les tests du moteur, stress, suivi des modifications, dommages
+et HGR réussissent aussi.
+
+`make all`, les tests de l'exemple HGR et la campagne des cinq niveaux de
+LIGHT3DBALL passent. Seules les disquettes HGR et LIGHT3DBALL changent,
+avec leurs WOZ régénérés ; les **18 paires disque/WOZ** sont vérifiées.
+
 ## Nouvelle série du 5 novembre 2026 : stride masqué sans copie temporaire
 
 La préparation masquée lit le stride dans son emplacement déjà nécessaire

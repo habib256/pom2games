@@ -1276,13 +1276,24 @@ phase, both pages and save-under guards on NMOS and 65C02.
 Three further passes share the save-under row tail, skip the unused
 height/stride product in phase zero and keep its low byte and the cached
 block in registers. They save another 25 loaded bytes per masked-sprite
-client without changing RAM, zero page or stack peaks. Generic draw and
-save-and-draw now take 2,836 and 3,183 cycles. A height-255 phase-zero sprite
-clipped to one row takes 399 instead of 5,251 cycles. Draw still consumes
+client without changing RAM, zero page or stack peaks. At that stage, generic
+draw and save-and-draw took 2,836 and 3,183 cycles. A height-255 phase-zero
+sprite clipped to one row took 399 instead of 5,251 cycles. Draw still consumes
 the one-call block hint, while save and restore preserve it. The full setup
 oracle checks 1,827,868 calls on each CPU, including every nonzero stride
 and height, all seven phases and all 256 hint values. Small timing tradeoffs
 and the full-suite results are recorded in the benchmark history.
+
+Both masked and preshifted setup now clip by comparing the source dimensions
+with the screen space remaining (`40-column`, `192-y`). This saves another
+14 code bytes per kernel and handles all byte-sized dimensions without
+overflow branches. Masked setup also reads its persistent stride directly,
+saving two more code bytes. Full source dimensions remain available for
+phase offsets. RAM, zero page and stack peaks are unchanged. The masked
+height-255 phase-zero case now takes 389 cycles; the clipped preshifted XOR
+takes 678 instead of 695. Generic masked draw/save/restore/save-and-draw take
+2,841/1,783/1,794/3,188 cycles, slightly above the preceding layout. Exhaustive
+setup tests cover all nonzero dimensions and seven phases on both CPUs.
 
 ## Optional explicit addressing
 
