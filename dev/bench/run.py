@@ -527,6 +527,17 @@ for color in (0,15,255):
     SCENES['dhgr_clear_color_'+str(color)]=dict(call=f'dhgr_clear({color});',
         dhgr=True,iie=True,warmup=False)
 
+for direction in ('read','write'):
+    for suffix,bx,y,width,height,stride in (
+        ('byte',0,0,1,1,1), ('tall',1,0,1,192,1),
+        ('clip',79,190,80,255,80), ('zero_height',0,0,1,0,1),
+        ('zero_width',0,0,0,1,1), ('bad_stride',0,0,2,1,1),
+        ('outside',255,0,1,1,1), ('below',0,255,1,1,1),
+        ('stride255',78,190,2,2,255)):
+        SCENES['dhgr_transfer_'+direction+'_'+suffix]=dict(
+            call=f'dhgr_{direction}_block({bx},{y},{width},{height},data,{stride});',
+            declarations='static unsigned char data[512];',dhgr=True,iie=True,warmup=False)
+
 # Non-default compile-time variants (dev/lib/ABI.md, "Speed/RAM options"):
 # the listed members are reassembled with the define and linked before hgrc.lib.
 for name in ('hgr_diagonal_cold','hgr_hud_cold','hgr_scene_cold'):

@@ -251,8 +251,11 @@ def check_archive(work):
         ('dhgr_small', 'dhgr_small_x=0; dhgr_small_y=0; dhgr_small_char(65u);', 'dhgr_small_asm.o',
          ('dhgr_small.o', 'dhgr_small_string.o', 'hgr_font.o', 'dhgr_fill.o',
           'dhgr_clear_asm.o', 'dhgr_span_asm.o', 'dhgr_rows.o', 'dhgr_cells.o')),
-        ('dhgr_block', 'unsigned char b[1]; dhgr_read_block(0u,0u,1u,1u,b,1u);', 'dhgr_address_asm.o',
-         ('dhgr_pixel_asm.o', 'dhgr_fill.o', 'dhgr_sprite.o', 'dhgr_small_asm.o', 'dhgr_cells.o')),
+        ('dhgr_block', 'unsigned char b[1]; dhgr_read_block(0u,0u,1u,1u,b,1u);', 'dhgr_block.o',
+         ('dhgr_pixel_asm.o', 'dhgr_fill.o', 'dhgr_sprite.o', 'dhgr_small_asm.o', 'dhgr_cells.o',
+          'dhgr_address_asm.o', 'dhgr_write_block.o')),
+        ('dhgr_write_block', 'dhgr_write_block(0u,0u,1u,1u,bits,1u);', 'dhgr_block.o',
+         ('dhgr_address_asm.o', 'dhgr_read_block.o', 'dhgr_pixel_asm.o', 'dhgr_sprite.o')),
     ]
     for name, call, required, excluded in cases:
         source = work / ('link_' + name + '.c')

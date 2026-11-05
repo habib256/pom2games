@@ -3,6 +3,8 @@
 .importzp ptr1, ptr2, ptr3, tmp2, tmp3, tmp4, aux_read
 .import _dhgr_addr, _dhgr_aux, _dhgr_buffer, _dhgr_count, _dhgr_sprite_mask
 .export _dhgr_read_block_asm, _dhgr_write_block_asm, _dhgr_sprite_asm
+; Row kernels preserve all shared parameter globals. The block controller
+; retains count and bank between rows; all imported scratch is volatile.
 .segment "CODE"
 block_setup:
         lda _dhgr_addr

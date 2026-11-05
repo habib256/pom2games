@@ -4,6 +4,46 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Série du 5 novembre 2026 : contrôleur natif des transferts DHGR
+
+Les entrées lecture/écriture sont des membres d'archive indépendants ;
+leur contrôleur commun réutilise les six arguments du client. Après la
+validation, la largeur devient le pas du tampon et la colonne contient
+aussi le bit lecture/écriture. Les adresses viennent directement des tables
+immuables : aucun paramètre poussé par ligne, aucun cadre local. La sortie
+libère les six octets directement, sans helper de pile. Les noyaux bancaires
+restent identiques et conservent leurs paramètres partagés entre les lignes.
+
+| Appel C | Cycles avant → après | Binaire avant → après |
+|---|---:|---:|
+| Lecture 8×8 | 6 990 → 5 664 | 1 957 → 1 634 |
+| Écriture 8×8 | 6 678 → 5 328 | 1 957 → 1 634 |
+| Écriture, colonne impaire | 6 222 → 4 928 | 1 959 → 1 636 |
+| Lecture d'un octet | 1 132 → 500 | 1 954 → 1 631 |
+| Écriture d'un octet | 1 115 → 487 | 1 954 → 1 631 |
+| Lecture sur 192 lignes | 71 731 → 52 440 | 1 958 → 1 635 |
+| Écriture sur 192 lignes | 72 115 → 53 592 | 1 958 → 1 635 |
+| Hauteur nulle | 750 → 231 | 1 956 → 1 633 |
+| Origine hors écran | 403 → 144 | 1 956 → 1 633 |
+
+Économie de 323 octets par client isolé. Pile C 18 → 6 (rejets 16 → 6),
+pile matérielle 11 → 9, ou 8/9 → 4 pour les appels rejetés/vides.
+RAM/page zéro inchangées. Les 21 cas concernés s'améliorent, 397 sont
+identiques ; 18 nouveaux cas portent le banc à 418 mesures.
+
+Le C de référence puis l'assembleur NMOS/65C02 passent 526 336 appels :
+tous les couples bx/largeur, largeur/pas, y/hauteur et pointeurs 16 bits,
+chaque adresse/banque/compte/tampon de ligne comparé à un oracle indépendant,
+ordre lecture/écriture, effets de bord des rejets et hauteurs nulles,
+registres scratch écrasés, gardes et 2 048 positions de pile. Le test
+physique couvre 640 transferts/masques, toutes les largeurs et 256 masques,
+les deux pages/banques, passages de page des pointeurs et masques IRQ.
+
+Les tests étendus, compositeur IIe/IIc/IRQ, intégration HGR et 56 clients
+minimaux passent. Les clients lecture/écriture excluent l'autre entrée et
+le helper d'adresse. `make all`, ROBOTSTATION IIe/IIc, les 18 WOZ et le gate
+complet passent. Seuls ROBOTSTATION et son WOZ changent.
+
 ## Série du 5 novembre 2026 : entrées natives de l'effacement et du texte compact DHGR
 
 L'effacement complet transmet directement A à la préparation du motif,

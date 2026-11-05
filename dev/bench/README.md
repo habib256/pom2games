@@ -157,6 +157,25 @@ with unchanged RAM and zero page. Reading/writing an 8×8-byte block takes
 with partial masks takes 12,208 instead of 12,683 cycles (−3.7 %);
 fully opaque masks take 10,095 instead of 10,315.
 
+The block transfer controller now uses the caller's six argument bytes
+throughout. After validation, the width slot stores stride and the byte-x
+slot stores a column plus the read/write flag. Each row loads its address
+directly from the immutable row tables, with no extra local frame or
+per-row argument push. Read and write have separate native archive entries;
+a block-only client does not import the byte-address C-ABI helper.
+Isolated clients save **323 loaded bytes**, C-stack peak **18 → 6**
+(rejections **16 → 6**), hardware peak **11 → 9**; empty/rejected calls fall
+to **4 hardware-stack bytes**. RAM and zero page are unchanged.
+Reading/writing 8×8 bytes takes **5,664 / 5,328 instead of 6,990 / 6,678
+cycles**. Single-byte calls take **500 / 487 instead of 1,132 / 1,115**;
+192-row strips **52,440 / 53,592 instead of 71,731 / 72,115**.
+`test_dhgr_transfer_entry.py` verifies **526,336 calls per CPU**, including
+all bx/width, width/stride and y/height pairs, all pointers, every row's
+address/bank/count/buffer, rejection and zero-height side effects, hostile
+scratch registers and 2,048 stack placements. The C reference passes the
+same fixture. Eighteen new cases bring the benchmark to **418 cases**:
+21 improve and 397 remain identical.
+
 The common DHGR rectangle preparation now validates and clips directly
 from its five argument bytes, using the carry out of `x+width` to saturate
 large widths safely. It releases the arguments before tail-calling the
