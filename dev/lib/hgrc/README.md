@@ -1147,12 +1147,28 @@ page or the display. Validation of all IDs precedes any write;
 a rejection leaves the image intact. Map and bank must stay valid outside
 video memory; an invalid initialisation keeps the old context.
 
+The native initializer scans three 256-byte blocks and a 192-byte tail.
+It keeps `count-1` in A and compares each ID directly through the map
+pointer; a count of 256 skips the scan because every byte is valid.
+The original pointers remain in the argument slots until validation succeeds,
+then the six-byte context is committed. Isolated clients save **127 loaded
+bytes**, C-stack peak **10 → 6**, hardware peak **7 → 5**, with unchanged
+RAM and zero page. A complete scan takes **13,145 instead of 129,734 cycles**
+(−89.9%); the 256-ID shortcut takes **317 instead of 478**. The combined
+background scene saves 101 loaded bytes and costs nine more cycles (+0.13%);
+its earlier cycle reference is retained.
+`test_tilemap_init.py` checks 69,120 calls on II+/IIe: all counts, an invalid
+ID at every map position, the 64 following bytes excluded from validation,
+all ID bytes and count boundaries, all map alignments, NULL combinations,
+context/map guards and 1,024 stack placements. The fixture also passes on
+the original C implementation.
+
 The application restores all its old/new dirty regions before
 drawing the affected layers, and keeps a separate history per page.
 This optional backend is used with the masked blitter `hgr_ms_run` (explicit
 internal contract in `hgr_internal.h`) to avoid the save-under pool.
 The historical engine keeps its saved-background restoration.
-An eight-tile region with two masked draws costs 6 704 cycles in
+An eight-tile region with two masked draws costs 6 701 cycles in
 the benchmark; the cost of a whole page remains to be budgeted for each game.
 The `HGRC_TILEMAP_SRCS` family is extracted only when it is called.
 

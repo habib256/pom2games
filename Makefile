@@ -181,6 +181,7 @@ test-hgr:
 	$(PYTHON) dev/tests/test_sprengine.py
 	$(PYTHON) dev/tests/test_sprengine_stress.py
 	$(PYTHON) dev/tests/test_sprengine_dirty.py
+	$(PYTHON) dev/tests/test_tilemap_init.py
 	$(PYTHON) dev/tests/test_tilemap.py
 
 test-frame:
@@ -224,6 +225,7 @@ test-dhgr:
 	$(PYTHON) dev/tests/test_frame.py --iie
 	$(PYTHON) dev/tests/test_cadence.py
 	$(PYTHON) dev/tests/test_game_cadence.py
+	$(PYTHON) dev/tests/test_tilemap_init.py --iie
 	$(PYTHON) dev/tests/test_tilemap.py --iie
 	$(PYTHON) dev/tests/test_hgr_hud.py --compact --iie
 	$(PYTHON) dev/tests/test_sprengine_dirty.py --damage --iie

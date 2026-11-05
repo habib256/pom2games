@@ -4,6 +4,43 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Série du 5 novembre 2026 : validation native des cartes de tuiles
+
+`hgr_tilemap_init` valide le nombre de tuiles sur 16 bits et les trois
+pointeurs, puis parcourt les 960 indices en trois blocs de 256 et une fin
+de 192 octets. A conserve `count-1` pendant les comparaisons indirectes ;
+les boucles ne rechargent donc pas la limite à chaque case. L'incrément de
+l'octet haut du pointeur conserve les cartes non alignées. Le cas de 256
+tuiles saute le parcours, tous les indices octet étant alors valides.
+Les six octets du contexte ne sont écrits qu'après validation complète.
+
+| Appel C | Cycles avant → après | Binaire avant → après |
+|---|---:|---:|
+| Parcours complet, une tuile | 129 734 → 13 145 | 871 → 744 |
+| Parcours complet, 255 tuiles | 129 734 → 13 169 | 877 → 750 |
+| 256 tuiles, sans parcours | 478 → 317 | 877 → 750 |
+| Premier indice invalide | 410 → 251 | 877 → 750 |
+| Dernier indice invalide | 129 493 → 13 079 | 877 → 750 |
+| Nombre nul | 281 → 159 | 871 → 744 |
+| Contexte nul | 231 → 182 | 870 → 743 |
+| Fond et deux dessins masqués | 6 692 → 6 701 | 3 122 → 3 021 |
+
+Le parcours complet gagne 89,9 %, les clients isolés 127 octets, les pics
+de pile C passent de 10 à 6 et matériels de 7 à 5. RAM/page zéro inchangées.
+La scène combinée gagne 101 octets et coûte neuf cycles de plus (+0,13 %) ;
+sa référence de cycles est conservée. Les dix nouvelles initialisations
+mesurées sont toutes plus rapides. Sur les 342 cas du banc, douze changent
+et 330 restent identiques.
+
+La fixture de 69 120 appels passe d'abord sur le C, puis sur l'assembleur
+II+/IIe : les 65 536 nombres de tuiles, chaque position d'indice invalide,
+64 octets après la carte exclus du parcours, toutes les valeurs d'indice,
+les limites de chaque nombre, les alignements de carte, combinaisons NULL,
+écriture transactionnelle, gardes et 1 024 positions de pile. Les tests
+réels de restitution passent sur les deux CPU. Validation complémentaire :
+49 clients minimaux d'archive, intégration HGR, `make all`, relevé complet
+et gate. Les disques livrés restent identiques.
+
 ## Série du 5 novembre 2026 : initialisation native des HUD
 
 Les deux initialisations C deviennent des entrées assembleur séparées,

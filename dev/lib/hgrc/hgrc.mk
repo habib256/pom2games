@@ -32,7 +32,7 @@ HGRC_GEOM_SRCS := $(addprefix $(HGRC)/,hgr_hline.s hgr_vline.s hgr_line.s hgr_ou
     hgr_circle.s hgr_ellipse.s hgr_line_asm.s)
 HGRC_LORES_SRCS := $(addprefix $(HGRC)/,hgr_lores.s hgr_lores_cell.s hgr_lores_clear.s hgr_lores_setblock.s \
     hgr_lores_getblock.s hgr_lores_hlin.s hgr_lores_vlin.s hgr_lores_rect.s hgr_lores_draw.s)
-HGRC_TILEMAP_SRCS := $(HGRC)/hgr_tilemap.c $(HGRC)/hgr_tile_restore.s
+HGRC_TILEMAP_SRCS := $(HGRC)/hgr_tilemap.s $(HGRC)/hgr_tile_restore.s
 HGRC_NUM_SRCS := $(GFX)/gfx_num_hex.s $(GFX)/gfx_num_dec.s $(GFX)/gfx_num_signed.s
 HGRC_GFX_TEXT_SRCS := $(addprefix $(GFX)/,gfx_text.c gfx_text_backend_hgr.c \
     gfx_putu.c gfx_puti.c gfx_putx.c)

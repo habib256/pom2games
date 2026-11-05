@@ -330,6 +330,16 @@ HUD update clients save **239 / 134 bytes**; the compact game saves 66.
 Some composed workloads cost up to 0.54% more cycles through code placement;
 their earlier cycle references are retained. No rendering kernel changed.
 
+Native tile-map initialization validates three 256-byte blocks and a
+192-byte tail with `count-1` held in A; 256 tiles require no scan. It writes
+the six-byte borrowed context only after all checks succeed. A full scan
+falls **129,734 → 13,145 cycles** (−89.9%), the 256-ID shortcut **478 → 317**,
+and the isolated client saves **127 loaded bytes**. C-stack peak falls
+**10 → 6**, hardware peak **7 → 5**, with unchanged RAM and zero page.
+Ten isolated cases cover full scans, first/last invalid IDs, counts and NULL.
+The background scene saves 101 bytes; its rendering costs **6,692 → 6,701
+cycles** (+0.13%) after code placement changes, with the old reference kept.
+
 ## Frame rate and absolute budgets
 
 The target is two refreshes per presentation: nominally 30 FPS NTSC and

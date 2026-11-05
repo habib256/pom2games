@@ -441,6 +441,24 @@ for compact in (False,True):
             call=f'{stem}_init({pointer},{x}u,{y},{width});',warmup=False,
             declarations=f'static {stem}_field_t hud;')
 
+# Tile-map validation measures complete scans, the 256-ID shortcut and failures.
+for suffix,count,setup,ctx,map_ptr,tiles in (
+    ('one',1,'','&background','tilemap','tiles'),
+    ('many',255,'tilemap[959]=254;','&background','tilemap','tiles'),
+    ('all',256,'tilemap[959]=255;','&background','tilemap','tiles'),
+    ('first_bad',8,'tilemap[0]=8;','&background','tilemap','tiles'),
+    ('last_bad',8,'tilemap[959]=8;','&background','tilemap','tiles'),
+    ('empty',0,'','&background','tilemap','tiles'),
+    ('wide',65535,'','&background','tilemap','tiles'),
+    ('null_context',8,'','0','tilemap','tiles'),
+    ('null_map',8,'','&background','0','tiles'),
+    ('null_tiles',8,'','&background','tilemap','0')):
+    SCENES['hgr_tile_init_'+suffix]=dict(
+        call=f'hgr_tilemap_init({ctx},{map_ptr},{tiles},{count}u);',
+        warmup=False,setup=setup,
+        declarations='static hgr_tilemap_t background; static unsigned char tilemap[960];'+
+                     'static const unsigned char tiles[8]={0};')
+
 # Non-default compile-time variants (dev/lib/ABI.md, "Speed/RAM options"):
 # the listed members are reassembled with the define and linked before hgrc.lib.
 for name in ('hgr_diagonal_cold','hgr_hud_cold','hgr_scene_cold'):
