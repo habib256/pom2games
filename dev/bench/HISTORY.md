@@ -4,6 +4,46 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Série du 5 novembre 2026 : backend GFX DHGR couleur natif et séparé
+
+Le backend distingue les dimensions, le réglage du crayon et chaque
+primitive. L'état `dhgr_color_dot` est isolé du renderer, permettant un
+réglage de couleur seul sans code de tracé. Le point vérifie x avant de
+le réduire à un octet et conserve les effets du C lorsque seul y est invalide.
+Les axes réutilisent leurs arguments pour le rectangle, qui trie/découpe
+les coins avant de former les quatre arguments du remplissage couleur.
+
+| Appel C | Cycles avant → après | Binaire avant → après |
+|---|---:|---:|
+| Crayon seul | 76 → 20 | 3 016 → 775 |
+| Dimensions seules | inchangés | 3 029 → 785 |
+| Point (139,191) | 330 → 264 | 3 052 → 1 781 |
+| Horizontal découpé | 2 902 → 2 451 | 3 041 → 2 483 |
+| Vertical découpé | 21 498 → 21 306 | 3 040 → 2 484 |
+| Rectangle découpé | 4 381 → 4 025 | 3 048 → 2 460 |
+| Effacement seul | 112 521 → 112 391 | 3 016 → 966 |
+| Grande diagonale générique | 164 825 → 152 003 | 3 784 → 3 532 |
+| Cercle de rayon 16 | 41 897 → 35 684 | 4 318 → 3 115 |
+
+Piles C point/horizontal/vertical/rectangle 3/19/18/14 → 2/5/5/5 ;
+piles matérielles des axes 11 → 7. Les clients point/cercle/crayon retirent
+25 octets de RAM, dimensions/effacement 27 ; page zéro inchangée.
+Les 21 cas couleur s'améliorent, 555 autres mesures restent identiques.
+
+C et natif sont contrôlés sur les mots x, toutes les paires y/couleur et
+les octets d'effacement ; le natif passe aussi 1 024 positions de pile.
+Rectangles et axes couleur passent chacun 525 568 cas, dont 1 024 placements
+de pile, avec temporaires hostiles. Sept clients minimaux excluent les
+familles inutilisées. Lignes génériques, DHGR étendu, démo DHGR et tests
+rapides Robot Station IIe/IIc passent, ainsi que le gate complet.
+
+La démo et Robot Station sélectionnent désormais explicitement les sources
+assembleur du backend : leurs anciennes règles vpath pouvaient préférer
+la référence C homonyme. Un test reconstruit les objets isolés des deux
+consommateurs, contrôle leurs exports et la conservation des sources.
+DHGR.dsk et ROBOTSTATION.po sont reconstruits, avec leurs WOZ ; les 18
+jumeaux correspondent. Les références C restent disponibles.
+
 ## Série du 5 novembre 2026 : backend GFX DHGR monochrome natif et séparé
 
 Les dimensions, l'état du crayon, son réglage, le point, les deux axes,

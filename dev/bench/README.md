@@ -1,5 +1,11 @@
 # Current cc65 measurements
 
+Independent native DHGR color adapters reduce a point-only client from
+**3,052 to 1,781 loaded bytes** and **330 to 264 cycles**. Axis C-stack peaks
+fall from **18–19 to 5 bytes**. Pen-only clients save **2,241 loaded bytes**;
+clear-only clients save **2,050**. The DHGR demo and Robot Station explicitly
+select these native sources, with object-export/build-preservation checks.
+
 Independent native DHGR monochrome adapters reduce a point-only client
 from **3,256 to 1,672 loaded bytes**, and the point from **432 to 322 cycles**.
 A pen-only client saves **2,439 loaded bytes**. Generic diagonal/circle

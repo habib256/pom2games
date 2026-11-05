@@ -2,13 +2,11 @@
 ; color's byte pattern, in one byte or across an aux/main pair. Off-screen
 ; pixels are ignored. IRQs are masked only around auxiliary accesses.
 .include "apple2.inc"
-.export _dhgr_plot_color, _dhgr_color_dot, _dhgr_dot_x, _dhgr_dot_color
+.export _dhgr_plot_color, _dhgr_color_dot
+.import _dhgr_dot_x, _dhgr_dot_color
 .import _dhgr_base, dhgr_rowlo, dhgr_rowhi, _dhgr_cellbyte, _dhgr_cellphase
 .import dhgr_color_patterns, incsp2
 .importzp sp, ptr1, ptr2, tmp1, tmp2, tmp3, tmp4, aux_read
-.bss
-_dhgr_dot_x: .res 1             ; dhgr_color_dot inputs (gfx color backend)
-_dhgr_dot_color: .res 1         ; its pen, 0..15
 .rodata
 ; Bits of the four-bit cell at phase 0..6 in its first and second byte.
 low_mask:

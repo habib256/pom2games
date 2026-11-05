@@ -18,6 +18,13 @@ vpath %.s src $(DEV)/cc65 $(HGRC) $(APPLE2C)
 
 all: $(DISK)
 
+# Select the native backend sources explicitly: the portable .c references
+# share their stems, so vpath's C-first fallback must not choose them.
+GFX_BACKEND_OBJS := $(addprefix $(BUILD)/,$(notdir $(HGRC_DHGR_COLOR_BACKEND:.s=.o)))
+$(GFX_BACKEND_OBJS): $(BUILD)/%.o: $(GFX)/%.s Makefile $(HGRC)/hgrc.mk
+	@mkdir -p $(@D)
+	$(CA65) -t none $(HGRC_AFLAGS) -o $@ $<
+
 $(BUILD)/%.o: %.c src/ball.h $(HGRC_HEADERS) $(wildcard $(APPLE2C)/*.h)
 	@mkdir -p $(@D)
 	$(CL65) $(CFLAGS) -c -o $@ $<
@@ -28,7 +35,7 @@ $(BUILD)/%.o: %.s $(APPLE2)/apple2.inc
 
 $(BUILD)/ball_render.o: src/ball.bin src/digits.inc
 
-$(BUILD)/dhgr.lib: $(LIB_OBJS)
+$(BUILD)/dhgr.lib: $(LIB_OBJS) Makefile $(HGRC)/hgrc.mk
 	$(PYTHON) -c 'from pathlib import Path; Path("$@").unlink(missing_ok=True)'
 	$(AR65) a $@ $(LIB_OBJS)
 

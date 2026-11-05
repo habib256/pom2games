@@ -41,6 +41,13 @@ vpath %.s src $(GFX) $(DEV)/cc65 $(HGRC) $(APPLE2C) $(PRODOS) $(MOUSE)
 
 all: $(DISK)
 
+# Select the native backend sources explicitly: the portable .c references
+# share their stems, so vpath's C-first fallback must not choose them.
+GFX_BACKEND_OBJS := $(addprefix $(BUILD)/,$(notdir $(HGRC_DHGR_COLOR_BACKEND:.s=.o)))
+$(GFX_BACKEND_OBJS): $(BUILD)/%.o: $(GFX)/%.s Makefile $(HGRC)/hgrc.mk
+	@mkdir -p $(@D)
+	$(CA65) -t none $(HGRC_AFLAGS) -o $@ $<
+
 # The missions: count and goals in src/room.h, the rooms in RSS.ROOMS.
 src/room.h $(BUILD)/RSS.ROOMS: tools/gen_room.py tools/model.py
 	@mkdir -p $(BUILD)
@@ -72,7 +79,7 @@ $(SPR_PLAY_OBJS) $(SPR_RES_OBJS): Makefile
 $(BUILD)/file_aux_at.o: $(PRODOS_FILE_AUX_AT_DEPS)
 $(BUILD)/apple2aux.o $(BUILD)/apple2auxfetch.o: $(APPLE2C_AUX_DEPS)
 $(BUILD)/main.o: $(APPLE2C)/apple2aux.h
-$(GAME_LIB): $(LIB_OBJS) Makefile
+$(GAME_LIB): $(LIB_OBJS) Makefile $(HGRC)/hgrc.mk
 	$(PYTHON) -c 'from pathlib import Path; Path("$@").unlink(missing_ok=True)'
 	$(AR65) a $@ $(LIB_OBJS)
 # The overlays in $4000-$5FFF (src/game.cfg, src/overlay.s): PLAY and

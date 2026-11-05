@@ -9,18 +9,22 @@ from test_hgr import DEV, build, run, a2test
 ALIGN_CASES=((65535,255,0,0),(279,191,279,191),(280,192,65535,255),(1,1,5,5))
 
 
-def batches(width):
+AXIS_ALIGN_CASES=((65535,191,0,191),(139,255,139,0),(0,255,65535,255),(139,0,139,191))
+
+
+def batches(width,axes=False):
     for anchor in (0,width-1,65535):
         for reverse in (False,True):
             for high in range(256):
-                yield [(anchor,255,v,0) if reverse else (v,0,anchor,255)
+                yield [((anchor,191,v,191) if reverse else (v,191,anchor,191)) if axes
+                       else ((anchor,255,v,0) if reverse else (v,0,anchor,255))
                        for v in range(high*256,(high+1)*256)]
     for high in range(256):
-        yield [(v,191,v,191) for v in range(high*256,(high+1)*256)]
+        yield [(v,255,v,0) if axes else (v,191,v,191) for v in range(high*256,(high+1)*256)]
     for high in range(256):
-        yield [(width-1,high,0,low) for low in range(256)]
+        yield [(width-1,high,width-1 if axes else 0,low) for low in range(256)]
     yield [(65535,y,0,y) for y in range(256)]
-    for case in ALIGN_CASES:
+    for case in AXIS_ALIGN_CASES if axes else ALIGN_CASES:
         yield [case]*256
 
 
@@ -39,7 +43,9 @@ def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--iie',action='store_true')
     parser.add_argument('--color',action='store_true')
+    parser.add_argument('--axes',action='store_true')
     args=parser.parse_args()
+    if args.axes and not args.color:parser.error('--axes requires --color')
     width=140 if args.color else 560
     pen=15 if args.color else 1
     backend="gfx_backend_dhgr_"+("color" if args.color else "mono")+".c"
@@ -102,6 +108,17 @@ int main(void) {
     return 0;
 }
 '''.replace('279',str(width-1)))
+        if args.axes:
+            text=source.read_text()
+            for before,after in (
+                ('gfx_filled_rect(anchors[anchor],255,value,0)','gfx_hline(anchors[anchor],value,191)'),
+                ('gfx_filled_rect(value,0,anchors[anchor],255)','gfx_hline(value,anchors[anchor],191)'),
+                ('gfx_filled_rect(value,191,value,191)','gfx_vline(value,255,0)'),
+                (f'gfx_filled_rect({width-1},(unsigned char)(value>>8),0,(unsigned char)value)',
+                 f'gfx_vline({width-1},(unsigned char)(value>>8),(unsigned char)value)'),
+                ('gfx_filled_rect(65535u,index,0,index)','gfx_hline(65535u,0,index)')):
+                assert before in text;text=text.replace(before,after)
+            source.write_text(text)
         marker=work/'marker.s'
         marker.write_text('.export _page_done, resume, _finished\n.code\n'
                           '_page_done: nop\nresume: rts\n_finished: rts\n')
@@ -164,7 +181,32 @@ _align_call:
 fail: jmp fail
 .rodata
 """
-        planes=[(x0&255,x0>>8,y0,x1&255,x1>>8,y1) for x0,y0,x1,y1 in ALIGN_CASES]
+        if args.axes:
+            code=code.replace('.import _gfx_filled_rect,','.import _gfx_hline, _gfx_vline,')
+            start=code.index(' ldy _align_kind\n lda y0,y')
+            end=code.index(' lda sp\n cmp _index',start)
+            code=code[:start]+""" ldy _align_kind
+ tya
+ and #1
+ bne vertical
+ lda x1hi,y
+ tax
+ lda x1lo,y
+ jsr pushax
+ ldy _align_kind
+ lda y1,y
+ jsr _gfx_hline
+ jmp check
+vertical:
+ lda y0,y
+ jsr pusha
+ ldy _align_kind
+ lda y1,y
+ jsr _gfx_vline
+check:
+"""+code[end:]
+        align_cases=AXIS_ALIGN_CASES if args.axes else ALIGN_CASES
+        planes=[(x0&255,x0>>8,y0,x1&255,x1>>8,y1) for x0,y0,x1,y1 in align_cases]
         for i,name in enumerate(('x0lo','x0hi','y0','x1lo','x1hi','y1')):
             code+=name+': .byte '+','.join(str(v[i]) for v in planes)+'\n'
         align.write_text(code)
@@ -199,10 +241,10 @@ fail: jmp fail
         steps += [labels.until('_finished')]
         result=a2test.run(disk,steps,iie=args.iie)
         assert len(result.dumps)==2053
-        for index,cases in enumerate(batches(width)):
+        for index,cases in enumerate(batches(width,args.axes)):
             assert result.dumps[index]==expected(cases,width,pen),('axis batch',index,cases[0])
         print(f'GFX DHGR rectangle entry: 525,568 cases, both x endpoints in both orders, '
-              f'all y pairs and degenerate rectangles, clipping/rejection, span parameters, hostile scratch, guards and 1,024 stack placements; IIe={args.iie}, color={args.color}.')
+              f'all y pairs and degenerate rectangles, clipping/rejection, span parameters, hostile scratch, guards and 1,024 stack placements; IIe={args.iie}, color={args.color}, axes={args.axes}.')
 
 
 if __name__=='__main__':

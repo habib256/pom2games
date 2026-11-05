@@ -208,6 +208,11 @@ test-hgr-example:
 	$(PYTHON) dev/tests/test_hgr_example.py
 
 test-dhgr:
+	$(PYTHON) dev/tests/test_gfx_dhgr_color_entries.py
+	$(PYTHON) dev/tests/test_gfx_dhgr_color_entries.py --iie
+	$(PYTHON) dev/tests/test_gfx_dhgr_color_entries.py --reference
+	$(PYTHON) dev/tests/test_gfx_dhgr_rect_entry.py --color --iie
+	$(PYTHON) dev/tests/test_gfx_dhgr_rect_entry.py --color --axes --iie
 	$(PYTHON) dev/tests/test_gfx_dhgr_rect_entry.py
 	$(PYTHON) dev/tests/test_gfx_dhgr_rect_entry.py --iie
 	$(PYTHON) dev/tests/test_gfx_dhgr_mono_entries.py

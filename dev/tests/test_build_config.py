@@ -1,10 +1,33 @@
 #!/usr/bin/env python3
 """Exercise incremental archive builds with colliding C/ASM basenames."""
 import json
+import re
 import time
 from pathlib import Path
 import tempfile
-from test_hgr import DEV, run
+from test_hgr import DEV, run, gfx_backend_sources
+
+
+def check_native_backends():
+    # Consumer vpaths must not prefer the portable C file sharing a native
+    # stem, or cl65 can overwrite/delete that assembler source as a temporary.
+    with tempfile.TemporaryDirectory(prefix='dhgr-native-build-') as directory:
+        work=Path(directory)
+        sources=gfx_backend_sources(work,'gfx_backend_dhgr_color.c')
+        saved={source:source.read_bytes() for source in sources}
+        expected={'':'_gfx_width _gfx_height','set_color':'_dhgr_set_color',
+                  'plot':'_gfx_plot','hline':'_gfx_hline','vline':'_gfx_vline',
+                  'rect':'_gfx_filled_rect','clear':'_gfx_clear'}
+        for name,consumer in (('demo',DEV/'examples/dhgr'),('rss',DEV.parent/'robotspacestation')):
+            build=work/name
+            objects=[build/(source.stem+'.o') for source in sources]
+            run(['make','-s','-C',consumer,f'BUILD={build}',*objects])
+            for source,obj in zip(sources,objects):
+                suffix=source.stem.removeprefix('gfx_backend_dhgr_color').removeprefix('_')
+                exports=set(re.findall(r'Name:\s+"([^"]+)"',run(['od65','--dump-exports',obj])))
+                assert exports==set(expected[suffix].split()),(consumer,source,exports)
+            assert saved=={source:source.read_bytes() for source in sources},'native source overwritten'
+    print('DHGR demo/Robot Station: selected native backend objects, exact exports and source preservation OK.')
 
 
 def main():
@@ -85,6 +108,7 @@ def main():
         stamps = {p: p.stat().st_mtime_ns for p in (*objects, archive, config)}
         run(command)
         assert stamps == {p:p.stat().st_mtime_ns for p in stamps}, 'dependency build not stable'
+    check_native_backends()
     print('Archive build: distinct C/ASM members, no-op, flags and configuration rollback and transitive external C/ASM dependencies OK.')
 
 

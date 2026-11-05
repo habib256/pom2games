@@ -13,9 +13,10 @@ into an `ar65` archive so that only the functions actually called get linked
 
 ## Apple II DHGR
 
-Two explicit backends: `gfx_backend_dhgr_color.c` (140×192, LORES colour
-0..15) or the native `HGRC_DHGR_MONO_BACKEND` family (560×192, bit 0/1;
-`gfx_backend_dhgr_mono.c` remains the portable reference). Link exactly one
+Two native archive families: `HGRC_DHGR_COLOR_BACKEND` (140×192, LORES
+colour 0..15) or `HGRC_DHGR_MONO_BACKEND` (560×192, bit 0/1). The matching
+`gfx_backend_dhgr_color.c` / `gfx_backend_dhgr_mono.c` files remain portable
+references. Link exactly one
 backend with `HGRC_GENERIC_VECTOR_SRCS` and the DHGR library. The current
 colour is set with `dhgr_set_color`. Coordinates are those of the chosen
 backend; native blocks and sprites keep their own API in `dhgr.h`.
@@ -208,3 +209,10 @@ all drawing entries. Points and axes append the selected pen directly to
 the existing C frame. Filled rectangles sort/clip full-width corners before
 reusing a six-byte frame. `gfx_clear` maps nonzero values to white without
 changing the pen; dimension/pen-only clients omit all drawing kernels.
+
+The color backend likewise separates dimensions, pen selection, points,
+axes, filled rectangles and clear. `dhgr_color_state.s` owns the color-dot
+inputs independently from its renderer. Consumers using basename/vpath
+rules must select the native backend `.s` sources explicitly when a C
+reference has the same stem; the shared `hgrc_build.mk` already preserves
+source paths and extensions for this purpose.
