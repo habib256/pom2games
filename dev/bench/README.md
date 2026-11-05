@@ -1,5 +1,17 @@
 # Current cc65 measurements
 
+The ninth-session gate passes **697 cases**, including eight damage-worker
+workloads measured before optimization. Existing cc65 scratch replaces the
+private geometry, index and flag storage in `HGR_SPR_DAMAGE`: **43 loaded
+bytes and eleven RAM bytes saved in all ten affected clients**. All ten
+timings improve; **687 dictionaries are unchanged**, with no regression or
+extra zero page/stack use. The eight-sprite reverse chain takes **18,624
+instead of 20,604 cycles**; integrated isolated damage takes **13,890 instead
+of 14,092**. 40 reference fields are tightened without raising limits.
+The 512-state graph oracle passes on both CPUs, as do integration checks.
+Rebuilt disks remain identical and all 18 WOZ twins match. The option stays
+off by default. See [the ninth-session audit](HISTORY.md#audit-de-la-neuvième-session-du-5-novembre-2026--propagation-des-dommages-hgr).
+
 The eighth-session gate passes **689 cases**, including eight isolated move
 calls measured before optimization. HGR engine scratch, direct movement
 arguments and grouped save-under advances save **17 loaded bytes and four

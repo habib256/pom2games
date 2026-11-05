@@ -4,6 +4,36 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Audit de la neuvième session du 5 novembre 2026 — propagation des dommages HGR
+
+Après `8a13d73`, les commits `b81b8f3`, `884ed29` et `f017fe3` réutilisent
+le scratch cc65 pour la géométrie, les indices et les indicateurs du mode
+`HGR_SPR_DAMAGE`. Le noyau supprime ses onze octets BSS propres, tout en
+conservant les rectangles persistants du moteur. Les deux anciens profils
+remesurés correspondent au rapport précédent et au même environnement.
+Huit nouveaux calculs isolés ont leurs références prises avant modification.
+
+Le gate complet `--dhgr --check` passe pour **697 cas** : les **dix clients
+concernés perdent chacun 43 octets chargés et onze octets de RAM**, avec
+dix durées réduites et **aucune métrique en hausse**. Les 687 autres
+dictionnaires restent identiques. Page zéro et piles sont inchangées.
+La chaîne de huit sprites passe de **20 604 à 18 624 cycles**, le calcul
+stable de **5 476 à 5 183**, et le rendu isolé par dommages de **14 092 à
+13 890**. **40 champs de référence sont abaissés**, sans relever de seuil
+ou de budget absolu ; tous les budgets de trame restent respectés.
+
+Le modèle indépendant vérifie **512 états sur chaque CPU**, en comparant
+les rectangles et l'accessibilité dans le graphe des recouvrements : un
+à huit slots, les deux historiques, les quatre masques d'invalidation,
+les formes non définies, le masquage, les bords et la propagation inverse.
+Il passe aussi sur le noyau d'origine. Les tests de préfixes stables avec
+dommages passent sur 6502 et 65C02 ; les images à quatre couches et les
+gardes de tampon passent sur IIe. Les nouveaux contrôles sont intégrés à
+`make test-hgr`.
+
+`make all` réussit, les disquettes reconstruites restent identiques et les
+**18 paires disque/WOZ** sont vérifiées. L'option reste désactivée par défaut.
+
 ## Nouvelle série du 5 novembre 2026 : indicateurs de dommages sans BSS
 
 L'invalidation de page et le témoin de propagation utilisent les deux

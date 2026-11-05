@@ -1238,11 +1238,21 @@ contracts in [apple2frame.h](../apple2c/apple2frame.h).
 The engine compiled with `-DHGR_SPR_DAMAGE=1` propagates changes through
 intersections of old/new boxes, in saved bytes rather than
 visible pixels. It can keep isolated still layers,
-but adds 43 bytes of BSS to the eight-slot default plus assembler
+but adds 32 bytes of BSS to the eight-slot default plus assembler
 comparison work. The scene with four large isolated sprites, of which only the first
-moves, goes from 31 031 to 14 662 cycles (+437 bytes loaded).
+moves, takes 13,890 instead of 30,097 cycles (+394 loaded bytes).
 The option stays off by default; decide based on representative scenes.
 The tests also check chains of four layers and padding bytes.
+
+The damage worker keeps geometry, loop indices and flags in existing cc65
+scratch, removing its eleven private BSS bytes and 43 code bytes. It consumes
+no additional zero page or stack. The shape pointer becomes an x coordinate
+only after its dimensions have been read; visibility helpers preserve the
+other live scratch. An eight-sprite reverse overlap chain takes 18,624 instead
+of 20,604 cycles. A graph-based model checks 512 states on each CPU, including
+1..8 slots, both histories, all invalidation masks, clipping, hidden and
+undefined shapes. Integration checks still compare rendered pages and pool
+guards. The module documents its clobbers and remains non-reentrant.
 
 The digits of the differential field use a dedicated assembler kernel:
 it replaces the background and writes the white glyph in the same pass over the lines.

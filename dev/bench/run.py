@@ -427,6 +427,21 @@ for damage in (False,True):
               'for(i=0;i<4;++i) {if(!hgr_spr_define(i,&shape)) return 3;'+
               'hgr_spr_move(i,28u+i*56u,60u);}',
         call='hgr_spr_move(0,28u+(frame%3u),60u); hgr_spr_render(); hgr_spr_present(); ++frame;')
+for label,positions,change in (
+    ('stable','28u+i*28u,40u',''),
+    ('one','28u+i*28u,40u','hgr_spr_move(0,29,40);'),
+    ('reverse_chain','14u+i*7u,40u','hgr_spr_move(7,64,40);'),
+    ('hide','28u+i*28u,40u','hgr_spr_hide(7);'),
+    ('edge','252u+i*3u,185u+i/2u','hgr_spr_move(7,279,191);'),
+    ('all','28u+i*28u,40u','hgr_spr_invalidate(1);'),
+    ('other_page','28u+i*28u,40u','hgr_spr_invalidate(2);'),
+    ('outside','28u+i*28u,40u','hgr_spr_move(7,65535u,255);')):
+    SCENES['hgr_damage_'+label]=dict(sprites=True,sprite_width=7,
+        sprite_height=8,sprite_stride=2,damage=True,warmup=False,
+        declarations='void hgr_spr_damage(void);',call='hgr_spr_damage();',
+        setup='if(!hgr_spr_init_pool(0,pool,sizeof(pool),8,16))return 2;'+
+            'for(i=0;i<8;++i){if(!hgr_spr_define(i,&shape))return 3;'+
+            f'hgr_spr_move(i,{positions});}}hgr_spr_render();'+change)
 for name in ('hgr_game_compact','hgr_isolated_damage'):
     SCENES[name+'_pal']=dict(SCENES[name],iie=True,pal=True)
 for phase in range(1,7):
