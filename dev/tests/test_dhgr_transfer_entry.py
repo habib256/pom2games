@@ -180,7 +180,9 @@ check:
         steps=[]
         for _ in range(2056):steps += [labels.until('_page_done',10000),labels.until('resume')]
         steps += [labels.until('_finished')]
-        a2test.run(disk,steps,iie=args.iie)
+        # The exhaustive row callbacks can exceed two host minutes on the
+        # IIe core under load. Guest breakpoint limits and assertions stay fixed.
+        a2test.run(disk,steps,iie=args.iie,timeout=300)
         print(f'DHGR transfers: 526,336 calls, all bx/width, width/stride and y/height pairs, '
               f'all pointers, every row address/bank/count/buffer, read/write selection, '
               f'zero-height/rejected state, scratch/caller guards and 2,048 stack placements; IIe={args.iie}.')

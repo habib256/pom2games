@@ -4,6 +4,46 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Audit de la session du 5 novembre 2026 — 13 séries
+
+Les 13 séries vont de `4cf79ff` à `207c806`, après la base `2813fa6`.
+Le banc passe de **479 à 642 cas**. Tous les champs des 479 références
+initiales sont conservés ou abaissés ; aucun budget absolu n'est relevé.
+Les petits écarts de cycles liés au placement sont détaillés dans les séries
+concernées, avec les anciennes limites conservées.
+
+Un checkout détaché de `207c806` reconstruit a2run et a2shot, puis reproduit
+**exactement les 642 dictionnaires de mesures** du relevé principal avec
+`dev/bench/run.py --dhgr --check`. `make all` reconstruit tous les disques
+sans aucune différence Git ; les 18 jumeaux WOZ correspondent. Seules les
+images originales locales de Wilderness ont été copiées pour cette
+reconstruction, sans objets ni autres résultats de compilation.
+
+`make test-hgr` passe entièrement. Toutes les commandes de `test-dhgr`
+passent également : après deux dépassements du délai réel de 120 secondes
+pour les 526 336 appels du test de transferts IIe, ce seul délai hôte est
+porté à 300 secondes. La suite reprend à ce test et termine ses 55 commandes
+restantes ; assertions, nombres de cas et limites d'exécution émulée restent
+inchangés. `make test-tools` passe après la dernière série ProDOS, ainsi que
+les exemples minimaux, les tests rapides Robot Station et MB Tracker IIe/IIc.
+La campagne complète de 20 missions et les essais aléatoires de Robot Station
+passent sur IIe et IIc. Les démos DHGR action, lander, half-pipe, corde et
+catapulte, ainsi que les contacts physiques et leurs variantes, passent aussi.
+
+Les interfaces publiques sont conservées et les références C restent
+accessibles. Les derniers changements ProDOS ne modifient aucune des 634
+mesures graphiques précédentes. L'état des sources et des disques est
+vérifié après reconstruction, y compris les règles de sélection des sources
+assembleur homonymes des références C.
+
+Les fichiers binaires réellement livrés dans les disques DOS passent de
+8 576 à **8 417 octets** pour HGR et de 9 010 à **8 404** pour DHGR.
+Les fichiers ProDOS concernés gardent leurs tailles réservées : les gains
+de code n'impliquent pas une diminution des zones remplies par le linker.
+MB Tracker libère notamment 64 octets de code dans OVL2 et 2 octets de BSS.
+Les quatre disques modifiés sont HGR, DHGR, ROBOTSTATION et MBTRACKER,
+avec leurs WOZ ; tous les autres restent identiques.
+
 ## Série du 5 novembre 2026 : validation des noms ProDOS isolée
 
 Le membre natif `name_valid.s` vérifie les 1–15 caractères sans pile C,

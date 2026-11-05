@@ -1,5 +1,11 @@
 # Current cc65 measurements
 
+The 5 November morning session contains **13 optimization series and 642
+benchmark cases**, reproduced exactly from a clean checkout. Original
+reference limits and fixed frame budgets are retained. Full HGR/DHGR and
+tool checks, rebuilt disks and 18 WOZ twins are covered by the
+[session audit](HISTORY.md#audit-de-la-session-du-5-novembre-2026--13-séries).
+
 Independent native ProDOS name validation saves **1,404 loaded bytes** and
 **547 RAM bytes** in name-only clients, without directory or MLI imports.
 `DEMO.AYS` takes **265 cycles instead of 980**; a valid 15-character name
