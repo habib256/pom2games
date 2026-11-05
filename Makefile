@@ -200,6 +200,8 @@ test-dhgr:
 	$(PYTHON) dev/tests/test_dhgr_spans.py
 	$(PYTHON) dev/tests/test_dhgr_text.py
 	$(PYTHON) dev/tests/test_dhgr_small_text.py
+	$(PYTHON) dev/tests/test_dhgr_clear_rows_entry.py
+	$(PYTHON) dev/tests/test_dhgr_clear_rows_entry.py --iie
 	$(PYTHON) dev/tests/test_dhgr_clear_rows.py
 	$(PYTHON) dev/tests/test_dhgr_spr.py
 	$(PYTHON) dev/tests/test_gfx_dhgr_lines.py

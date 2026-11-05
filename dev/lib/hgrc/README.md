@@ -892,8 +892,19 @@ five cycles a byte; only the page byte of those operands is patched, while
 RAMWRT is main. 117 bytes of code (129 before). X counts the four turns
 of each pattern pass; the row's high address byte is passed in A directly
 to the operand patches. This removes 12 code bytes without changing RAM,
-zero page or stack peaks. Including C arguments, one visible line takes
-1,090 cycles and all 192 lines take 136,555 (previously 1,115/141,187).
+zero page or stack peaks in that kernel change.
+The public entry now validates and clips the two argument bytes directly,
+prepares the pattern, then releases the arguments before tail-calling the
+row kernel. No local frame is needed. Isolated clients save another
+**94 loaded bytes**, C-stack peak **5 → 2**, hardware peak **11 → 9**, with
+unchanged RAM and zero page. Including C arguments, one visible line takes
+**929 instead of 1,090 cycles**, 16 lines **11,549 instead of 11,725**,
+and all 192 lines **136,214 instead of 136,555**. Empty/rejected calls need
+only two C-stack bytes and leave the pattern untouched.
+`test_dhgr_clear_rows_entry.py` checks 67,072 calls on both CPU models:
+all y/count pairs, all colors, exact forwarded arguments, scratch clobbers,
+caller guards and 1,024 stack placements. The fixture also passes on the
+original C entry.
 A test with a Mockingboard VIA timer also checks that periodic IRQs
 are actually serviced during both page clears, with checks on
 banks, memory guards and pixels. Servicing remains non-reentrant. Use small

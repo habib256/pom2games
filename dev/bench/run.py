@@ -459,6 +459,12 @@ for suffix,count,setup,ctx,map_ptr,tiles in (
         declarations='static hgr_tilemap_t background; static unsigned char tilemap[960];'+
                      'static const unsigned char tiles[8]={0};')
 
+for suffix,y,rows,color in (
+    ('empty',0,0,9),('outside',255,255,9),('last',191,255,255),
+    ('full_clip',0,255,255),('masked_color',40,1,249)):
+    SCENES['dhgr_clear_rows_'+suffix]=dict(
+        call=f'dhgr_clear_rows({y},{rows},{color});',iie=True,warmup=False)
+
 # Non-default compile-time variants (dev/lib/ABI.md, "Speed/RAM options"):
 # the listed members are reassembled with the define and linked before hgrc.lib.
 for name in ('hgr_diagonal_cold','hgr_hud_cold','hgr_scene_cold'):

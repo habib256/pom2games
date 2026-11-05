@@ -160,10 +160,16 @@ fully opaque masks take 10,095 instead of 10,315.
 Bounded DHGR clearing (`dhgr_clear_rows`) uses a register counter for the
 four turns of each pattern pass and passes the row's high address byte in
 A. The native row kernel takes **688 cycles** instead of 712, with **12
-fewer code bytes**. Including C arguments, one line takes 1,090 cycles,
-16 lines take 11,725 and all 192 visible lines take 136,555 (−3.3 %).
-RAM, zero page and stack peaks are unchanged; each line still restores
-main RAMWRT and the caller's IRQ mask, allowing IRQ servicing between rows.
+fewer code bytes** in that kernel change. The public entry now validates
+and clips the two argument slots, prepares the pattern and releases the
+slots before tail-calling the kernel. This saves another **94 loaded bytes**,
+C-stack peak **5 → 2**, hardware peak **11 → 9**, with unchanged RAM and
+zero page. Including C arguments, one line takes **929 instead of 1,090
+cycles** (−14.8%), 16 lines **11,549 instead of 11,725**, all 192 visible
+lines **136,214 instead of 136,555**. Empty/rejected calls fall **145/136 →
+103/114 cycles**. Each line still restores main RAMWRT and the caller's IRQ
+mask, allowing IRQ servicing between rows. The nine cases include clipping,
+empty/offscreen calls and color bytes above 15; all improve.
 
 The warm HGR point cases measure 247/256 cycles for set/clear, including C
 arguments. The 7×16 XOR sprite cases `hgr_preshift_phase0/3/6` measure

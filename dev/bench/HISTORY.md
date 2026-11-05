@@ -4,6 +4,40 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Série du 5 novembre 2026 : préparation native des effacements DHGR
+
+`dhgr_clear_rows.s` remplace l'enveloppe C. La couleur reste dans X pendant
+la vérification des deux arguments ; la hauteur clippée remplace le slot
+de hauteur consommé. Après préparation du motif, A/X reçoivent y/hauteur,
+la pile est libérée et l'entrée saute directement vers le noyau existant.
+Les appels vides ou hors écran ne préparent pas le motif. Aucun noyau de
+banque mémoire ou d'interruption n'est modifié.
+
+| Appel C | Cycles avant → après | Binaire avant → après |
+|---|---:|---:|
+| Une ligne | 1 090 → 929 | 1 660 → 1 566 |
+| 16 lignes | 11 725 → 11 549 | 1 661 → 1 567 |
+| 192 lignes | 136 555 → 136 214 | 1 661 → 1 567 |
+| Deux dernières lignes, hauteur 255 | 1 822 → 1 644 | 1 661 → 1 567 |
+| Dernière ligne, couleur 255 | 1 113 → 934 | 1 707 → 1 613 |
+| Hauteur nulle | 145 → 103 | 1 707 → 1 613 |
+| Ordonnée hors écran | 136 → 114 | 1 707 → 1 613 |
+
+Économie de 94 octets par client isolé ; pile C 5 → 2 (rejets 3 → 2),
+pile matérielle 11 → 9 (rejets 6 → 5), sans RAM/page zéro supplémentaire.
+Les neuf cas concernés sont plus rapides, les 338 autres cas restent
+identiques ; cinq cas sont nouveaux. Le noyau reste à 688 cycles par ligne.
+
+La fixture de 67 072 appels passe sur le C de référence puis sur les
+versions natives II+/IIe : toutes les paires y/hauteur, toutes les couleurs,
+arguments clippés, rejets, registres de travail écrasés, gardes et 1 024
+positions de pile. L'oracle réel vérifie les seize couleurs sur les deux
+pages et banques, les trous mémoire, l'affichage et le masque IRQ ; le
+test VIA vérifie le service périodique réel avec gardes et pixels.
+Validation complémentaire : 50 clients minimaux, intégration HGR, `make all`,
+exemples DHGR (1 000 images NTSC/PAL), ROBOTSTATION IIe/IIc, WOZ, relevé
+complet de 347 cas et gate. ROBOTSTATION.po et son WOZ sont reconstruits.
+
 ## Série du 5 novembre 2026 : validation native des cartes de tuiles
 
 `hgr_tilemap_init` valide le nombre de tuiles sur 16 bits et les trois
