@@ -4,6 +4,20 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Nouvelle série du 5 novembre 2026 : adresse de surimpression DHGR en registre
+
+La surimpression calcule maintenant son adresse de ligne dans A et ne
+stocke le pointeur qu'à la fin, y compris pour la première ligne. X reste
+préservé pour le compositeur. Cette passe retire **3 octets de code**, sans
+modifier les allocations ou les piles. Une surimpression de 4 × 31 octets
+passe de **30 882 à 28 080 cycles** ; celle de 4 × 6 de **6 564 à 6 465**,
+et le déplacement de surimpression de **13 214 à 13 126**.
+
+Le modèle étendu invalide explicitement toute la zone lorsqu'il l'élargit
+à nouveau, afin de vérifier aussi la convergence des deux pages. Les
+bitmaps hauts partagent leurs octets source entre les deux formats dans
+la fixture ; la pile C de 512 octets reste inchangée.
+
 ## Nouvelle série du 5 novembre 2026 : saut de lignes des bitmaps DHGR
 
 Le peintre CHUNKY/TILE garde l'octet bas du pointeur source dans A pendant

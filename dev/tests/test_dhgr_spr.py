@@ -63,8 +63,8 @@ SHAPES = [(0, 10, 12, DRONE), (0, 5, 9, TECH), (0, 40, 50, BIG), (0, 2, 2, DOT),
           (1, 6, 5, SHIP), (2, 7, 8, TILE_A), (0, 7, 8, WALL), (0, 7, 8, FLOOR),
           (1, 7, 8, [(x * 5 + y) % 16 for y in range(8) for x in range(7)]),
           (2, 7, 8, TILE_C), (2, 9, 6, [nib((x * y) % 16) for y in range(6) for x in range(9)]),
-          (1, 7, 64, [C if (x+y)%5 == 0 else (x*3+y)%16 for y in range(64) for x in range(7)]),
-          (2, 7, 64, [nib((x*3+y)%16) for y in range(64) for x in range(7)])]
+          (1, 7, 64, [(x*3+y)%16 for y in range(64) for x in range(7)]),
+          (2, 7, 64, [(x*3+y)%16 for y in range(64) for x in range(7)])]
 TSET = tuple((5, 6, 7, 8)[(i + i // 128) % 4] for i in range(256))
 # High IDs deliberately differ from their low-seven-bit aliases.
 OVBITS = ([0x01, 0x03, 0x07, 0x0F, 0x03, 0x01, 0x40, 0x60, 0x70, 0x78, 0x30, 0x10] * 11)[:127]
@@ -541,13 +541,14 @@ def scenario(inside=False, double=False):
     s.overlay(0, 0, 0, 0)
     s.update('overlay hidden')
     # Skip 40 source rows (280 bytes), crossing a page before the first
-    # visible byte. Cover both bitmap kinds, transparency and mirroring.
+    # visible byte. Cover both bitmap kinds and mirroring.
     s.area(28, 60, 34, 63)
     for shape, flags in ((11, 0), (11, MIRROR), (12, 0)):
         s.set(0, shape, 28, 20, flags)
         s.update(f'tall bitmap {shape}, flags {flags}, top 40 rows clipped')
     s.set(0, None, 0, 0)
     s.area(0, 16, 139, 175)
+    s.invalidate(0, 16, 140, 160)
     s.overlay(16, 40, 4, 31)
     s.update('overlay 31 rows, 124 source bytes')
     s.overlay(16, 40, 0, 0)
@@ -631,10 +632,16 @@ BLANK, LINE = 4550, 65
 
 def write_inc(work, script, canvas, groups):
     shapes, data = [], ''
+    shared = {}
     for n, (kind, w, h, rects) in enumerate(SHAPES):
         values = [v for r in rects for v in r] if kind == 0 else rects
-        data += f'static const unsigned char shape{n}[] = {{' + ','.join(map(str, values)) + '};\n'
-        shapes.append(f'{{{kind},{w},{h},{len(rects) if kind == 0 else 0},shape{n}}}')
+        key = tuple(values)
+        if key not in shared:
+            shared[key] = f'shape{n}'
+            data += f'static const unsigned char shape{n}[] = {{' + ','.join(map(str, values)) + '};\n'
+        # Share identical bytes across bitmap kinds to keep the enlarged
+        # fixture inside DOS RAM, including its original 512-byte C stack.
+        shapes.append(f'{{{kind},{w},{h},{len(rects) if kind == 0 else 0},{shared[key]}}}')
     (work / 'dhgr_spr_ops.inc').write_text(
         f'#define CANVAS_BYTES {canvas}u\n#define CANVAS_GROUPS {groups}u\n' + data +
         'static const dhgr_shape_t shapes[] = {' + ','.join(shapes) + '};\n'

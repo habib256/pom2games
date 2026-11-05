@@ -189,20 +189,20 @@ ov_row: lda #$2C
         asl a
         cmp _dhgr_spr_goff
         bcc @none
-        lda cur_bits
-        sta ptr1
         lda cur_bits+1
         sta ptr1+1
-        tya
-        beq @set
-@mul:   lda ptr1
-        clc
+        lda cur_bits
+        cpy #0
+        beq @pointer
+        ; A accumulates the low address. Y counts rows and X is preserved.
+@mul:   clc
         adc cur_nw
-        sta ptr1
         bcc :+
         inc ptr1+1
 :       dey
         bne @mul
+@pointer:
+        sta ptr1
 @set:   lda #$20                ; JSR
         sta spr_ovhook
 @none:  rts
