@@ -9,12 +9,12 @@
 .import _spr_slots, _spr_block, _spr_dirty, _spr_damage_fn
 .import _hgr_ms_restore_run, _hgr_msu_run, _hgr_ms_block
 .importzp _hgr_ms_x, _hgr_ms_y, _hgr_ms_spr, _hgr_ms_under
+.importzp tmp1
 .bss
 spr_pgbase: .res 1
 pagebit: .res 1
 first: .res 1
 id: .res 1
-visible: .res 1
 pool: .res 2
 under: .res 2
 newx: .res 2
@@ -92,18 +92,18 @@ within:
 no:
         lda #0
         rts
-; X=id, A=changed vs this page. Destroys X/Y/flags.
+; X=id, A=changed vs this page. Destroys X/Y/tmp1/flags.
 spr_changed:
         jsr spr_visible
-        sta visible
+        sta tmp1                ; visibility is only live within this leaf
         txa
         clc
         adc spr_pgbase
         tay
         lda _spr_drawn,y
-        cmp visible
+        cmp tmp1
         bne yes
-        lda visible
+        lda tmp1
         beq no
         lda _spr_py,y
         cmp _spr_y,x

@@ -4,6 +4,19 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Nouvelle série du 5 novembre 2026 : visibilité HGR dans le scratch partagé
+
+Le résultat temporaire de visibilité de `spr_changed` ne vit que jusqu'au
+retour de cette routine. Il utilise maintenant `tmp1` au lieu d'un octet
+BSS propre au moteur : **3 octets de code et un octet de RAM en moins**,
+sans allocation de page zéro ni pile supplémentaires. Son contrat interne
+indique ce registre temporaire détruit ; le moteur et le calcul optionnel
+des dommages n'y conservent aucune valeur pendant l'appel.
+
+Les tests de préfixes stables, recouvrements, masquage, invalidation et
+présentation après changement externe de page passent sur 6502 et 65C02,
+avec et sans le calcul optionnel des dommages.
+
 ## Audit de la septième session du 5 novembre 2026 — DHGR et générateur aléatoire
 
 Après `8ed35bc`, les commits `89b4cdf`, `b2864af` et `b3bc5a2` gardent
