@@ -4,6 +4,46 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Audit de la dixième session du 5 novembre 2026 — compteurs HGR
+
+Après `019759b`, les commits `88ea461`, `a4469ff` et `6379c70` remplacent
+les temporaires BSS des noyaux numériques par le scratch cc65 existant.
+Le HUD 8×8 y conserve ses masques et sa base ; le 16×16 y place ses
+fragments de glyphe, ses masques et sa ligne courante. Le contrôleur
+restaure son pointeur de champ après chaque cellule. Les 81 profils
+remesurés avant modification reproduisent exactement le rapport précédent,
+avec le même compilateur et le même environnement.
+
+Le gate complet `--dhgr --check` passe pour **697 cas**. Les **55 clients
+concernés diminuent en taille** : 30 perdent **28 octets chargés et sept
+octets de RAM**, 25 perdent **six octets chargés et trois octets de RAM**.
+**52 durées diminuent**, deux sont identiques et la boucle avec attente
+VBL passe de **34 050 à 34 053 cycles**, une hausse inférieure à 0,01 %.
+Les **642 autres dictionnaires sont identiques**. Page zéro et piles
+restent inchangées ; tous les budgets absolus de trame sont respectés.
+
+Le chiffre 16×16 modifié passe de **3 930 à 3 770 cycles** (−4,1 %), son
+champ froid de **22 027 à 21 145**, et les cinq chiffres modifiés prennent
+**14 218..15 013 cycles** selon la phase, contre **15 034..15 890**.
+Le chiffre 8×8 passe de **2 282 à 2 255**, son champ froid de **6 324 à
+6 208**, et la scène compacte de **15 227 à 15 119**. Un champ inchangé
+reste à 312 cycles dans les deux formats. **217 champs de référence sont
+abaissés**, sans relever de seuil ni modifier les budgets absolus.
+
+Pour chaque format et chaque CPU, les tests vérifient 168 mises à jour
+avec historique par page, les sept phases, retenues et débordements,
+invalidation, fonds colorés et 70 glyphes aux bords. Ils couvrent aussi
+les 265/273 origines valides et toutes les largeurs 1..14/1..5. Les tests
+généraux HGR, les 69 programmes de sélection d'archives, les scènes du
+moteur et les 32 scènes de stress passent.
+
+`make all` réussit ; la disquette HGR et son WOZ sont reconstruits et les
+**18 paires disque/WOZ** correspondent. L'exemple HGR passe sur II+ et IIe.
+Les exemples minimaux passent en HGR simple/double et en ProDOS, y compris
+les chemins avec et sans /RAM. Sur 1 000 trames avec débordement du compteur,
+la cadence double reste dans **34 050..34 070 cycles en NTSC** et
+**40 550..40 570 en PAL**.
+
 ## Nouvelle série du 5 novembre 2026 : masques et lignes du HUD 16×16
 
 Les masques de bord utilisent `ptr3` et les deux octets de `ptr4` ; le

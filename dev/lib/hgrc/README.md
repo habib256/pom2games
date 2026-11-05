@@ -1268,26 +1268,35 @@ or the pixel-rectangle parameters on a HUD-only client.
 Both controllers reuse the digit count returned by conversion/compaction
 and finish the origin's division by seven in eight bits after reducing it
 below 56. This saves 24 code bytes per format without adding RAM or tables.
-The 16×16 single-digit update takes 3,940 cycles; an unchanged value still
-takes 312 cycles in either format.
+An unchanged value still takes 312 cycles in either format.
 
 The 16×16 kernel writes its second byte column directly to both scanlines:
 that column always lies wholly inside the 16/18-pixel cell. Its other
 columns retain their edge masks. Two rotations assemble the upper glyph
 bits, and the three edge writers expand in place instead of calling
-single-use subroutines. This saves 42 code bytes and one BSS byte, with
-unchanged zero page and measured stack peaks. Five changed digits take
-15,032..15,888 cycles across the seven phases, about 17 % less than before.
+single-use subroutines. Those earlier passes saved 42 code bytes and one
+BSS byte, with unchanged zero page and measured stack peaks.
 
 The compact kernel counts the source offset in X and uses the existing
-`tmp1` scratch byte, removing 18 code bytes and two BSS counters. A single
-digit update takes 2,282 cycles. Glyph arguments (`hgr_glyph_params`, five
-zero-page bytes), string traversal (`hgr_text_params`, five bytes), and
+`tmp1` scratch byte, an earlier saving of 18 code bytes and two BSS counters.
+Glyph arguments (`hgr_glyph_params`, five zero-page bytes), string traversal
+(`hgr_text_params`, five bytes), and
 font lookup (`hgr_text_addr`, two bytes plus 26 code bytes) are separate
 archive members. A HUD8-only client therefore saves 44 code bytes,
 seven zero-page bytes and two BSS bytes in total. A HUD16-only client
 saves five zero-page bytes. Clients combining HUD and text share these
 members without duplicating the parameter blocks.
+
+The HUD kernels now keep more working state in existing cc65 scratch.
+The 8×8 masks and page base use `tmp2..tmp4`, saving another six code bytes
+and three BSS bytes. The 16×16 glyph fragments use the same temporaries,
+while edge masks and the row counter use `ptr3/ptr4`, saving another 28 code
+bytes and seven BSS bytes. The controller restores its field pointer after
+each cell; glyph lookup completes before the fragments are initialized.
+These kernels remain non-reentrant and document their scratch clobbers.
+Neither change adds zero page or stack use. A changed 16×16 digit takes
+3,770 cycles (previously 3,930), and an 8×8 digit 2,255 (previously 2,282).
+Five changed 16×16 digits take 14,218..15,013 cycles across the seven phases.
 
 The tests check 168 updates with decimal carry and wrap and 70 digits placed
 against the right and bottom edges, in all seven phases. The same oracle

@@ -1,5 +1,18 @@
 # Current cc65 measurements
 
+The tenth-session gate passes **697 cases**. Reusing existing cc65 scratch
+for numeric HUD kernels shrinks **55 clients**: 30 save **28 loaded bytes
+and seven RAM bytes** (16×16), 25 save **six loaded bytes and three RAM
+bytes** (8×8). **52 timings improve**; two are unchanged, and the VBL-paced
+loop rises by three cycles out of about 34,000 (less than 0.01%). The other
+**642 result dictionaries are identical**; zero page and stacks are unchanged.
+A changed 16×16 digit takes **3,770 instead of 3,930 cycles**; an 8×8 digit
+**2,255 instead of 2,282**. All frame budgets pass and 217 reference fields
+are tightened without raising limits. Pixel/history oracles pass on both
+CPUs, as do library and integration tests. HGR disk/WOZ are rebuilt, all
+18 WOZ twins match, and the minimal example keeps its PAL/NTSC cadence over
+1,000 frames. See [the tenth-session audit](HISTORY.md#audit-de-la-dixième-session-du-5-novembre-2026--compteurs-hgr).
+
 The ninth-session gate passes **697 cases**, including eight damage-worker
 workloads measured before optimization. Existing cc65 scratch replaces the
 private geometry, index and flag storage in `HGR_SPR_DAMAGE`: **43 loaded
