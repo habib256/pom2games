@@ -46,6 +46,9 @@ unsigned char spr_block[HGR_SPR_MAX], spr_dirty;
 void (*spr_damage_fn)(void);
 const unsigned char spr_slots=HGR_SPR_MAX;
 
+/* Native cc65 entries live in independent archive members. Keep the original
+ * C entries for host builds and explicit target reference builds. */
+#if !defined(__CC65__) || (defined(HGR_SPR_C_ENTRY) && HGR_SPR_C_ENTRY)
 /* Init the engine. double_buffered = 1: the engine displays page 1, draws on
  * page 2, and flips every hgr_spr_update -- the caller must have drawn the
  * background on BOTH pages first. double_buffered = 0: everything happens on
@@ -110,3 +113,13 @@ unsigned char hgr_spr_define(unsigned char id, const hgr_mspr_t *shape)
 }
 
 /* move/hide/render/present/update/invalidate are in hgr_sprengine_asm.s. */
+
+#else
+/* Immutable factory value follows this C member's DAMAGE option. The native
+ * initializer reads it without depending on an assembler-side configuration. */
+#if HGR_SPR_DAMAGE
+void (*const spr_damage_default)(void) = hgr_spr_damage;
+#else
+void (*const spr_damage_default)(void) = 0;
+#endif
+#endif

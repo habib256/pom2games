@@ -27,7 +27,8 @@ HGRC_SPRITES_SRCS := $(HGRC)/hgr_sprites.s $(HGRC)/hgr_blit7.s
 HGRC_PRESHIFT_SRCS := $(addprefix $(HGRC)/,hgr_preshift.s hgr_preshift_xor.s hgr_preshift_validate.s)
 HGRC_X2_SRCS := $(HGRC)/hgr_x2_target.s $(HGRC)/hgr_inflate_x2_asm.s $(HGRC)/hgr_blit_x2.s
 HGRC_SPRMASK_SRCS := $(HGRC)/hgr_sprmask.s
-HGRC_SPRENGINE_SRCS := $(HGRC)/hgr_sprengine.c $(HGRC)/hgr_sprengine_asm.s $(HGRC)/hgr_sprdamage.s $(HGRC)/hgr_sprdefault.c
+HGRC_SPRENGINE_SRCS := $(addprefix $(HGRC)/,hgr_sprengine.c hgr_spr_init_pool.s hgr_spr_define.s \
+    hgr_sprengine_asm.s hgr_sprdamage.s hgr_sprdefault.c hgr_spr_init.s)
 HGRC_GEOM_SRCS := $(addprefix $(HGRC)/,hgr_hline.s hgr_vline.s hgr_line.s hgr_outline.s \
     hgr_circle.s hgr_ellipse.s hgr_line_asm.s)
 HGRC_LORES_SRCS := $(addprefix $(HGRC)/,hgr_lores.s hgr_lores_cell.s hgr_lores_clear.s hgr_lores_setblock.s \

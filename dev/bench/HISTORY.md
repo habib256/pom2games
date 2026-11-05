@@ -4,6 +4,56 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Audit de la vingtième session du 6 novembre 2026 — entrées natives du moteur HGR
+
+Après `1dbfb25` et le correctif physique isolé `6f78d57`, les entrées
+`hgr_spr_init_pool`, `hgr_spr_define` et `hgr_spr_init` occupent des
+membres natifs indépendants de l'archive. L'état reste dans le membre C
+historique ; `spr_slots` et un pointeur de callback immuable conservent
+les options MAX/DAMAGE sans nouvelle configuration assembleur. Le pool
+de compatibilité reste extrait seulement lorsqu'il est appelé. Les corps
+C d'origine sont conservés automatiquement sur hôte, ou avec
+`HGR_SPR_C_ENTRY=1` sur la cible ; les douze couples membre/configuration
+reproduisent le même assembleur C qu'avant.
+
+Les **16 clients ciblés accélèrent tous**, sans changement de RAM ni page
+zéro. Les clients pool économisent **729 octets chargés** (−731 CODE,
++2 RODATA), la compatibilité **715** (−721/+6), ceux avec définition
+**522** (−524/+2). Initialisation simple **9 054 → 7 724 cycles**, double
+**11 419 → 10 103** ; compatibilité simple **9 130 → 7 896**, double
+**11 516 → 10 275** ; définition valide **1 362 → 388**, nulle **457 → 176**.
+Les pics de pile C passent de 14 à 6 octets pour le pool, 15 à 6 pour la
+compatibilité et 7 à 1 pour la définition valide ; ses pics matériels
+passent de 8 à 4. Les routines contiennent 233, 178 et 31 octets CODE.
+
+Le banc global passe **793 cas**. **56 clients économisent 356..949 octets
+chargés** et prennent deux octets RODATA, sans RAM, page zéro ni pile
+supplémentaires. **18 durées baissent, huit sont identiques et trente
+augmentent de 2..206 cycles**, au plus **0,685 %**, par déplacement des
+routines existantes. Les **737 autres dictionnaires sont identiques**.
+Le jeu compact passe de 6 511 à 6 097 octets chargés, sa trame de 15 119
+à 15 148 cycles. Les **16 budgets de trame passent**, avec au moins
+12 823 cycles de marge après les 6 000 réservés dans les scènes de jeu
+NTSC. **130 champs de référence sont abaissés**, aucun relevé.
+
+Le contrôle exact des sources de production passe **2 150 272 appels**
+sur 24 configurations (MAX=1/2/8, DAMAGE=0/1, C/natif, NMOS/IIe), puis
+**496 192 appels** de balayages 16 bits natifs. Le C d'origine passe le
+même balayage complet. Les oracles vérifient état entier, refus atomiques,
+en-têtes inchangés, pile traversant une page, octets bruts de mode et
+ordre d'affichage, même lorsque les callbacks écrasent tout le scratch.
+Les 72 scènes de pixels, la fermeture de dégâts et les 24 scènes externes
+DAMAGE/MAX=2 passent. Le mode C conservé reproduit les 16 dictionnaires
+de mesure d'origine exactement. Le test dédié rejoint les cibles courtes
+sur les deux CPU ; sa cible complète garde matrice et balayages C/natif,
+et ses rapports enregistrent sources, compilateur et environnement.
+
+`make all` et les **18 paires disque/WOZ** passent. Seuls **HGR.dsk** et
+son WOZ changent ; l'exemple démarre, anime, accepte pause/flèches/ESC et
+restaure DOS. Les options de bibliothèque, la structure du Makefile et
+`git diff --check` passent. Le relevé final `--dhgr --check` fournit les
+130 références resserrées.
+
 ## Correctif isolé du 6 novembre 2026 — gains physiques K=0..2
 
 L'élargissement des oracles pendant l'optimisation révèle un défaut

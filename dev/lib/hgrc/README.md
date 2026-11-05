@@ -1006,6 +1006,28 @@ Author: VERHILLE Arnaud. Licence: [GPL-3.0](../../../LICENSE).
 
 ## Sprite engine and presentation
 
+Initialization and shape definition use independent native archive members.
+The state remains in `hgr_sprengine.c`; its compiled slot count and immutable
+damage callback configure the native entries without separate assembler flags.
+The compatibility pool remains optional. Host builds retain the original C
+entries automatically; `HGR_SPR_C_ENTRY=1` selects them for a target reference.
+
+Across 16 archive-linked clients, pool-only programs save **729 loaded bytes**,
+compatibility programs **715**, and initialization-plus-definition programs
+**522**. RAM and zero page stay unchanged. Every measured call accelerates:
+valid definition **1,362 → 388 cycles**, single-page pool initialization
+**9,054 → 7,724**, double-page **11,419 → 10,103**. C-stack peaks fall from
+14 to 6 bytes for pool initialization, 15 to 6 for compatibility, and 7 to 1
+for a valid definition; its hardware-stack peak falls from 8 to 4.
+
+`test_hgr_spr_control.py` checks complete state, atomic rejections, headers,
+stack boundaries, IRQ state and page-call order even when callbacks destroy
+all cc65 scratch. `--matrix` covers MAX=1/2/8 and DAMAGE=0/1, native/C and both
+CPUs (2,150,272 calls); `--full` exhausts 16-bit pointer and size fields.
+`--bench --out PATH` measures the 16 clients and `--reference` selects the
+retained C entries, which reproduce the original benchmark exactly.
+`make test-hgr-spr-control-full` runs the matrix and full native/C checks.
+
 The frame engine now keeps temporary visibility in cc65 scratch, reads movement
 arguments directly from the C stack and advances several save-under slots in
 one call. Together these passes save **17 loaded bytes and four RAM bytes**

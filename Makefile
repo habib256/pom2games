@@ -89,6 +89,8 @@ test-changed:
         $(TESTED:%=test-%) $(TESTED:%=test-%-long)
 
 test-hgr:
+	$(PYTHON) dev/tests/test_hgr_spr_control.py
+	$(PYTHON) dev/tests/test_hgr_spr_control.py --iie
 	$(PYTHON) dev/tests/test_gfx_cursor.py
 	$(PYTHON) dev/tests/test_gfx_cursor.py --iie
 	$(PYTHON) dev/tests/test_gfx_rect_entry.py
@@ -354,6 +356,12 @@ test-math-division-full: $(A2RUN)
 	$(PYTHON) dev/tests/test_math_division.py --full --alignments
 	$(PYTHON) dev/tests/test_math_division.py --full --alignments --iie
 .PHONY: test-math-division-full
+
+test-hgr-spr-control-full: $(A2RUN)
+	$(PYTHON) dev/tests/test_hgr_spr_control.py --matrix
+	$(PYTHON) dev/tests/test_hgr_spr_control.py --full
+	$(PYTHON) dev/tests/test_hgr_spr_control.py --full --reference
+.PHONY: test-hgr-spr-control-full
 
 test-preshift-setup-full: $(A2RUN)
 	$(PYTHON) dev/tests/test_preshift_setup.py --full

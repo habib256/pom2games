@@ -1,5 +1,14 @@
 # Current cc65 measurements
 
+The twentieth-session gate passes **793 cases and 16 frame budgets**.
+Independent native HGR sprite entries shrink **56 clients by 356..949
+loaded bytes**. Eighteen timings improve, eight stay equal and thirty rise
+by 2..206 cycles (at most 0.685%); 737 dictionaries are unchanged and 130
+reference fields tighten. Separate initialization/definition profiles all
+accelerate, saving 522..729 loaded bytes; valid definition takes **388
+instead of 1,362 cycles** with lower stack peaks. Original C entries remain
+available and reproduce the original benchmarks. See [the twentieth-session audit](HISTORY.md#audit-de-la-vingtième-session-du-6-novembre-2026--entrées-natives-du-moteur-hgr).
+
 The nineteenth-session gate reproduces **all 793 cases and 16 frame
 budgets unchanged**. Separate directory benchmarks save **94 loaded
 bytes and five RAM bytes** in all 56 profiles: 54 calls accelerate,
