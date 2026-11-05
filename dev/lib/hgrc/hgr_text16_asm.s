@@ -1,9 +1,10 @@
 ; VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root).
 ; hgr_text16_asm.s — Apple II HGR kernel; linked independently from hgrc.lib.
+; Blitter destroys A/X/Y, ptr1..ptr4/tmp1..tmp4. Non-reentrant.
 .export _hgr_blit_glyph, _hgr_puts_run
 .import _hgr_rowhi, _hgr_rowlo, glyph_addr, hgr_dbl_lo, hgr_dbl_hi
 .importzp _hgr_g_col, _hgr_g_glyph, _hgr_g_bit, _hgr_g_y, _hgr_t_bit, _hgr_t_col, _hgr_t_font, _hgr_t_n, _hgr_t_s, _hgr_z_ce, _hgr_z_co, _hgr_z_hi
-.importzp ptr1, ptr2, tmp1, tmp2, tmp3, tmp4
+.importzp ptr1, ptr2, ptr3, ptr4, tmp1, tmp2, tmp3, tmp4
 ; The blitter makes no nested calls: phase and temporary masks can use
 ; cc65 scratch rather than additional private zero-page allocations.
 gr_or = tmp1                 ; byte to OR into the framebuffer (cell|hi)
@@ -11,13 +12,12 @@ gbc_bit = tmp2               ; pen bit (shift count 0..6) * 16
 gbc_m0 = tmp3                ; shifted doubled mask, bits 0..7
 rowcnt = tmp4
 
-.segment "ZEROPAGE"
-gbc_car0: .res 1             ; carrier byte for cell at g_col + 0
-gbc_car1: .res 1             ; carrier byte for cell at g_col + 1
+gbc_car0 = ptr3              ; carrier byte for cell at g_col + 0
+gbc_car1 = ptr3+1            ; carrier byte for cell at g_col + 1
 gbc_car2 = gbc_car0          ; the carriers repeat every two byte columns
 gbc_car3 = gbc_car1
-gbc_m1:   .res 1             ;   byte 1 (bits 8..15)
-gbc_m2:   .res 1             ; bits 16..21, shifted to bits 14..21 for cell 2
+gbc_m1 = ptr4                ; byte 1 (bits 8..15)
+gbc_m2 = ptr4+1              ; bits 16..21, shifted to bits 14..21 for cell 2
 
 .segment "CODE"
 ; --- _hgr_blit_glyph : row-at-a-time 16x16 glyph blitter, white or tinted --
@@ -60,8 +60,7 @@ _hgr_blit_glyph:
         tax
         ; ptr1 = scanline yy ; ptr2 = scanline yy+1 (paired pixel-doubling).
         lda rowcnt
-        asl a                  ; row * 2
-        clc
+        asl a                  ; row * 2; row < 8, so C=0
         adc _hgr_g_y          ; yy = y + 2*row
         tay
         lda _hgr_rowlo,y

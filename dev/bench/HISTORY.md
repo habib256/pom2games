@@ -4,6 +4,22 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Nouvelle série du 5 novembre 2026 : scratch du texte 16×16
+
+Les deux porteuses et les deux fragments supérieurs du glyphe utilisent
+`ptr3/ptr4`, disponibles pendant ce noyau sans appel imbriqué. Cela retire
+**quatre octets de page zéro** privés. Le doublement du numéro de ligne
+(0..7) garantit déjà une retenue nulle : supprimer le `CLC` suivant retire
+**un octet de code** et deux cycles par ligne non vide.
+
+Le glyphe dense passe de **2 657 à 2 641 cycles**, « APPLE II » en blanc
+de **14 720 à 14 622**, et en couleur de **14 839 à 14 741**. Aucun des
+27 profils de texte ciblés ne régresse. Les 280 scènes de glyphes passent
+sur 6502 et 65C02 ; elles couvrent les 256 motifs de ligne, 96 caractères,
+cinq porteuses, sept phases, deux parités et deux pages. Les entrées C
+passent sur tous les x et les valeurs de y/couleur, avec tables ordinaires
+et regroupées. RAM hors page zéro et piles sont inchangées.
+
 ## Audit de la dixième session du 5 novembre 2026 — compteurs HGR
 
 Après `019759b`, les commits `88ea461`, `a4469ff` et `6379c70` remplacent
