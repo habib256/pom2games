@@ -4,6 +4,20 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Nouvelle série du 5 novembre 2026 : indices de propagation HGR en page zéro
+
+L'identifiant courant, l'autre slot et l'offset du rectangle utilisent
+`tmp2..tmp4`. L'appel de visibilité modifiée ne détruit que `tmp1` ; ces
+trois indices restent donc valides pendant toute leur durée d'utilisation.
+La passe retire **21 octets de code et trois octets de RAM supplémentaires**,
+sans allocation de page zéro ni pile ajoutée. Le cumul atteint **38 octets
+chargés et neuf octets de RAM** par client du mode optionnel.
+
+La propagation en sens inverse sur huit sprites passe de **20 373 à
+18 813 cycles** pour cette passe, le calcul après invalidation complète
+de **6 570 à 6 268** et le rendu isolé de **13 931 à 13 875**. Les 512 états
+et les scènes de préfixes stables avec dommages passent sur les deux CPU.
+
 ## Nouvelle série du 5 novembre 2026 : géométrie temporaire des dommages HGR
 
 Les dimensions et coordonnées temporaires du calcul optionnel des dommages

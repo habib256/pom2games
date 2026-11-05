@@ -5,11 +5,12 @@
 .import _spr_drawn, _spr_px, _spr_py, _spr_x, _spr_y
 .import spr_pgbase, spr_changed, spr_visible, spr_bits
 .import _hgr_col7, _hgr_build_columns
-.importzp ptr2, ptr3, ptr4
+.importzp ptr2, ptr3, ptr4, tmp2, tmp3, tmp4
 .bss
-id: .res 1
-other: .res 1
-id_offset: .res 1
+; spr_changed only borrows tmp1; spr_visible does not write scratch.
+id = tmp2
+other = tmp3
+id_offset = tmp4
 all: .res 1
 changed: .res 1
 ; Geometry survives only spr_visible (no scratch writes) and add_box.
