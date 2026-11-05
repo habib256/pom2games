@@ -197,6 +197,8 @@ test-dhgr:
 	$(MAKE) -C dev/examples/dhgr test
 	$(PYTHON) dev/tests/test_dhgr_extended.py
 	$(PYTHON) dev/tests/test_dhgr_blocks.py
+	$(PYTHON) dev/tests/test_dhgr_fill_color_entry.py
+	$(PYTHON) dev/tests/test_dhgr_fill_color_entry.py --iie
 	$(PYTHON) dev/tests/test_dhgr_fill_bits_entry.py
 	$(PYTHON) dev/tests/test_dhgr_fill_bits_entry.py --iie
 	$(PYTHON) dev/tests/test_dhgr_bit_rect_entry.py

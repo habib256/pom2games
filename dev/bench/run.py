@@ -483,6 +483,16 @@ for suffix,x,y,width,height,set_bit in (
         call=f'dhgr_fill_bits({x}u,{y},{width}u,{height},{set_bit});',
         dhgr=True,iie=True,warmup=False)
 
+for suffix,x,y,width,height,color in (
+    ('small',3,4,4,1,9),('boundary',63,4,2,1,9),('high',128,4,1,1,9),
+    ('last',139,191,255,255,249),('wide',0,0,255,1,255),
+    ('outside',255,0,1,1,9),('below',0,255,1,1,9),
+    ('empty_width',0,0,0,1,9),('empty_height',0,0,1,0,9),
+    ('masked_color',3,4,4,1,255)):
+    SCENES['dhgr_fill_color_'+suffix]=dict(
+        call=f'dhgr_fill_rect({x},{y},{width},{height},{color});',
+        dhgr=True,iie=True,warmup=False)
+
 # Non-default compile-time variants (dev/lib/ABI.md, "Speed/RAM options"):
 # the listed members are reassembled with the define and linked before hgrc.lib.
 for name in ('hgr_diagonal_cold','hgr_hud_cold','hgr_scene_cold'):

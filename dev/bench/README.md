@@ -163,7 +163,8 @@ large widths safely. It releases the arguments before tail-calling the
 span kernel. Isolated helper clients save **142 loaded bytes**, C-stack
 peak **9 → 5**, with unchanged RAM and zero page. Small/last-pixel cases
 fall **1,291 / 988 → 1,023 / 671 cycles**; rejected/empty calls also improve.
-The public colour rectangle saves **126 bytes**, **12,267 → 12,016 cycles**;
+The public colour rectangle, including its native entry, saves **201 bytes**,
+**12,267 → 11,790 cycles**;
 with native monochrome forwarding, the line saves **167 bytes**, **2,796 →
 2,340 cycles**. The helper’s
 hardware-stack peaks fall by one or two bytes. Nine new helper cases run
@@ -178,6 +179,15 @@ unchanged RAM and zero page. Small set/clear calls fall **1,244 / 1,245 →
 **361 → 190**. The line client saves another 50 bytes, **2,514 → 2,340
 cycles**, C-stack peak **20 → 14**. All nine affected cases improve;
 eight new direct cases include zero/255 selectors and rejected geometry.
+
+The colour `dhgr_fill_rect` entry clips width before multiplying it by
+four, prepares the pattern and expands four argument bytes into five.
+Height stays in X; one scratch byte holds the low halves of the two shifts.
+It saves **75 loaded bytes**, C-stack peak **12 → 5** (invalid x **7 → 4**),
+hardware peak **9 → 7**, with unchanged RAM and zero page. Small/last-pixel
+cases fall **1,355 / 1,124 → 1,143 / 898 cycles**, the 16-row rectangle
+**12,016 → 11,790**. All eleven affected cases improve; ten new cases cover
+byte boundaries, clipping, all-bits-set colours and empty/offscreen calls.
 
 Bounded DHGR clearing (`dhgr_clear_rows`) uses a register counter for the
 four turns of each pattern pass and passes the row's high address byte in

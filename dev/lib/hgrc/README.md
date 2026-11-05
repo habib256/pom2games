@@ -449,7 +449,8 @@ tail-calling the span kernel. Isolated helper clients save **142 loaded
 bytes**, C-stack peak **9 → 5** (rejections **7 → 5**), with unchanged RAM
 and zero page. A small rectangle takes **1,023 instead of 1,291 cycles**;
 the last pixel with width 65535 takes **671 instead of 988**. The public
-colour rectangle saves 126 bytes and takes **12,016 instead of 12,267
+colour rectangle, including its native entry, saves 201 bytes and takes
+**11,790 instead of 12,267
 cycles**; with native monochrome forwarding, a line saves 167 bytes and takes **2,340 instead of
 2,796**. The helper’s hardware-stack peaks also fall by one or two bytes.
 `test_dhgr_bit_rect_entry.py` checks 328,704 calls on both CPU models:
@@ -471,6 +472,19 @@ C-stack peak falls **20 → 14**. `test_dhgr_fill_bits_entry.py` compares
 raw forwarding, all four pattern bytes even on invalid geometry, scratch
 clobbers, caller guards and 1,024 stack placements. The C reference passes
 this same fixture.
+
+The native colour entry clips width in colour pixels, then expands its
+four argument bytes into the helper's five-byte bit-coordinate frame.
+Height stays in X while two shifts with carry produce each 16-bit x/width;
+only one extra stack byte is reserved. Invalid x leaves the pattern alone,
+while valid x still prepares the pattern for empty/offscreen rectangles.
+This follow-up saves **75 loaded bytes**, C-stack peak **12 → 5** (invalid x
+**7 → 4**), hardware peak **9 → 7**, with unchanged RAM and zero page.
+The small/last-pixel colour cases take **1,143 / 898 cycles** instead of
+1,355 / 1,124. `test_dhgr_fill_color_entry.py` checks 67,840 calls on both
+CPUs: all 65,536 x/width pairs, all y/height/color bytes, call ordering,
+clipped bit coordinates, scratch/caller guards and 1,024 stack placements.
+The same fixture passes against the original C entry.
 
 - `dhgr_capabilities()`: bits `DHGR_CAP_EXTENDED` and `DHGR_CAP_AUX_VIDEO`.
   The probe keeps the display and the bytes used in the video holes.

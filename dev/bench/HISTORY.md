@@ -4,6 +4,41 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Série du 5 novembre 2026 : préparation native du remplissage couleur DHGR
+
+`dhgr_fill.s` borne la largeur en pixels couleur, prépare le motif puis
+étend les quatre octets d'arguments en cinq octets de rectangle binaire.
+La hauteur reste dans X pendant les deux multiplications 16 bits par
+quatre ; un seul octet de pile supplémentaire suffit. L'abscisse invalide
+ne modifie pas le motif. Une abscisse valide prépare toujours la couleur,
+y compris pour une largeur/hauteur nulle ou une ordonnée hors écran.
+
+| Appel C | Cycles avant → après | Binaire avant → après |
+|---|---:|---:|
+| Petit rectangle couleur | 1 355 → 1 143 | 2 463 → 2 388 |
+| Passage de x=63 à x=64 | 1 289 → 1 080 | 2 465 → 2 390 |
+| Origine x=128 | 1 104 → 893 | 2 465 → 2 390 |
+| Dernier pixel, largeur/hauteur maximales | 1 124 → 898 | 2 465 → 2 390 |
+| Largeur 255 à l'origine | 2 421 → 2 197 | 2 464 → 2 389 |
+| Abscisse hors écran | 180 → 124 | 2 465 → 2 390 |
+| Hauteur nulle | 540 → 329 | 2 465 → 2 390 |
+| Rectangle de 16 lignes | 12 016 → 11 790 | 2 467 → 2 392 |
+
+Chaque client isolé gagne 75 octets ; pile C 12 → 5 (abscisse rejetée
+7 → 4), pile matérielle 9 → 7 (rejets 6 → 5 ou 7 → 6), sans RAM/page zéro
+supplémentaire. Les onze cas concernés sont plus rapides, 363 restent
+identiques ; dix cas sont nouveaux.
+
+La fixture de 67 840 appels passe d'abord sur le C, puis l'assembleur
+II+/IIe : toutes les paires x/largeur, toutes les valeurs de y/hauteur/couleur,
+ordre des appels, paramètres binaires clippés, registres de travail écrasés,
+gardes et 1 024 positions de pile. Les tests réels vérifient pixels,
+320 lignes colorées, 48 étapes étendues, deux backends GFX et deux pages/banques.
+Validation complémentaire : 50 clients minimaux, intégration HGR,
+`make all`, exemples DHGR (1 000 images NTSC/PAL), ROBOTSTATION IIe/IIc,
+WOZ, relevé complet de 374 cas et gate. DHGR.dsk, ROBOTSTATION.po et leurs
+WOZ sont reconstruits.
+
 ## Série du 5 novembre 2026 : transmission native du remplissage monochrome DHGR
 
 `dhgr_fill_bits.s` transforme zéro/non-zéro en quatre octets identiques
