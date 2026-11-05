@@ -219,7 +219,13 @@ def check_archive(work):
          ('gfx_num_dec.o', 'gfx_num_signed.o')),
         ('celltext', 'gfx_gotoxy(0u,0u); gfx_text("A"); gfx_putu(42u);', 'gfx_text.o',
          ('gfx_num_signed.o', 'gfx_num_hex.o', 'hgr_text16_asm.o', 'hgr_sprite_params.o', 'hgr_pixrect_asm.o')),
-        ('dhgr_mode', 'dhgr_init();', 'dhgr.o',
+        ('dhgr_draw_page', 'dhgr_draw_page(2);', 'dhgr_draw_page.o',
+         ('dhgr_get_draw_page.o', 'dhgr_get_display_page.o', 'dhgr_flip.o', 'dhgr_asm.o')),
+        ('dhgr_get_draw_page', 'return dhgr_get_draw_page();', 'dhgr_get_draw_page.o',
+         ('dhgr_draw_page.o', 'dhgr_get_display_page.o', 'dhgr_flip.o', 'dhgr_asm.o')),
+        ('dhgr_get_display_page', 'return dhgr_get_display_page();', 'dhgr_get_display_page.o',
+         ('dhgr_draw_page.o', 'dhgr_get_draw_page.o', 'dhgr_flip.o', 'dhgr_asm.o')),
+        ('dhgr_mode', 'dhgr_init();', 'dhgr_state.o',
          ('dhgr_pixel_asm.o', 'dhgr_fill.o', 'dhgr_block.o', 'dhgr_small_asm.o', 'gfx_u16_digits.o',
           'dhgr_clear_asm.o', 'dhgr_span_asm.o', 'dhgr_rows.o', 'dhgr_cells.o')),
         ('dhgr_pixel', 'dhgr_plot(1u,1u,1u);', 'dhgr_pixel_asm.o',
@@ -264,6 +270,10 @@ def check_archive(work):
                                              'hgr_rows_asm.o', 'hgr_row.o')), (name, 'unexpected HGR tables/page manager')
         if not name.startswith('dhgr_'):
             assert not any(n.startswith('dhgr') for n in linked), (name, 'unexpected DHGR dependency')
+        if name.startswith('dhgr_') and name != 'dhgr_flip':
+            assert 'dhgr_flip.o' not in linked, (name, 'unused flip')
+        if name == 'dhgr_clear':
+            assert 'dhgr_asm.o' not in linked, (name, 'unused mode manager')
         assert required in linked, (name, 'missing kernel', required)
         assert not linked.intersection(excluded), (name, 'unwanted families', linked.intersection(excluded))
     print(f'HGR/DHGR archive: {len(cases)} minimal programs exclude unused code and zero-page families.')

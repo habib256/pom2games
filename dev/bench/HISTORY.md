@@ -4,6 +4,51 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Série du 5 novembre 2026 : état et pages DHGR indépendants
+
+L'état DHGR devient un membre de données seul ; les quatre fonctions de
+page ont chacune leur membre d'archive natif. La sélection ne crée plus
+de temporaire sur la pile C. Le basculement conserve l'ancienne page
+affichée dans Y, préservé par les entrées internes de lecture et d'affichage,
+puis termine par la sélection. Les deux lectures gardent leur séquence
+et leurs cycles. Les sélecteurs invalides et l'état avant initialisation
+conservent exactement le comportement du C.
+
+| Appel C | Cycles avant → après | Binaire avant → après |
+|---|---:|---:|
+| Sélection page 1 | 93 → 25 | 885 → 792 |
+| Sélection page 2 | 95 → 31 | 880 → 787 |
+| Sélecteur invalide | 78 → 23 | 880 → 787 |
+| Lecture dessin page 1 | 24 → 24 | 878 → 784 |
+| Lecture dessin page 2 | 25 → 25 | 883 → 807 |
+| Lecture page affichée | 18 → 18 | 883 → 778 |
+| Basculement | 211 → 88 | 883 → 820 |
+| Basculement sans page précédemment affichée | 189 → 79 | 883 → 820 |
+
+Pile C sélection/basculement 1/2 → 0, pile matérielle 6/8 → 4/6.
+Les autres clients DHGR gagnent 41..111 octets ; les cinq cas d'effacement
+avant initialisation DHGR gagnent 409 octets et neuf octets de page zéro,
+car ils n'importent plus le gestionnaire de mode. RAM inchangée partout.
+Le placement du code modifie certains cycles de rendu : ligne complète
+2 226 → 2 208, effacement complet 114 377 → 112 456, mais écriture de bloc
+6 615 → 6 678 et rectangle couleur 11 790 → 11 809. Le plus grand recul
+relatif est un rejet couleur, 368 → 373 (+1,36 %). Les anciennes références
+de cycles restent conservées pour tous les reculs.
+
+Le C de référence puis l'assembleur NMOS/65C02 passent 131 328 combinaisons :
+tous les octets de base, sélecteur et affichage, état initial, ordre du
+basculement, gardes et contrat X/Y des vraies entrées d'affichage/lecture.
+Trois nouveaux clients minimaux vérifient l'absence des fonctions inutiles ;
+l'effacement seul exclut aussi le gestionnaire de mode. Le relevé complet
+comprend 392 cas (huit nouveaux), 78 changés et 314 identiques.
+
+Les tests DHGR, étendus, renderer, compositeur IIe/IIc/IRQ et intégration
+HGR passent, ainsi que les 55 clients minimaux. `make all` reconstruit
+DHGR, ROBOTSTATION et CHROMABREAK avec leurs WOZ. CHROMABREAK absorbe les
+23 octets de code lib économisés dans sa réserve RODATA : ses adresses
+assembleur, tables et variables restent celles vérifiées par les assertions.
+Les tests des disques, des profils CHROMABREAK, des WOZ et le gate passent.
+
 ## Série du 5 novembre 2026 : entrées natives séparées des axes DHGR
 
 Les deux fonctions de `dhgr_span.c` deviennent deux membres d'archive

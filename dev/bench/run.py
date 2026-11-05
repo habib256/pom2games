@@ -504,6 +504,18 @@ for suffix,x,y0,y1,set_bit in (
     SCENES['dhgr_vline_'+suffix]=dict(call=f'dhgr_vline({x}u,{y0},{y1},{set_bit});',
                                     dhgr=True,iie=True,warmup=False)
 
+for suffix,call,setup in (
+    ('draw_one','dhgr_draw_page(1);','dhgr_draw_page(2);'),
+    ('draw_two','dhgr_draw_page(2);',''),
+    ('draw_invalid','dhgr_draw_page(255);',''),
+    ('get_one','dhgr_get_draw_page();',''),
+    ('get_two','dhgr_get_draw_page();','dhgr_draw_page(2);'),
+    ('get_display','dhgr_get_display_page();','dhgr_show_page(2);'),
+    ('flip','dhgr_flip();','dhgr_draw_page(2);'),
+    ('flip_unshown','dhgr_flip();','dhgr_display=0;')):
+    SCENES['dhgr_pages_'+suffix]=dict(call=call,setup=setup,dhgr=True,iie=True,
+        warmup=False,declarations='#include "dhgr_internal.h"')
+
 # Non-default compile-time variants (dev/lib/ABI.md, "Speed/RAM options"):
 # the listed members are reassembled with the define and linked before hgrc.lib.
 for name in ('hgr_diagonal_cold','hgr_hud_cold','hgr_scene_cold'):

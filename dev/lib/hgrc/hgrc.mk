@@ -53,7 +53,7 @@ HGRC_ASM_DEPS := $(wildcard $(HGRC)/*.inc $(HGRC)/../apple2/*.inc $(HGRC)/../app
 
 # Host-only x2 reference: hgr_x2.c; cc65 selects hgr_x2_target.c above.
 # IIe/IIc DHGR stays opt-in, independent from HGR and gfx.
-HGRC_DHGR_STATE_SRCS := $(HGRC)/dhgr.c $(HGRC)/dhgr_asm.s
+HGRC_DHGR_STATE_SRCS := $(HGRC)/dhgr_state.c $(HGRC)/dhgr_draw_page.s $(HGRC)/dhgr_get_draw_page.s $(HGRC)/dhgr_get_display_page.s $(HGRC)/dhgr_flip.s $(HGRC)/dhgr_asm.s
 HGRC_DHGR_TABLE_SRCS := $(HGRC)/dhgr_rows.s $(HGRC)/dhgr_cells.s
 HGRC_DHGR_PIXEL_SRCS := $(addprefix $(HGRC)/,dhgr_pixel_asm.s dhgr_getpixel_asm.s) $(HGRC_DHGR_TABLE_SRCS)
 HGRC_DHGR_CLEAR_SRCS := $(addprefix $(HGRC)/,dhgr_clear.c dhgr_pattern_asm.s dhgr_clear_asm.s dhgr_clear_rows.s dhgr_clear_rows_asm.s dhgr_rows.s)

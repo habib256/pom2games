@@ -159,6 +159,7 @@ _dhgr_text_restore:
         rts
 
 ; fastcall A=1/2, invalid values ignored. This never changes the draw page.
+; Preserve X/Y: dhgr_flip retains the old display page in Y.
 _dhgr_show_page:
         cmp #1
         beq @one

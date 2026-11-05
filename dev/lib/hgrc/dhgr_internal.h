@@ -5,7 +5,7 @@
 #include "hgr_layout.h"
 
 /* Shared main-RAM parameters for the bank-safe assembly primitives.
- * Internal ABI: keep definitions in dhgr.c / dhgr_transfer_params.c. */
+ * Internal ABI: keep definitions in dhgr_state.c / dhgr_transfer_params.c. */
 extern unsigned char *dhgr_addr;
 extern unsigned char dhgr_aux, dhgr_mask, dhgr_bits;
 extern unsigned char dhgr_base, dhgr_display, dhgr_pattern[4];

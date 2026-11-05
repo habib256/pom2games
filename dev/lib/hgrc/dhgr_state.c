@@ -11,17 +11,3 @@ unsigned char dhgr_display;
 unsigned char dhgr_pattern[4]; /* aux even, main even, aux odd, main odd */
 unsigned char dhgr_first, dhgr_last, dhgr_first_mask, dhgr_last_mask;
 
-void __fastcall__ dhgr_draw_page(unsigned char page)
-{
-    if (page == 1 || page == 2) dhgr_base = page == 1 ? 0x20 : 0x40;
-}
-
-unsigned char dhgr_get_draw_page(void) { return dhgr_base == 0x20 ? 1 : 2; }
-unsigned char dhgr_get_display_page(void) { return dhgr_display; }
-
-void dhgr_flip(void)
-{
-    unsigned char previous = dhgr_display;
-    dhgr_show_page(dhgr_get_draw_page());
-    dhgr_draw_page(previous);
-}

@@ -163,10 +163,10 @@ large widths safely. It releases the arguments before tail-calling the
 span kernel. Isolated helper clients save **142 loaded bytes**, C-stack
 peak **9 → 5**, with unchanged RAM and zero page. Small/last-pixel cases
 fall **1,291 / 988 → 1,023 / 671 cycles**; rejected/empty calls also improve.
-The public colour rectangle, including its native entry, saves **201 bytes**,
-**12,267 → 11,790 cycles**;
+The public colour rectangle, including its native entry, saves **312 bytes**,
+**12,267 → 11,809 cycles**;
 with native monochrome forwarding and axis preparation, the line saves
-**355 bytes**, **2,796 → 2,226 cycles**. The helper’s
+**466 bytes**, **2,796 → 2,208 cycles**. The helper’s
 hardware-stack peaks fall by one or two bytes. Nine new helper cases run
 after `dhgr_init`, including full-width, 16-bit wrap, clipping and rejections.
 
@@ -197,6 +197,24 @@ Forward/reversed short horizontal lines fall **1,323 / 1,478 → 1,191 /
 1,213 cycles**; vertical lines **3,123 / 3,164 → 2,983 / 2,992**. The full
 horizontal line falls **2,340 → 2,226**. All eleven affected cases improve;
 ten new direct axis cases cover reversal, clipping and offscreen calls.
+
+DHGR state and its four page functions occupy independent archive members.
+Draw-page selection takes **25 / 31 cycles** for pages 1 / 2 and **23** for
+an invalid selector (previously 93 / 95 / 78), without C-stack use.
+Flip retains the old displayed page in Y across two internal calls that
+preserve Y, then tail-calls selection: **211 → 88 cycles**, C-stack peak
+**2 → 0**, hardware peak **8 → 6**. The two queries retain their original
+24 / 25 / 18-cycle paths. Isolated page clients save **63–105 loaded bytes**;
+other measured DHGR clients save **41–111**. Clearing rows before mode
+initialization saves **409 loaded bytes and 9 zero-page bytes** because it
+no longer imports the mode manager. RAM is unchanged. Code placement shifts
+some rendering timings: block writing rises **6,615 → 6,678 cycles** and
+the colour rectangle **11,790 → 11,809**; the old cycle references remain
+in the regression gate. `test_dhgr_pages.py` checks 131,328 state combinations
+on both CPU models, initial state, invalid selectors, flip ordering and the
+real show/query register contracts. Minimal clients exclude unused page
+functions. The full benchmark has **392 cases**, with 78 changed and 314
+identical in this pass.
 
 Bounded DHGR clearing (`dhgr_clear_rows`) uses a register counter for the
 four turns of each pattern pass and passes the row's high address byte in

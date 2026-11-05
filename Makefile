@@ -197,6 +197,8 @@ test-dhgr:
 	$(MAKE) -C dev/examples/dhgr test
 	$(PYTHON) dev/tests/test_dhgr_extended.py
 	$(PYTHON) dev/tests/test_dhgr_blocks.py
+	$(PYTHON) dev/tests/test_dhgr_pages.py
+	$(PYTHON) dev/tests/test_dhgr_pages.py --iie
 	$(PYTHON) dev/tests/test_dhgr_axes_entry.py
 	$(PYTHON) dev/tests/test_dhgr_axes_entry.py --iie
 	$(PYTHON) dev/tests/test_dhgr_fill_color_entry.py

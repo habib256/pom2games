@@ -449,10 +449,10 @@ tail-calling the span kernel. Isolated helper clients save **142 loaded
 bytes**, C-stack peak **9 → 5** (rejections **7 → 5**), with unchanged RAM
 and zero page. A small rectangle takes **1,023 instead of 1,291 cycles**;
 the last pixel with width 65535 takes **671 instead of 988**. The public
-colour rectangle, including its native entry, saves 201 bytes and takes
-**11,790 instead of 12,267
+colour rectangle, including its native entry, saves 312 bytes and takes
+**11,809 instead of 12,267
 cycles**; with native monochrome forwarding and axis preparation, a line saves
-355 bytes and takes **2,226 instead of
+466 bytes and takes **2,208 instead of
 2,796**. The helper’s hardware-stack peaks also fall by one or two bytes.
 `test_dhgr_bit_rect_entry.py` checks 328,704 calls on both CPU models:
 all x values with one-pixel/maximal widths, every width at both screen
@@ -501,6 +501,24 @@ lines **2,983 / 2,992** instead of 3,123 / 3,164.
 x values and y pairs, byte selectors, clipped/modular extents, scratch/caller
 guards and 2,048 stack placements. It also passes against the C reference.
 Minimal clients verify that using one axis does not link the other.
+
+DHGR state and its four page functions occupy independent archive members.
+Draw-page selection takes **25 / 31 cycles** for pages 1 / 2 and **23** for
+an invalid selector (previously 93 / 95 / 78), without C-stack use.
+Flip retains the old displayed page in Y across two internal calls that
+preserve Y, then tail-calls selection: **211 → 88 cycles**, C-stack peak
+**2 → 0**, hardware peak **8 → 6**. The two queries retain their original
+24 / 25 / 18-cycle paths. Isolated page clients save **63–105 loaded bytes**;
+other measured DHGR clients save **41–111**. Clearing rows before mode
+initialization saves **409 loaded bytes and 9 zero-page bytes** because it
+no longer imports the mode manager. RAM is unchanged. Code placement shifts
+some rendering timings: block writing rises **6,615 → 6,678 cycles** and
+the colour rectangle **11,790 → 11,809**; the old cycle references remain
+in the regression gate. `test_dhgr_pages.py` checks 131,328 state combinations
+on both CPU models, initial state, invalid selectors, flip ordering and the
+real show/query register contracts. Minimal clients exclude unused page
+functions. The full benchmark has **392 cases**, with 78 changed and 314
+identical in this pass.
 
 - `dhgr_capabilities()`: bits `DHGR_CAP_EXTENDED` and `DHGR_CAP_AUX_VIDEO`.
   The probe keeps the display and the bytes used in the video holes.
@@ -583,9 +601,9 @@ Consumers that compile the sources directly can choose:
 
 `HGRC_DHGR_SRCS` keeps the historical set of primitives, transfers and
 8×8 text. `dhgr_internal.h` centralises the private parameters and prototypes of the
-banked primitives. When compiling manually, `dhgr.c` now provides
-the state and the pages: use the family lists above to include
-their dependencies. The assembler kernels for masked writing, reading,
+banked primitives. When compiling manually, `dhgr_state.c` provides
+only the state; the four page functions have their own assembly files.
+Use the family lists above to include their dependencies. The assembler kernels for masked writing, reading,
 clearing and scanlines are separate objects. The pixel address and the
 colour pattern are shared, while each read, point, rectangle
 and clear API keeps its own object. The small-font parameters are
@@ -598,7 +616,7 @@ referenced members and their dependencies. ChromaBreak follows this rule with
 `platform.lib`, including for the Apple II, ProDOS and mouse modules. Its test
 checks the link map to exclude generic pixels, rectangles and transfers,
 8×8 text and unused text wrappers. The library tests also check
-sixteen minimal consumers of the archive.
+55 minimal consumers of the archive.
 
 ### Memory contract and transitions
 

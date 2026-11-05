@@ -39,8 +39,10 @@
 ; release on failure, then shorter paths) and dhgr_clear_asm.s -1 (five
 ; cycles a byte, IRQs masked one page at a time): library CODE unchanged,
 ; every asserted address holds, nothing to absorb.
+; 2026-11-05, independent native DHGR page entries save 23 library CODE
+; bytes in this client. RODATA +23 preserves all game tables and variables.
 CODE_SPARE   = 38
-RODATA_SPARE = 0
+RODATA_SPARE = 23
 BSS_SPARE    = 0
 
 .code
