@@ -106,6 +106,8 @@ test-hgr:
 	$(PYTHON) dev/tests/test_asm_boundaries.py
 	$(PYTHON) dev/tests/test_dos_reuse.py
 	$(PYTHON) dev/tests/test_math.py
+	$(PYTHON) dev/tests/test_rand16.py
+	$(PYTHON) dev/tests/test_rand16.py --iie
 	$(PYTHON) dev/tests/test_math_products.py
 	$(PYTHON) dev/tests/test_math_division.py
 	$(PYTHON) dev/tests/test_verlet.py

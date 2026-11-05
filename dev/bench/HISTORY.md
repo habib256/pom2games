@@ -4,6 +4,23 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Nouvelle série du 5 novembre 2026 : générateur aléatoire C sans appel intermédiaire
+
+`a2_rand16` applique directement la même transition LFSR `$B400` que
+`rand8`, en gardant l'octet haut dans A jusqu'à l'application du retour.
+Il rend ensuite l'état dans A/X, sans appel imbriqué. Le noyau passe de
+**27 à 19 octets de code**, garde ses deux octets DATA et économise
+**deux octets de pile matérielle** dans les clients mesurés. L'appel C
+avec stockage du résultat passe de **55 à 45 cycles** pour un état pair
+et de **64 à 46** pour un état impair, sur 6502 comme sur 65C02.
+
+Le nouveau test compare les **65 536 états**, le résultat A/X et l'état
+mémorisé, la graine initiale `$ACE1`, Y et l'équilibre de pile. Il passe
+sur l'ancien noyau puis sur le nouveau, et sur les deux CPU pour celui-ci.
+La suite mathématique, dont le générateur assembleur inchangé, passe aussi.
+Les dix nouvelles mesures C couvrent les deux chemins, zéro, `$ACE1` et
+`$FFFF` sur les deux CPU ; leurs références ont été prises avant modification.
+
 ## Nouvelle série du 5 novembre 2026 : adresse de surimpression DHGR en registre
 
 La surimpression calcule maintenant son adresse de ligne dans A et ne

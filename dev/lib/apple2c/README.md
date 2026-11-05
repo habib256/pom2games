@@ -70,11 +70,19 @@ not call it links the same bytes:
 
 | Object (`apple2c.mk`) | Function | Cost |
 |---|---|---|
-| `apple2rand.s` (`APPLE2C_RAND_SRCS`, deps `APPLE2C_RAND_DEPS`), `apple2rand.h` | `a2_rand16()`: one step of `../math/random.asm`'s Galois LFSR (taps `$B400`), the new state; `a2_rand_state` (`$ACE1` at load) to seed, never 0 | 27 B code, 2 B DATA |
+| `apple2rand.s` (`APPLE2C_RAND_SRCS`), `apple2rand.h` | `a2_rand16()`: one step matching `../math/random.asm`'s Galois LFSR (taps `$B400`), the new state; `a2_rand_state` (`$ACE1` at load) to seed, never 0 | 19 B code, 2 B DATA |
 | `apple2stick.s` (`APPLE2C_STICK_SRCS`, with `APPLE2C_GAME_SRCS`) | `a2_stick_present()`: `a2_read_stick()`, then 1 if both paddle timers ran out (a two-axis stick), 0 if either still runs | 17 B |
 | `apple2dosbin.s` (`APPLE2C_DOSBIN_SRCS`, with `APPLE2C_DOS_SRCS`) | `a2_dos_bload(name, addr)`, `a2_dos_bsave(name, addr, len)`: `BLOAD NAME,A$hhhh` / `BSAVE NAME,A$hhhh,L$hhhh` | 95 B code, 22 RODATA, 5 BSS |
 
 User: SNAKE (all three; its FIXED_SEED sequence is unchanged).
+
+The C PRNG keeps the high state byte in A while applying feedback and returns
+directly in A/X, preserving Y. Removing its nested call saves eight code bytes,
+two hardware-stack bytes and 10 or 18 cycles per call, depending on the old
+low bit. The measured C call including a volatile result store takes 45 or
+46 cycles. `test_rand16.py` checks all 65,536 input states, the returned and
+stored values, initial seed, Y and stack balance on NMOS 6502 and 65C02.
+`APPLE2C_RAND_DEPS` remains defined as an empty compatibility variable.
 
 Macros: `puts_apple2(s)`, `println_apple2(s)`, `getchar_apple2()`, plus the
 codes `KC_LEFT` `KC_RIGHT` `KC_UP` `KC_DOWN` `KC_RET` `KC_ESC`.

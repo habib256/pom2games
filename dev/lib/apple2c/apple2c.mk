@@ -41,7 +41,8 @@ APPLE2C_DOS_SRCS  := $(APPLE2C)/apple2dos_asm.s
 # a2_stick_present (with APPLE2C_GAME_SRCS), a2_dos_bload / a2_dos_bsave
 # (with APPLE2C_DOS_SRCS).
 APPLE2C_RAND_SRCS := $(APPLE2C)/apple2rand.s
-APPLE2C_RAND_DEPS := $(APPLE2C)/../math/random.asm
+# Standalone implementation; keep the public dependency variable for consumers.
+APPLE2C_RAND_DEPS :=
 APPLE2C_STICK_SRCS := $(APPLE2C)/apple2stick.s
 APPLE2C_DOSBIN_SRCS := $(APPLE2C)/apple2dosbin.s
 # 80-column text written directly (apple2t80.h, //e 80-column card / //c,
