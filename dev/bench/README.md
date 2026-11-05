@@ -1,5 +1,17 @@
 # Current cc65 measurements
 
+The eighth-session gate passes **689 cases**, including eight isolated move
+calls measured before optimization. HGR engine scratch, direct movement
+arguments and grouped save-under advances save **17 loaded bytes and four
+RAM bytes in 48 clients**. **45 timings improve**; three increase by only
+two to five cycles (less than 0.02%). All frame budgets pass. Valid moves
+save 29 cycles, rejected IDs 44; the four-sprite stress frame falls from
+**37,855 to 37,577 cycles**. The eight move clients use one fewer hardware-stack
+byte; zero page and C stack are unchanged. 188 reference fields are tightened.
+Both CPU oracles and engine integration pass. The HGR disk/WOZ are rebuilt,
+HGR and LIGHT3DBALL tests pass, and all 18 disk/WOZ pairs match. See
+[the eighth-session audit](HISTORY.md#audit-de-la-huitième-session-du-5-novembre-2026--moteur-de-sprites-hgr).
+
 The seventh-session gate passes **681 cases**, including 15 workloads
 measured before optimization. DHGR bitmap/overlay address accumulation
 and the direct C PRNG shrink **25 clients** (15 by **3 loaded bytes**,

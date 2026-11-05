@@ -304,6 +304,18 @@ for phase in (0, 3, 6):
         call='hgr_sprite_xor(%du,40,&sprite);' % (28 + phase),
         sprite_width=7, sprite_height=16, sprite_stride=2,
         declarations='static const hgr_sprite_t sprite={bits,2,16};')
+for label,slot,x,y,defined,initialized in (
+    ('origin',0,0,0,True,True),('high_x',0,256,191,True,True),
+    ('far',0,65535,255,True,True),('last',7,279,191,True,True),
+    ('undefined',0,28,40,False,True),('invalid',8,28,40,False,True),
+    ('invalid_ff',255,28,40,False,True),('uninitialized',0,28,40,False,False)):
+    SCENES['hgr_move_'+label]=dict(
+        call=f'hgr_spr_move({slot},{x}u,{y});',warmup=False,
+        declarations='static unsigned char pool[8];'+
+            'static const unsigned char data[7]={1},mask[7]={254};'+
+            'static const hgr_mspr_t shape={data,mask,1,1};',
+        setup=('if(!hgr_spr_init_pool(0,pool,8,8,1))return 2;' if initialized else '')+
+            (f'if(!hgr_spr_define({slot},&shape))return 3;' if defined else ''))
 for name,call,cold,stride in (
     ('set','hgr_sprite(31,40,&sprite,HGR_SET);',False,2),
     ('clear','hgr_sprite(31,40,&sprite,HGR_CLEAR);',False,2),

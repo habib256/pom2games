@@ -948,6 +948,18 @@ Author: VERHILLE Arnaud. Licence: [GPL-3.0](../../../LICENSE).
 
 ## Sprite engine and presentation
 
+The frame engine now keeps temporary visibility in cc65 scratch, reads movement
+arguments directly from the C stack and advances several save-under slots in
+one call. Together these passes save **17 loaded bytes and four RAM bytes**
+per engine client, with no extra zero page. A valid move saves 29 measured
+cycles; a rejected ID saves 44. The isolated movement clients use one fewer
+hardware-stack byte. The four-sprite stress frame takes 37,577 instead of
+37,855 cycles; the compact game takes 15,227 instead of 15,244. The shared
+pointer helper makes a single advance six cycles longer before placement
+effects, while multiple-slot advances avoid repeated calls and memory accesses.
+Tests cover all IDs, full coordinate boundaries, undefined shapes, both stacks,
+all capacities 1..255 and slot counts 1..8, including pointer wrap on both CPUs.
+
 `hgr_spr_render()` restores then draws the sprites without waiting or displaying.
 `hgr_spr_present()` shows the rendered page and selects the other drawing
 page when double buffering; when single buffering, it does nothing.

@@ -4,6 +4,36 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Audit de la huitième session du 5 novembre 2026 — moteur de sprites HGR
+
+Après `e9dc693`, les commits `0058012`, `d14d064` et `5c91c14` suppriment
+les temporaires persistants de visibilité et de déplacement, puis regroupent
+les additions de pointeurs du tampon de fond. Les scènes remesurées avant
+modification sont identiques au rapport précédent, avec le même environnement.
+Huit nouveaux appels de déplacement ont leurs références prises avant les
+trois passes ; le banc passe de **681 à 689 cas**.
+
+Le gate complet `--dhgr --check` réussit : **48 clients plus petits de
+17 octets chargés et quatre octets de RAM**, 641 dictionnaires inchangés,
+**45 durées réduites** et trois augmentées de **deux à cinq cycles**, moins
+de **0,02 %**. La page zéro et la pile C restent identiques ; les huit
+clients de déplacement isolés gagnent un octet de pile matérielle. Le grand
+stress passe de **37 855 à 37 577 cycles**, le rendu par dommages isolés de
+**14 158 à 14 092**. Tous les budgets absolus de trame restent respectés.
+**188 champs de référence sont abaissés**, sans relever de seuil ou de budget.
+
+Les nouveaux tests passent sur chaque CPU : **20 480 déplacements** avec
+tous les identifiants, coordonnées limites, formes non définies et contrôle
+des deux piles ; **9 180 calculs de pointeur** avec toutes les capacités,
+les comptes de slots, les passages de page et le retour modulo 65 536.
+Les trois variantes d'intégration du moteur, le stress, les préfixes stables
+sur les deux CPU avec/sans dommages, la propagation des dommages et HGR
+passent aussi. Les nouveaux contrôles font partie de `make test-hgr`.
+
+`make all`, l'exemple HGR et la campagne des cinq niveaux de LIGHT3DBALL
+réussissent. Seule la disquette HGR change, avec son WOZ régénéré ; les
+**18 paires disque/WOZ** sont vérifiées.
+
 ## Nouvelle série du 5 novembre 2026 : parcours du tampon de fond HGR
 
 Le calcul de fin du tampon et celui du début du suffixe à redessiner
