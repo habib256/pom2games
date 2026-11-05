@@ -121,6 +121,8 @@ test-hgr:
 	$(PYTHON) dev/tests/test_verlet_helpers.py --iie
 	$(PYTHON) dev/tests/test_verlet_ground_probes.py
 	$(PYTHON) dev/tests/test_verlet_ground_probes.py --iie
+	$(PYTHON) dev/tests/test_verlet_fixed_gain.py
+	$(PYTHON) dev/tests/test_verlet_fixed_gain.py --iie
 	$(PYTHON) dev/tests/test_gfx_glyph_entry.py
 	$(PYTHON) dev/tests/test_gfx_glyph_entry.py --iie
 	$(PYTHON) dev/tests/test_gfx_number_entries.py

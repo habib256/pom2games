@@ -310,6 +310,9 @@ _VL_FKN = 11 - VL_CON_FIXED_K           ; f = clamp(w / 2^n, +-127), toward 0
         ROR     A
         ROR     vl_w1
 .endrepeat
+.if _VL_FKN > 8
+        ORA     #0                      ; clamp tests the high byte, not shifted low
+.endif
 .endif
         BMI     @fneg                   ; A = high byte, vl_w1 = low
         BNE     @fmax

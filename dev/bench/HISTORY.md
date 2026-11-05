@@ -4,6 +4,26 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Correctif isolé du 6 novembre 2026 — gains physiques K=0..2
+
+L'élargissement des oracles pendant l'optimisation révèle un défaut
+antérieur à ces passes : après un décalage à droite, le clamp des gains
+fixes K=0..2 lit les drapeaux du bas plutôt que du haut. Un lien horizontal
+de 32 pixels au repos de 24 pixels produit alors f=127 au lieu de 3, 7 ou
+14. Un `ORA #0` conditionnel restaure les drapeaux du haut. C'est une
+**correction de comportement**, coûtant **deux octets et deux cycles
+uniquement pour K=0..2**, sans RAM, page zéro ni pile ajoutées.
+
+Les deux CPU passent **1 179 648 entrées de gain et 7 200 appels publics**,
+avec les 32 combinaisons FAST/SKIP/PIN/HEAVY/Y_HIGH et tous les gains 0..8.
+L'ancienne version reproduit 192 512 écarts par CPU, limités à K=0..2 ;
+la correction n'en présente aucun. Les **192 couples de binaires K=3..8
+restent identiques** sur chaque CPU. Les clients livrés utilisent K=4, 5
+ou 6 ; leurs chemins ne changent pas. Le modèle Verlet complet et
+`git diff --check` passent. Le test dédié conserve l'option `--expect-bug`
+pour reproduire l'ancien défaut et rejoint les tests habituels sur les
+deux CPU. Les autres propositions d'optimisation physique restent séparées.
+
 ## Audit de la dix-neuvième session du 6 novembre 2026 — répertoire natif et division
 
 Après `6a8be8c`, la division 16/8 conserve chaque bit du quotient haut

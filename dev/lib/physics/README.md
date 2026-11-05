@@ -129,6 +129,16 @@ with `VL_Y_HIGH`; `vl_integrate` 295 c → 323 c (`VL_Y_HIGH`), +7 c
 `VL_CON_MIN_ONLY` +12 B, `VL_Y_HIGH` +80 B, `vl_thrust_perp` +
 `vl_push_all` 162 B.
 
+The low fixed gains `VL_CON_FIXED_K=0..2` restore the high-byte flags before
+clamping. Previously, flags from the shifted low byte could turn a positive
+coefficient of 3, 7 or 14 into 127 for a 32-pixel link with a 24-pixel rest
+length. The correction adds two bytes and two cycles only for K=0..2;
+K=3..8 binaries remain identical. `test_verlet_fixed_gain.py` checks all
+1,179,648 signed gain inputs per CPU and 7,200 public links under every
+FAST/SKIP/PIN/HEAVY/Y_HIGH combination. The test supports `--iie`,
+`--reference PATH`, `--expect-bug` for the old source and metadata-rich
+`--out PATH` reports. Shipped fixed-gain clients use K=4, 5 or 6.
+
 **Pins** (`VL_PIN`): `vl_pin,X` non-zero (the program sets the table; BSS
 is not cleared) pins point X: `vl_integrate` and `vl_push_all` leave it
 alone, a link with one pinned end moves the other end by the whole
