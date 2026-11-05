@@ -4,6 +4,19 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Nouvelle série du 5 novembre 2026 : découpage vertical des sprites
+
+Le même calcul par espace restant s'applique à la hauteur : comparer
+`192-y` à la hauteur source élimine la somme et son débordement. Les deux
+noyaux perdent chacun **7 octets supplémentaires**, soit **14 octets**
+depuis le début de cette session. La hauteur complète reste disponible
+pour sélectionner la banque de phase, même après découpage.
+
+Entre ces deux passes, le sprite masqué de hauteur 255 découpé en phase
+zéro passe de 397 à 391 cycles ; le XOR prédécalé découpé passe de 686 à
+678 cycles. Les contrôles de préparation réussissent à nouveau, avec
+202 octets de préparation masquée et 176 pour les sprites prédécalés.
+
 ## Nouvelle série du 5 novembre 2026 : découpage horizontal des sprites
 
 Les préparations des sprites masqués et prédécalés comparent leur stride

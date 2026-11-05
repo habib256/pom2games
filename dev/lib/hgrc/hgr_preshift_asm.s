@@ -69,17 +69,12 @@ _hgr_xs_setup:
         bcs @wok
         sta _hgr_b_w
 @wok:
-        ; bottom clip: y + h > 192 ? h = 192 - y
-        lda _hgr_xs_y
-        clc
-        adc tmp3
-        bcs @clipb                ; y+h >= 256 -> clip
-        cmp #193
-        bcc @hok
-@clipb:
+        ; Bottom clip against the remaining rows, preserving full source h.
         lda #192
         sec
         sbc _hgr_xs_y
+        cmp tmp3
+        bcs @hok
         sta _hgr_b_h
 @hok:
         ; src += phase * (h * stride). Phase zero needs no product.

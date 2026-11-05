@@ -148,17 +148,12 @@ ms_setup_common:
         bcs @wok
         sta ms_w
 @wok:
-        ; bottom clip: y + h > 192 ? h = 192 - y
-        lda _hgr_ms_y
-        clc
-        adc tmp3
-        bcs @clipb                ; y+h >= 256 -> clip
-        cmp #193
-        bcc @hok
-@clipb:
+        ; Bottom clip against the remaining rows, preserving full source h.
         lda #192
         sec
         sbc _hgr_ms_y
+        cmp tmp3
+        bcs @hok
         sta ms_h
 @hok:
         lda ms_under_only
