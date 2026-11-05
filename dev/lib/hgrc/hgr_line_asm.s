@@ -1,7 +1,7 @@
 ; VERHILLE Arnaud — GPL-3.0. Full-width HGR Bresenham, same ties as gfx_line.
 ; Inputs hgr_l_x0/x1=0..279, hgr_l_y0/y1=0..191; tables built by public entry.
 ; OR drawing, bit 7 and holes preserved. Current draw-page row tables.
-; Main RAM/ZP, non-reentrant. A/X/Y, flags, ptr1-ptr4, tmp1-tmp3 destroyed.
+; Main RAM/ZP, non-reentrant. A/X/Y, flags, ptr1-ptr4, tmp1-tmp4 destroyed.
 ; No self modification, no bank/IRQ changes. Endpoints/scratch overwritten.
 ;
 ; gfx_line steps x when 2*err > -dy and y when 2*err < dx (both tests on the
@@ -11,10 +11,11 @@
 ; The pixel moves incrementally: mask shift, row reloaded on y steps only.
 .export _hgr_line_asm, _hgr_l_x0, _hgr_l_x1, _hgr_l_y0, _hgr_l_y1
 .import _hgr_col7, _hgr_mask7, _hgr_rowlo, _hgr_rowhi
-.importzp ptr1, ptr2, ptr3, ptr4, tmp1, tmp2, tmp3
+.importzp ptr1, ptr2, ptr3, ptr4, tmp1, tmp2, tmp3, tmp4
 mask = tmp1
 endcol = tmp2                   ; x-major: last pixel's column and mask
 endmask = tmp3
+sy = tmp4                      ; bit 7: y decreases; no nested calls
 d = ptr2
 flat = ptr3                     ; D increment, major step only
 minor = ptr4                    ; D increment, major and minor steps
@@ -25,7 +26,6 @@ _hgr_l_y0: .res 1
 _hgr_l_y1: .res 1
 dx: .res 2
 sx: .res 1                      ; bit 7: x decreases
-sy: .res 1                      ; bit 7: y decreases
 .code
 _hgr_line_asm:
         lda #0

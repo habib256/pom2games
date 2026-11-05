@@ -4,6 +4,21 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Nouvelle série du 5 novembre 2026 : sens vertical des lignes HGR
+
+L'indicateur de direction verticale du Bresenham utilise `tmp4`, libre
+pendant ce noyau sans appel. Les cinq accès deviennent des instructions
+de page zéro : **cinq octets de code et un octet BSS sont supprimés**,
+sans nouvelle allocation de page zéro ni pile ajoutée.
+
+La diagonale inversée passe de **20 835 à 20 725 cycles**. La ligne courte
+reste à 709 cycles. Les 464 lignes comparées au modèle de pixels passent
+sur II+ et IIe, avec tables ordinaires et regroupées : octants, inversions,
+égalités, rejet/découpage des axes, palette et deux pages. Le gate complet
+passe pour 697 cas. Ses deux hausses par rapport au début de session restent
+explicites : point isolé **643 → 645 cycles**, ellipse large **167 148 →
+167 184** ; aucune référence n'est relevée.
+
 ## Nouvelle série du 5 novembre 2026 : page zéro des rectangles HGR
 
 Les deux colonnes et les quatre masques de bord du noyau pixel utilisent
