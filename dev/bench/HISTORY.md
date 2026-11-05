@@ -4,6 +4,23 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Nouvelle série du 5 novembre 2026 : bascule des lignes LORES
+
+Les octets hauts des lignes LORES sont dans 4…7 ou 8…11. Le gestionnaire
+de page les échange avec `EOR #$0c`, sans calculer puis additionner une
+différence de base. La préparation reste paresseuse, sans changement de
+RAM, page zéro, piles ou page affichée. Le membre perd **7 octets**.
+
+L'aller-retour page 2/page 1 avec LORES prêt passe de **5 615 à 5 487 cycles**,
+et son client de 924 à **917 octets chargés**. L'aller-retour HGR seul coûte
+4 700 cycles au lieu de 4 666 (+0,73 %) après déplacement du code ; sa limite
+précédente est conservée. La sélection froide de la page 2 gagne 7 cycles,
+les autres cas de sélection mesurés gardent leur durée.
+
+Les 256 arguments de sélection sont vérifiés avec LORES froid puis prêt,
+sur 6502 et 65C02 : adresses des 192 lignes HGR et 24 lignes LORES, valeurs
+par défaut, invalides, appels sur la même page et préservation de l'affichage.
+
 ## Audit complémentaire du 5 novembre 2026 — 3 séries
 
 Après `7cb6ceb`, les commits `e8f3b6a`, `d829b16` et `62fe7fe` optimisent

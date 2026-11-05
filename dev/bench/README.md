@@ -1,5 +1,11 @@
 # Current cc65 measurements
 
+LORES row-page switching now uses a fixed XOR mask, saving **7 loaded bytes**.
+A page-2/page-1 round trip with LORES ready takes **5,487 instead of 5,615
+cycles**. The HGR-only round trip costs 34 extra layout cycles (+0.73%);
+its old limit is retained. All page arguments pass with cold/ready LORES
+on 6502 and 65C02.
+
 Three follow-up series after the morning audit keep **642 benchmark cases**:
 **58 smaller binaries**, 584 entirely unchanged measurements, and all gates
 passed. 169 improved reference fields are tightened; no limits are raised.
