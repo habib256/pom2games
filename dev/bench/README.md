@@ -1,5 +1,14 @@
 # Current cc65 measurements
 
+The twenty-third-session gate passes **793 cases and 16 frame budgets**.
+Splitting sprite archive members saves **1,538..1,775 loaded bytes,
+571..1,009 RAM bytes and 11 ZP bytes** in eight move clients, with identical
+call times. Three rendering timings improve by one cycle; seven cost
+1..15 extra placement cycles (at most 0.27%); 775 dictionaries are unchanged.
+**44 limits are lowered**, none raised. Separate profiles also cover smaller
+ProDOS LOAD tails, projection clients saving 31 loaded bytes and improved
+CUTROPE/CATAPULT integration. See [the twenty-third-session audit](HISTORY.md#audit-de-la-vingt-troisième-session-du-6-novembre-2026--membres-darchive-et-chemins-communs).
+
 The twenty-second-session gate passes **793 cases and 16 frame budgets**.
 HGR scratch reuse and T80 inversion shrink **88 clients**; **67 timings
 improve, 18 are equal**, with three placement costs of 3..19 cycles (at

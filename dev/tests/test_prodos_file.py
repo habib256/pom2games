@@ -31,6 +31,10 @@ SEGMENTS { ZEROPAGE: load=ZP,type=zp,optional=yes;
 '''
 
 STUB = '''
+.ifndef pf_got
+.import _prodos_file_actual
+pf_got = _prodos_file_actual
+.endif
 .setcpu "65C02"
 .code
 setup:  cld
@@ -67,6 +71,12 @@ mli:    sty saved_y
         ldy #1
         jsr fetch
         sta command
+        ldx log_count
+        lda pf_got
+        sta trace_lo,x
+        lda pf_got+1
+        sta trace_hi,x
+        lda command
         ldx log_count
         sta log,x
         inc log_count
@@ -164,7 +174,10 @@ mark_seen: .res 5
 bitmap_seen: .res 26
 saved_y: .res 1
 command: .res 1
+trace_lo: .res 16
+trace_hi: .res 16
 stub_end:
+.assert stub_end-log <= 128, error, "stub clearing loop uses BPL"
 '''
 
 
@@ -237,7 +250,8 @@ def invoke(binary, labels, fn, buf=0x2000, length=0x100, errors=(), actual=0x100
               L.peek('pf_got', 2), L.peek('log_count'), L.peek('log', 16),
               L.peek('refs', 16), L.peek('eof_seen', 5), L.peek('mark_seen', 5),
               L.peek('actual_seen', 2),
-              L.peek('bitmap_seen', 26), 'peek:BF57:26', 'peek:0000:256']
+              L.peek('bitmap_seen', 26), 'peek:BF57:26', 'peek:0000:256',
+              L.peek('trace_lo', 16), L.peek('trace_hi', 16)]
     disk = binary.parent / 'stub.dsk'
     if not disk.exists():
         disk.write_bytes(bytes(143360))
@@ -254,8 +268,16 @@ def invoke(binary, labels, fn, buf=0x2000, length=0x100, errors=(), actual=0x100
     assert r.mem(0xBF57, 26) == bitmap, (fn, 'bitmap/guards not restored')
     assert r.mem(0, 256) == bytes(i ^ 0xA5 for i in range(256)), 'ZP changed'
     count = r.mem(L['log_count'], 1)[0]
+    log = r.mem(L['log'], 16)[:count]
+    actual_at_mli = [lo | hi << 8 for lo, hi in
+                     zip(r.mem(L['trace_lo'], 16), r.mem(L['trace_hi'], 16))][:count]
+    for command, actual in zip(log, actual_at_mli):
+        if command in (0xC8, 0xCA, 0xCB, 0xCE):
+            assert actual == 0, (fn, 'actual not clear at OPEN/READ/WRITE/SET_MARK', command, actual)
+        elif command in (0xCC, 0xD0):
+            assert actual == int.from_bytes(r.mem(L['pf_got'], 2), 'little'), (fn, command, actual)
     return dict(error=err, actual=int.from_bytes(r.mem(L['pf_got'], 2), 'little'),
-                log=r.mem(L['log'], 16)[:count], refs=r.mem(L['refs'], 16)[:count],
+                log=log, actual_at_mli=actual_at_mli, refs=r.mem(L['refs'], 16)[:count],
                 eof=r.mem(L['eof_seen'], 5), mark=r.mem(L['mark_seen'], 5), bitmap=r.mem(L['bitmap_seen'], 26),
                 initial_actual=r.mem(L['actual_seen'], 2), cycles=elapsed, original=bitmap,
                 hardware_stack_peak_bytes=peak, hardware_stack_available_bytes=available)
@@ -804,28 +826,107 @@ def repeated(work):
           'bitmap/Y/ZP restoration and balanced hardware stack OK.')
 
 
-READ_PROFILES = (
-    ('one', 0x2000, 1), ('page', 0x2000, 256), ('two', 0x20FF, 2),
-    ('hgr', 0x2000, 0x2000), ('max', 0, 0xC000), ('last', 0xBFFF, 1),
-    ('zero', 0xC000, 0), ('bad', 0xBFFF, 2), ('wrap', 0xFFFF, 2),
-)
+FILE_CASES = []
+for suffix, options, error, actual in (
+        ('ok', {}, 0, 0x100), ('zero', dict(length=0, actual=0), 0, 0),
+        ('open', dict(errors=[(0xC8, 0x46)]), 0x46, 0),
+        ('read', dict(errors=[(0xCA, 0x27)], actual=17), 0x27, 17),
+        ('leave', dict(errors=[(0xCA, 0x27)], leave=True), 0x27, 0),
+        ('eof', dict(errors=[(0xCA, 0x4C)], actual=0), 0x4C, 0),
+        ('close', dict(errors=[(0xCC, 0x2E)]), 0x2E, 0x100),
+        ('priority', dict(errors=[(0xCA, 0x27), (0xCC, 0x2E)], actual=19), 0x27, 19)):
+    for operation in ('load', 'at'):
+        log = b'\xC8' if suffix == 'open' else (b'\xC8\xCE\xCA\xCC' if operation == 'at' else b'\xC8\xCA\xCC')
+        selected = dict(options, mark=0xFEDCBA) if operation == 'at' else options
+        FILE_CASES.append((operation + '_' + suffix, operation, selected, error, log, actual))
+FILE_CASES += [
+    ('at_mark', 'at', dict(errors=[(0xCE, 0x4D)]), 0x4D, b'\xC8\xCE\xCC', 0),
+    ('at_mark_close', 'at', dict(errors=[(0xCE, 0x4D), (0xCC, 0x2E)]), 0x4D, b'\xC8\xCE\xCC', 0),
+    ('read_ok', 'read', {}, 0, b'\xCA', 0x100),
+    ('read_leave', 'read', dict(errors=[(0xCA, 0x27)], leave=True), 0x27, b'\xCA', 0),
+    ('free_hgr', 'free', dict(buf=0x2000, length=0x2000, actual=17), 0, b'\xC8\xCA\xCC', 17),
+    ('free_zero', 'free', dict(buf=0xFFFF, length=0, actual=0), 0, b'\xC8\xCA\xCC', 0),
+    ('free_invalid', 'free', dict(buf=0xBFFF, length=2), 0x56, b'\xC8\xCC', 0),
+    ('free_leave', 'free', dict(errors=[(0xCA, 0x27)], leave=True), 0x27, b'\xC8\xCA\xCC', 0),
+    ('save_ok', 'save', {}, 0, b'\xC8\xCB\xD0\xCC', 0x100),
+    ('save_missing', 'save', dict(errors=[(0xC8, 0x46)]), 0, b'\xC8\xC0\xC8\xCB\xD0\xCC', 0x100),
+    ('save_write', 'save', dict(errors=[(0xCB, 0x27)], actual=13), 0x27, b'\xC8\xCB\xCC', 13),
+    ('save_eof', 'save', dict(errors=[(0xD0, 0x27)]), 0x27, b'\xC8\xCB\xD0\xCC', 0x100),
+    ('save_close', 'save', dict(errors=[(0xCC, 0x2E)]), 0x2E, b'\xC8\xCB\xD0\xCC', 0x100),
+]
+
+
+def entry_name(kind, operation):
+    return ({'load': '_c_load', 'at': '_c_at', 'free': '_c_free', 'save': '_c_save', 'read': 'prodos_read'}
+            if kind == 'c' else {'load': 'prodos_load', 'at': 'prodos_load_at',
+                                'free': 'prodos_load_free', 'save': 'prodos_save', 'read': 'prodos_read'})[operation]
+
+
+def repeated_loads(work):
+    """Reuse the same kernel and parameter records while interleaving helpers."""
+    asm, labels = asm_fixture(work, name='interleaved')
+    c, clabels = c_fixture(work)
+    cases = FILE_CASES * 3
+    for kind, binary, names in (('asm', asm, labels), ('c', c, clabels)):
+        bitmap = bytes((i * 37 + 0xA5) & 255 for i in range(26))
+        zp = bytes(i ^ 0xA5 for i in range(256))
+        steps = [f'load:{binary}@6000', *a2test.pokes(0, zp), *a2test.pokes(0xBF57, bitmap)]
+        for name, operation, options, error, log, actual in cases:
+            steps += [f'call:{names["setup"]:04X}:2']
+            for label, value in (('pf_buf', options.get('buf', 0x2000)),
+                                 ('pf_len', options.get('length', 0x100)), ('pf_got', 0xBEEF),
+                                 ('actual', options.get('actual', 0x100))):
+                steps += a2test.pokes(names[label], value.to_bytes(2, 'little'))
+            steps += a2test.pokes(names['pf_mark'], options.get('mark', 0).to_bytes(3, 'little'))
+            steps += [names.poke('leave_actual', int(options.get('leave', False)))]
+            for command, code in options.get('errors', []):
+                steps += [names.poke('errors', code, command)]
+            fn = entry_name(kind, operation)
+            steps += ['regs:77:88:9A', 'hwstackwatch', f'call:{names[fn]:04X}:3', 'hwstack',
+                      names.peek('pf_err'), names.peek('pf_got', 2), names.peek('log_count'),
+                      names.peek('log', 16), names.peek('actual_seen', 2),
+                      names.peek('bitmap_seen', 26), 'peek:BF57:26', 'peek:0000:256',
+                      names.peek('trace_lo', 16), names.peek('trace_hi', 16)]
+        disk = work / (kind + '_interleaved.dsk'); disk.write_bytes(bytes(143360))
+        result = a2test.run(disk, steps, iie=True)
+        calls = re.findall(r'call ([0-9A-F]+) cycles=\d+ elapsed=\d+ A=([0-9A-F]+) X=([0-9A-F]+) Y=([0-9A-F]+) P=([0-9A-F]+)', result.out)
+        calls = [row for row in calls if int(row[0], 16) != names['setup']]
+        assert len(calls) == len(cases) and len(result.data) == len(cases) * 362
+        for index, ((name, operation, options, error, log, actual), call) in enumerate(zip(cases, calls)):
+            data = result.data[index * 362:(index + 1) * 362]
+            assert data[:4] == bytes((error, actual & 255, actual >> 8, len(log))), (kind, index, name)
+            assert data[4:4 + len(log)] == log, (kind, index, name, 'MLI order')
+            assert data[20:22] == b'\0\0', (kind, index, name, 'actual before transfer')
+            assert data[48:74] == bitmap and data[74:330] == zp, (kind, index, name, 'bitmap/ZP')
+            trace = [lo | hi << 8 for lo, hi in zip(data[330:346], data[346:362])][:len(log)]
+            for command, seen in zip(log, trace):
+                expected = actual if command in (0xCC, 0xD0) else 0
+                assert seen == expected, (kind, index, name, command, seen, expected)
+            _, a, x, y, flags = call
+            assert (int(a, 16), int(y, 16), int(flags, 16) & 1) == (error, 0x9A, int(error != 0))
+            if kind == 'c' and operation != 'read':
+                assert int(x, 16) == 0
+        stacks = re.findall(r'hwstack peak=(\d+) available=(\d+) overflow=(\d+)', result.out)
+        assert len(stacks) == len(cases)
+        assert all(int(peak) < int(available) and int(overflow) == 0 for peak, available, overflow in stacks)
+        print(f'ProDOS {kind}: {len(cases)} interleaved LOAD/LOAD_AT/READ/FREE/SAVE calls; '
+              'actual count at every MLI, error priority, order, bitmap/Y/ZP and stacks OK.')
 
 
 def benchmark(work):
-    asm, labels = asm_fixture(work, name='bench', entrypoints=('prodos_read_free',))
+    asm, labels = asm_fixture(work, name='bench')
     c, clabels = c_fixture(work)
     results = {}
-    for kind, binary, names, fn in (('asm', asm, labels, 'prodos_read_free'),
-                                    ('c', c, clabels, '_c_free')):
-        for name, buf, length in READ_PROFILES:
-            result = invoke(binary, names, fn, buf=buf, length=length, actual=min(length, 17))
+    for kind, binary, names in (('asm', asm, labels), ('c', c, clabels)):
+        for name, operation, options, error, log, actual in FILE_CASES:
+            result = invoke(binary, names, entry_name(kind, operation), **options)
+            assert (result['error'], result['log'], result['actual']) == (error, log, actual), (kind, name)
             results[kind + '_' + name] = dict(cycles=result['cycles'], binary_bytes=binary.stat().st_size,
                 hardware_stack_peak_bytes=result['hardware_stack_peak_bytes'],
                 hardware_stack_available_bytes=result['hardware_stack_available_bytes'])
-            print(f'prodos_read_free_{kind}_{name}: {result["cycles"]} cycles, '
+            print(f'prodos_file_{kind}_{name}: {result["cycles"]} cycles, '
                   f'{binary.stat().st_size} loaded bytes; injected MLI, no device I/O.')
     return results
-
 
 
 def report(kernel, results):
@@ -846,7 +947,7 @@ def main():
     global PD
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--reference', type=Path, help='assemble this file.asm instead')
-    parser.add_argument('--bench', action='store_true', help='measure bitmap handling with an injected MLI')
+    parser.add_argument('--bench', action='store_true', help='measure file helpers with an injected MLI')
     parser.add_argument('--out', type=Path, help='write measurement report (requires --bench)')
     args = parser.parse_args()
     if args.out and not args.bench:
@@ -864,6 +965,7 @@ def main():
             dependencies(work)
             injected(work)
             repeated(work)
+            repeated_loads(work)
             native(work)
             native_aux(work)
             aux_include_order(work)

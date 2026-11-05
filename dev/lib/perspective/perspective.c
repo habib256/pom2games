@@ -22,9 +22,11 @@ unsigned char __fastcall__ a2_perspective_project(
     } else projected = x;
     shift = camera->shift[y];
     screen_y = camera->screen_y[y];
-    if (shift > 279u || projected > 279u - shift || screen_y > 191u)
-        return 0;
-    out->x = projected + shift;
+    if (shift > 279u) return 0;
+    /* Each term is at most 279, so this sum cannot wrap unsigned. */
+    projected += shift;
+    if (projected > 279u || screen_y > 191u) return 0;
+    out->x = projected;
     out->y = screen_y;
     return 1;
 }

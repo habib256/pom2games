@@ -123,8 +123,7 @@ prodos_load_at:
         .byte $CE                ; SET_MARK
         .word pf_mark_list
         bcs pf_finish_close      ; A = its error code
-        jsr prodos_read          ; A = 0 or READ's error
-        bra pf_finish_close
+        bra pf_load_read         ; OPEN already cleared the actual count
 .endif
 .ifref prodos_load_free
 prodos_load_free:
@@ -137,7 +136,10 @@ prodos_load_free:
 prodos_load:
         jsr prodos_open
         bcs pf_load_done
-        jsr prodos_read
+.endif
+.if .referenced(prodos_load) .or .referenced(prodos_load_at)
+pf_load_read:
+        jsr pf_read_from_open    ; OPEN (and SET_MARK) left pf_got zero
 .endif
 .endif
 
@@ -291,6 +293,7 @@ pf_bits:    .byte $80, $40, $20, $10, $08, $04, $02, $01
 prodos_read:
         stz pf_got
         stz pf_got+1
+pf_read_from_open:
         jsr $BF00
         .byte $CA                ; READ
         .word pf_rw

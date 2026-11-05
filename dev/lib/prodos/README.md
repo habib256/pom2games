@@ -207,6 +207,13 @@ list. C: `prodos_file_mark` (an `unsigned long`, low 24 bits) then
 so `file.s` alone stays byte-identical. User: ROBOT SPACE STATION
 (`read_room`: mission m's record of RSS.ROOMS at m × 256).
 
+LOAD and LOAD_AT share their READ tail and reuse the zero actual-count
+field left by successful OPEN (and SET_MARK). Selecting both saves three
+loaded bytes; either successful load path saves eight cycles before disk
+IO. READ itself still clears the count for standalone and repeated calls.
+The injected oracle observes the count at every MLI entry and checks 87
+interleaved calls for each ASM/C variant, including all error stages.
+
 `read_free` now keeps its last-page bound in the immediate operand of its
 comparison, within the existing writable, non-reentrant helper. It clears
 `pf_got` through ordinary READ, or explicitly for a rejected buffer. This

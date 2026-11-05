@@ -448,6 +448,7 @@ def bench(out=None, reference=False):
                                      text=True, check=True)
             sources = ('hgr_sprengine.c', 'hgr_sprdefault.c', 'hgr_spr_init_pool.s',
                        'hgr_spr_define.s', 'hgr_spr_init.s', 'hgr_sprengine_asm.s',
+                       'hgr_spr_control.s', 'hgr_spr_visibility.s',
                        'hgr_sprdamage.s', 'hgr_sprmask.s', 'hgr.h', 'hgrc.mk')
             report = dict(schema=2, compiler=(version.stdout + version.stderr).strip(),
                           flags='-Oirs', results=results,
@@ -467,6 +468,104 @@ def bench(out=None, reference=False):
                   f'hardware stack {values["hardware_stack_peak_bytes"]}.')
 
 
+ARCHIVE_ENTRIES = {
+    'init': 'hgr_spr_init_pool(1,pool,sizeof(pool),HGR_SPR_MAX,16);',
+    'define': 'hgr_spr_define(0,0);', 'compat': 'hgr_spr_init(1);',
+    'move': 'hgr_spr_move(0,17,40);', 'hide': 'hgr_spr_hide(0);',
+    'invalidate': 'hgr_spr_invalidate(0);', 'render': 'hgr_spr_render();',
+    'present': 'hgr_spr_present();', 'update': 'hgr_spr_update();',
+}
+
+
+def check_archive():
+    """Link each public entry separately; assert the actual archive closure."""
+    for n in (1, 2, 8):
+        for damage in (0, 1):
+            with tempfile.TemporaryDirectory(prefix='hgr-spr-extract-') as directory:
+                work = Path(directory)
+                flags = [f'-DHGR_SPR_MAX={n}', f'-DHGR_SPR_DAMAGE={damage}']
+                test_hgr.build(work, cflags=flags)
+                for name, call in ARCHIVE_ENTRIES.items():
+                    source = work / (name + '.c')
+                    source.write_text('#include "hgr.h"\nstatic unsigned char pool[256];\n'
+                                      'int main(void){' + call + 'return 0;}\n')
+                    obj, mapfile = source.with_suffix('.o'), source.with_suffix('.map')
+                    compile_source(source, obj, ['-t', 'none', '-Oirs', *flags,
+                                                '-I', DEV / 'lib/hgrc',
+                                                '-I', DEV / 'lib/apple2c'])
+                    run(['cl65', '-t', 'none', '-C', DEV / 'cc65/apple2_hgr_c.cfg',
+                         '-m', mapfile, '-o', source.with_suffix('.bin'),
+                         work / 'crt0_apple2.o', obj, work / 'apple2io_asm.o',
+                         work / 'hgrc.lib'])
+                    text = mapfile.read_text()
+                    control = name in ('move', 'hide', 'invalidate')
+                    frame = name in ('render', 'present', 'update')
+                    expected = {
+                        'hgr_spr_control.o': control,
+                        'hgr_sprengine_asm.o': frame,
+                        'hgr_spr_visibility.o': frame or bool(damage),
+                        'hgr_sprmask.o': frame, 'hgr_phases.o': frame,
+                        'hgr_sprdefault.o': name == 'compat',
+                        'hgr_spr_init_pool.o': name in ('init', 'compat'),
+                        'hgr_spr_define.o': name == 'define',
+                    }
+                    for member, wanted in expected.items():
+                        assert (member in text) == wanted, (n, damage, name, member, wanted)
+                print(f'Sprite archive MAX={n}, DAMAGE={damage}: nine independent entries OK.',
+                      flush=True)
+
+
+def bench_archive(out=None):
+    """Measure the extraction clients alongside 45 existing renderer cases."""
+    spec = importlib.util.spec_from_file_location('hgr_archive_bench', DEV / 'bench/run.py')
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    prefixes = ('hgr_masked_', 'hgr_scene_phase', 'hgr_scene_large',
+                'hgr_damage_', 'hgr_dirty_', 'hgr_pool_')
+    scenes = {name: scene for name, scene in module.SCENES.items() if name.startswith(prefixes)}
+    setup = 'hgr_spr_init_pool(1,pool,sizeof(pool),4,64);'
+    declarations = ('static unsigned char pool[512],data[64],mask[64];'
+                    'static hgr_mspr_t shape={data,mask,2,3};')
+    for name, call in ARCHIVE_ENTRIES.items():
+        if name in ('init', 'define', 'compat'):
+            continue
+        scenes['hgr_sprite_archive_' + name] = dict(
+            setup=setup, call=call, declarations=declarations, warmup=False)
+    scenes['hgr_sprite_archive_damage_init'] = dict(
+        call=setup, declarations=declarations, warmup=False, damage=True)
+    scenes['hgr_sprite_archive_damage_define'] = dict(
+        setup=setup, call='hgr_spr_define(0,&shape);', declarations=declarations,
+        warmup=False, damage=True)
+    with tempfile.TemporaryDirectory(prefix='hgr-spr-archive-bench-') as directory:
+        work = Path(directory)
+        module.build(work)
+        markers = work / 'markers.s'
+        markers.write_text('.export _bench_begin,_bench_end\n.code\n'
+                           '_bench_begin:rts\n_bench_end:rts\n')
+        run(['ca65', '-o', work / 'markers.o', markers])
+        results = {name: module.measure(work, name, **scene) for name, scene in scenes.items()}
+    if out:
+        version = subprocess.run(['cl65', '--version'], capture_output=True,
+                                 text=True, check=True)
+        members = ('hgr_sprengine.c', 'hgr_sprdefault.c', 'hgr_spr_init_pool.s',
+                   'hgr_spr_define.s', 'hgr_spr_init.s', 'hgr_sprengine_asm.s',
+                   'hgr_spr_control.s', 'hgr_spr_visibility.s', 'hgr_sprdamage.s',
+                   'hgr_sprmask.s', 'hgr.h', 'hgrc.mk')
+        artifacts = [DEV / 'lib/hgrc' / name for name in members]
+        report = dict(schema=2, compiler=(version.stdout + version.stderr).strip(),
+                      flags='-Oirs', results=results,
+                      case_environments={name: 'ii_plus' for name in results},
+                      environments={'ii_plus': module.environment(False)},
+                      stack_sampling='coherent cc65 call/return/jump/(sp),Y boundaries; '
+                                     'observed workload, not a static bound',
+                      source_artifacts=[module.identity(p) for p in artifacts if p.exists()] +
+                                       [module.identity(Path(__file__))])
+        out.write_text(json.dumps(report, indent=2) + '\n')
+    for name, values in results.items():
+        print(f'{name}: {values["cycles"]:,} cycles; {values["binary_bytes"]:,} loaded bytes; '
+              f'{values["ram_bytes"]:,} RAM; {values["zp_bytes"]} ZP.')
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--max', type=int, choices=range(1, 9), default=8,
@@ -478,13 +577,20 @@ def main():
     parser.add_argument('--matrix', action='store_true',
                         help='check MAX 1/2/8, DAMAGE 0/1, native/C, NMOS/IIe')
     parser.add_argument('--bench', action='store_true', help='measure 16 archive-linked clients')
+    parser.add_argument('--archive', action='store_true',
+                        help='check 54 archive links; with --bench measure 53 render/extraction cases')
     parser.add_argument('--out', type=Path, help='benchmark JSON output')
     args = parser.parse_args()
     if args.out and not args.bench:
         parser.error('--out requires --bench')
     if args.bench and (args.max != 8 or args.damage or args.iie or args.full or args.matrix):
         parser.error('--bench uses default MAX=8, DAMAGE=0 and NMOS')
-    if args.bench:
+    if args.archive and (args.max != 8 or args.damage or args.iie or args.full or
+                         args.matrix or args.reference):
+        parser.error('--archive checks all MAX/DAMAGE variants; use no control-fixture options')
+    if args.archive:
+        bench_archive(args.out) if args.bench else check_archive()
+    elif args.bench:
         bench(args.out, args.reference)
     elif args.matrix:
         for n in (1, 2, 8):

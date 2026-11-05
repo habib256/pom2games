@@ -1028,6 +1028,18 @@ CPUs (2,150,272 calls); `--full` exhausts 16-bit pointer and size fields.
 retained C entries, which reproduce the original benchmark exactly.
 `make test-hgr-spr-control-full` runs the matrix and full native/C checks.
 
+Sprite movement/hiding/invalidation and shared visibility/change checks
+now occupy separate archive members. A standalone control call avoids the
+masked renderer and its tables: **1,538 fewer loaded bytes, 571 fewer RAM
+bytes and 11 fewer zero-page bytes**, with the same measured call time.
+Damage-enabled initialization/definition saves **1,472 loaded bytes, 289
+RAM bytes and 11 zero-page bytes**; initialization costs 17 extra placement
+cycles and definition is unchanged. Full rendering clients retain their
+footprint and stacks. `test_hgr_spr_control.py --archive` verifies 54 member
+extractions across MAX=1/2/8 and DAMAGE=0/1; adding `--bench --out PATH`
+measures the 53 extraction/render clients. The full native/C state matrix
+continues to pass without changing C-owned state or callback layout.
+
 Masked save/restore setup skips the drawing-only data/mask pointer reads.
 Row advancement reuses the clear carry from the bounded screen address
 calculation; byte loops preserve it, and the drawing path still clears carry

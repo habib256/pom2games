@@ -4,6 +4,79 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Audit de la vingt-troisième session du 6 novembre 2026 — membres d'archive et chemins communs
+
+Après `cc03e4b`, les contrôles HGR move/hide/invalidate et les helpers de
+visibilité occupent deux membres d'archive séparés du rendu. Les clients
+isolés n'extraient plus ses tables et temporaires. Move/hide/invalidate
+économisent **1 538 octets chargés, 571 RAM et 11 de page zéro**, sans
+variation de durée ; l'initialisation/définition DAMAGE économise **1 472
+chargés, 289 RAM et 11 de page zéro**. Son init prend 17 cycles de
+placement, sa définition reste identique. Render/present/update seuls
+économisent 89 octets chargés. Les 45 profils de rendu conservent toutes
+leurs empreintes et piles ; le pire surcoût de placement est de 15 cycles.
+L'état C, ses options et son pointeur de callback restent inchangés.
+
+La matrice MAX=1/2/8, DAMAGE=0/1, entrées C/natives et deux CPU vérifie
+**2 150 272 appels**. Les **54 fermetures d'archive** prouvent les imports
+et extractions des neuf entrées. Les 40 960 déplacements, 72 scènes de
+pixels, 32 de stress, dégâts/dirty et préservation des pages étrangères
+passent. Les 1 000 trames NTSC et 1 000 PAL conservent chacune leurs
+2 000 ticks AY sous interruption, sans échéance manquée ni hausse de pile.
+`test_hgr_spr_control.py --archive --bench` expose les 53 clients ciblés.
+
+LOAD et LOAD_AT partagent leur fin READ et le compteur nul établi par
+OPEN/SET_MARK. **Trois octets chargés en moins** quand les deux helpers
+sont sélectionnés ; les variantes isolées conservent leur taille.
+Les **58 profils ASM/C** ont 28 appels plus rapides de huit cycles et
+30 identiques, piles inchangées. LOAD ASM **1 312 → 1 304 cycles**,
+LOAD_AT C **1 720 → 1 712**. Les tests suivent le compteur réel à chaque
+entrée MLI, puis 87 appels intercalés par variante ASM/C sans rechargement,
+113 scénarios injectés, 200 changements de plages et les volumes réels/aux.
+Le profil synthétique ASM non instrumenté conserve le coût de placement
+signalé de +1 cycle sur READ direct ; les profils C correspondants sont
+identiques. Aucune priorité d'erreur ni donnée publique ne change.
+
+La projection C valide le décalage, l'ajoute une fois puis contrôle la
+somme. Les deux termes sont ≤ 279, donc aucun wrap 16 bits n'est possible.
+Le corps économise trois octets et évite un helper cc65 : **31 octets
+chargés en moins** dans le client isolé, sans RAM, page zéro ou pile en
+plus. Les **7 167 appels ciblés par CPU** accélèrent de 1..116 cycles ;
+x=279, échelle=255, décalage=0 passe de **1 659 à 1 543**. Toutes les
+échelles, frontières 255/256/279, sorties 279/280 et décalage 65535 sont
+vérifiés contre des produits/sommes indépendants, sorties refusées intactes.
+Les 112 280 projections hôte, 1 536 projections par CPU et 12 refus/ABI
+historiques passent aussi, ainsi que la démonstration avec audio.
+
+La boucle `vl_integrate_all` teste chaque pin courant avant l'appel au
+corps commun. Le helper individuel conserve son test lorsqu'il est
+appelé/exporté. Les clients PIN all-only perdent **un octet CODE** ; les
+clients mixtes/exportés en prennent cinq, sans autre mémoire ni pile.
+Sans PIN et en appel individuel seul, les binaires restent identiques.
+Les **262 200 états par CPU** couvrent tous les couples d'octets de pins,
+les compteurs 1 et 51, Y_HIGH/LEFTWALL, les registres, sept temporaires,
+IRQ et pile. Le modèle physique complet et les cinq modèles clients passent.
+CUTROPE réduit les médianes de ses trois niveaux de **19 538,5/27 032/
+30 142 à 19 374,5/26 906/30 034 cycles**, cadence 930/930 conservée.
+CATAPULT passe de **10 293,5 à 10 204** en vol, pire cas **44 263 →
+44 199**, six ticks trop longs au lieu de sept sur 2 598. Le stress
+synthétique CUTROPE à 22 liens prend 142 cycles médians (+0,2 %) par effet
+de placement dans les autres boucles ; aucun padding ajouté.
+
+Le banc global passe **793 cas et 16 budgets de trame**. Huit clients
+move économisent **1 538..1 775 octets chargés, 571..1 009 RAM et 11 page
+zéro**, mêmes durées. Trois durées de rendu gagnent un cycle ; sept prennent
+1..15 cycles (≤ 0,27 %). Les **775 autres dictionnaires sont identiques**.
+**44 plafonds sont abaissés**, aucun relevé, sur le rapport final figé.
+Les helpers hors banc global gardent leurs rapports dédiés avec identités
+des sources, compilateur et émulateur.
+
+`make all test-woz` réussit, les 18 paires correspondent. Les six disques
+modifiés **CHROMABREAK, CUTROPE, HGR, MBTRACKER, ROBOTSTATION et WARGALAGAII**
+passent, ainsi que CATAPULT, ROPE et la démonstration de projection/audio.
+Les options de bibliothèque, la structure du Makefile et les espaces sont
+vérifiés. La carte mémoire de MBTRACKER reste celle de la passe précédente.
+
 ## Audit de la vingt-deuxième session du 6 novembre 2026 — temporaires HGR, texte et collisions
 
 Après `0da577b`, les sprites masqués réutilisent `tmp4` pour le mode puis

@@ -104,7 +104,15 @@ vl_wrap:
 .ifref vl_integrate_all
 vl_integrate_all:
         LDX     #VL_NPOINTS-1
-@p:     JSR     vl_integrate
+@p:
+.ifdef VL_PIN
+        LDA     vl_pin,X
+        BNE     @next
+        JSR     vl_integrate_free
+@next:
+.else
+        JSR     vl_integrate
+.endif
         DEX
         BPL     @p
         RTS
@@ -144,6 +152,7 @@ vl_push:
         JMP     vl_add_yv
 .endif
 
+.if .referenced(vl_integrate) .or .referenced(vl_integrate_free)
 .ifref vl_integrate
 vl_integrate:
 .ifdef VL_PIN
@@ -151,6 +160,10 @@ vl_integrate:
         BEQ     @free
         RTS
 @free:
+.endif
+.endif
+.ifdef VL_PIN
+vl_integrate_free:                      ; integrate_all already checked the pin
 .endif
         SEC
         LDA     vl_xf,X

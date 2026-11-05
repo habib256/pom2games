@@ -118,6 +118,8 @@ test-hgr:
 	$(PYTHON) dev/tests/test_math_division.py
 	$(PYTHON) dev/tests/test_math_division.py --iie
 	$(PYTHON) dev/tests/test_verlet.py
+	$(PYTHON) dev/tests/test_verlet_integrate_all.py
+	$(PYTHON) dev/tests/test_verlet_integrate_all.py --iie
 	$(PYTHON) dev/tests/test_verlet_quarter_abs.py
 	$(PYTHON) dev/tests/test_verlet_quarter_abs.py --iie
 	$(PYTHON) dev/tests/test_verlet_helpers.py
@@ -263,6 +265,7 @@ test-dhgr:
 	$(PYTHON) dev/tests/test_dhgr_thin_entries.py --iie
 	$(PYTHON) dev/tests/test_audio.py --iie
 	$(PYTHON) dev/tests/test_perspective.py --iie
+	$(PYTHON) dev/tests/test_perspective_bounds.py --iie
 	$(PYTHON) dev/tests/test_shufflepuck_example.py --iie
 	$(MAKE) -C dev/examples/dhgr test
 	$(PYTHON) dev/tests/test_dhgr_extended.py
@@ -362,6 +365,7 @@ test-math-division-full: $(A2RUN)
 .PHONY: test-math-division-full
 
 test-hgr-spr-control-full: $(A2RUN)
+	$(PYTHON) dev/tests/test_hgr_spr_control.py --archive
 	$(PYTHON) dev/tests/test_hgr_spr_control.py --matrix
 	$(PYTHON) dev/tests/test_hgr_spr_control.py --full
 	$(PYTHON) dev/tests/test_hgr_spr_control.py --full --reference
@@ -410,6 +414,7 @@ test-tools:
 	$(PYTHON) dev/tests/test_corridor.py
 	$(PYTHON) dev/tests/test_audio.py
 	$(PYTHON) dev/tests/test_perspective.py
+	$(PYTHON) dev/tests/test_perspective_bounds.py
 	$(PYTHON) dev/tests/test_shufflepuck_example.py
 	$(PYTHON) dev/tests/test_stack_profile.py
 	$(PYTHON) dev/tests/test_build_config.py

@@ -50,6 +50,17 @@ on the last row. The X computation handles the 255→256 transition without a
 This module projects a plane, not an arbitrary 3D scene; it does not scale
 sprites and does not handle depth ordering.
 
+After validating the shift, projection adds it once and checks the sum.
+Each term is at most 279, so this addition cannot wrap the 16-bit target
+integer. This removes three bytes from the C function and an unused runtime
+comparison helper: an isolated linked client saves **31 loaded bytes**.
+At x=279, scale=255, shift=0, the complete C wrapper takes **1,543 instead
+of 1,659 cycles**, with the same RAM, zero page and stack peaks.
+`test_perspective_bounds.py --full` checks all 256 scale bytes at the input
+and output boundaries (7,167 calls per CPU), including shift=65535 and
+untouched rejected outputs. `--reference PATH --out PATH` records source,
+compiler and emulator identities with the costs; `--iie` selects the 65C02.
+
 The tables are borrowed and must stay valid during the call.
 Null pointers, out-of-range X, depth outside the table, an invalid row
 count and a result outside HGR are rejected with zero, without modifying the

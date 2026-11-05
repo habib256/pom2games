@@ -429,6 +429,17 @@ random probes where the bucket scan (Python) == `probe_at`'s full scan,
 every pixel column's list checked against the boxes; the switch errors;
 `--cycles` prints the costs above (and with the buckets).
 
+`vl_integrate_all` tests each point's current pin in its own loop and
+calls the shared free-point body. An all-only PIN client saves one code
+byte; clients also calling/exporting the individual entry cost five more.
+Direct-only and no-PIN builds are unchanged, with no extra memory or stack.
+CUTROPE's three played levels save roughly 108..164 median work cycles;
+CATAPULT's flying median falls from 10,294 to 10,204 cycles. A synthetic
+22-link CUTROPE stress layout costs about 0.2% more in other linked loops.
+`test_verlet_integrate_all.py` verifies all pin-byte pairs, ordered public
+state, registers, scratch, IRQ mask and stack on both CPUs, with count and
+configuration boundary cases; it supports reference-source reports.
+
 With `VL_PIN`, `vl_contact_all` skips pairs whose two points are pinned
 before entering the contact helper. It reloads both pins for every pair,
 since an earlier collision can wake either point. This adds ten code bytes
