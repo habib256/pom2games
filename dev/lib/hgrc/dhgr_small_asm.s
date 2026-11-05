@@ -3,20 +3,22 @@
 ; the zero-page auxiliary read trampoline and preserve IRQ state for the mouse.
 ; Column, ink-table base and edge masks are prepared once per glyph. Fully
 ; covered auxiliary bytes are stored without a read through the trampoline.
+; Destroys A/X/Y, ptr1..ptr3/tmp1/tmp2; preserves the string cursor in ptr4.
+; Non-reentrant. aux_read only changes A and flags, so scratch survives it.
 .import _dhgr_small_x, _dhgr_small_y, _dhgr_base
-.importzp ptr1, ptr2, ptr3
+.importzp ptr1, ptr2, ptr3, tmp1, tmp2
 .importzp aux_read
 .export _dhgr_small_char
+small_bits = tmp1
+small_ink_index = tmp2
 .bss
 small_first: .res 1
 small_count: .res 1
-small_ink_index: .res 1
 small_row: .res 1
 small_remaining: .res 1
 small_inverse: .res 4
 small_main_start: .res 1
 small_aux_start: .res 1
-small_bits: .res 1
 .include "dhgr_small_layout.inc"
 .ifdef DHGR_SMALL_FONT_EXTERNAL
 small_font = DHGR_SMALL_FONT_BASE+DhgrSmallLayout::font

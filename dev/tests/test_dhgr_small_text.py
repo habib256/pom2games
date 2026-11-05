@@ -36,12 +36,17 @@ def build(work, base):
 .import _dhgr_capabilities, _dhgr_small_char, _dhgr_small_string
 .export _dhgr_base, _dhgr_display, _dhgr_small_x, _dhgr_small_y
 .exportzp ptr1, ptr2, ptr3, ptr4
+.exportzp tmp1, tmp2, tmp3, tmp4
 .export entry, phase, irq_mask, errors
 .zeropage
 ptr1: .res 2
 ptr2: .res 2
 ptr3: .res 2
 ptr4: .res 2
+tmp1: .res 1
+tmp2: .res 1
+tmp3: .res 1
+tmp4: .res 1
 .data
 _dhgr_base: .byte $20
 _dhgr_display: .byte 1

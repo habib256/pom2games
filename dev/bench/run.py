@@ -568,6 +568,14 @@ for suffix,call,setup in (
     SCENES['dhgr_pages_'+suffix]=dict(call=call,setup=setup,dhgr=True,iie=True,
         warmup=False,declarations='#include "dhgr_internal.h"')
 
+# All seven colour-pixel origins exercise the interleaved byte boundaries.
+for x in range(1,7):
+    SCENES['dhgr_small_text_x'+str(x)]=dict(
+        call=f'dhgr_puts_small("APPLE II",{x},0);',dhgr=True,iie=True)
+for x in (1,2,4,5):
+    SCENES['dhgr_text_x'+str(x)]=dict(
+        call=f'dhgr_puts("APPLE II",{x},0);',dhgr=True,iie=True)
+
 for suffix,call in (
     ('empty','dhgr_puts_small("",0,0);'),
     ('last','dhgr_puts_small("A",135,187);'),

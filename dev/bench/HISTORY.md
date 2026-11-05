@@ -4,6 +4,26 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Nouvelle série du 5 novembre 2026 : encre du petit texte DHGR
+
+L'octet de pixels et l'index d'encre utilisent `tmp1/tmp2`, préservés par
+le trampoline de lecture auxiliaire. Le pointeur de chaîne dans `ptr4`
+reste intact. Cette passe retire **treize octets de code et deux octets
+de RAM**, sans page zéro ni pile supplémentaires.
+
+« APPLE II » passe de **13 186 à 12 696 cycles**, la même chaîne en x=3
+de **13 377 à 12 867**, et le dernier caractère affichable de **1 499 à
+1 448**. Les douze profils compacts ne présentent aucune métrique en hausse.
+Dix nouvelles mesures de texte couvrent les alignements manquants des
+deux polices ; leurs références sont prises avant modification. Les dix
+anciens profils remesurés reproduisent exactement le rapport précédent.
+
+Le modèle de pixels vérifie 256 caractères, sept phases, deux pages et
+deux états du masque IRQ pour chacune des trois implantations de police
+(liée, déplacée, déplacée sans alignement). Voisins, trous vidéo, banques,
+découpage et état IRQ sont conservés. Le banc assembleur déclare maintenant
+les quatre temporaires cc65 utilisés par les passes de cette série.
+
 ## Audit de la onzième session du 5 novembre 2026 — scratch des primitives HGR
 
 Après `ce0404d`, les commits `cf2aede`, `804d5c1` et `a029db5` réutilisent
