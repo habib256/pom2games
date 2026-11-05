@@ -4,6 +4,23 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Nouvelle série du 5 novembre 2026 : géométrie temporaire des dommages HGR
+
+Les dimensions et coordonnées temporaires du calcul optionnel des dommages
+utilisent `ptr2..ptr4`. Le pointeur de forme dans `ptr3` devient la coordonnée
+x seulement après lecture de ses dimensions ; `spr_visible` préserve ces
+registres de travail. La passe retire **17 octets chargés et six octets de
+RAM**, sans nouvelle allocation de page zéro ni pile. Le rendu isolé par
+dommages passe de **14 092 à 13 931 cycles** ; le calcul sans changement
+sur huit sprites de **5 476 à 5 258**.
+
+Un modèle indépendant calcule les rectangles réunis et l'accessibilité dans
+le graphe des recouvrements. Ses **512 états** couvrent les comptes 1..8,
+les deux historiques, les quatre masques d'invalidation, les sprites
+masqués/non définis, les limites et les chaînes en sens inverse. Il passe
+sur l'ancien noyau puis sur le nouveau, ce dernier sur 6502 et 65C02.
+Le test d'images avec quatre couches et gardes de tampon passe également.
+
 ## Audit de la huitième session du 5 novembre 2026 — moteur de sprites HGR
 
 Après `e9dc693`, les commits `0058012`, `d14d064` et `5c91c14` suppriment

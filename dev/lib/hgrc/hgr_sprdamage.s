@@ -5,18 +5,21 @@
 .import _spr_drawn, _spr_px, _spr_py, _spr_x, _spr_y
 .import spr_pgbase, spr_changed, spr_visible, spr_bits
 .import _hgr_col7, _hgr_build_columns
-.importzp ptr3
+.importzp ptr2, ptr3, ptr4
 .bss
 id: .res 1
 other: .res 1
 id_offset: .res 1
 all: .res 1
 changed: .res 1
-width: .res 1
-height: .res 1
-xpos: .res 2
-ypos: .res 1
-left: .res 1
+; Geometry survives only spr_visible (no scratch writes) and add_box.
+; The shape pointer in ptr3 is dead once width/height have been read;
+; the same pair then holds the old or new x coordinate.
+width = ptr2
+height = ptr2+1
+xpos = ptr3
+ypos = ptr4
+left = ptr4+1
 .code
 _hgr_spr_damage:
         jsr _hgr_build_columns
