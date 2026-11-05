@@ -153,12 +153,20 @@ The 16×16 text kernel skips blank source rows, stores only two alternating
 carriers and reuses three cc65 scratch bytes. It walks the destination
 columns once and assembles the final two cells with two rotations instead
 of repeated right shifts. This saves **30 code bytes and 5 zero-page bytes**.
-With the native entries, white/orange `"APPLE II"` takes 14,720/14,839
-cycles at phase zero.
-A fully filled glyph at phase six also saves 8.1 %;
-tables, other RAM and stack peaks are unchanged. `test_hgr_text16.py`
+With the native entries and the scratch changes below, white/orange
+`"APPLE II"` takes 14,622/14,741 cycles at phase zero.
+The earlier kernel pass saved 8.1 % for a filled glyph at phase six;
+tables, other RAM and stack peaks were unchanged. `test_hgr_text16.py`
 checks all 256 source row patterns and all 96 built-in glyphs under five
 carriers, seven phases, both column parities and both drawing pages.
+
+The two carriers and remaining glyph fragments now use `ptr3/ptr4`,
+removing four more private zero-page bytes. This leaf blitter preserves
+its text/glyph parameters and documents all cc65 scratch clobbers. Its row
+index is below eight, so doubling it already clears carry; removing the
+following `CLC` saves one code byte and two cycles per nonblank source row.
+A dense phase-six glyph takes 2,641 instead of 2,657 cycles, with unchanged
+RAM outside zero page and stack peaks.
 
 The doubled-text entries in `hgr_text.s` prepare arguments directly, share
 one rendering path and retain the white fallback for every color outside
@@ -266,6 +274,13 @@ RAM, zero page or stack peaks. With the native C-ABI wrappers, the
 140×16 fill takes 4,845 cycles and `hgr_cell(1,4,1)` takes 708. `test_hgr_rects.py` checks 752
 C/native fills and clears per CPU model: every edge phase, widths of
 1..40 bytes, clipping, both pages, palette clearing and untouched holes.
+
+Pixel rectangles now keep their two columns and four edge masks in
+`tmp3/tmp4` and `ptr3/ptr4`. This releases six private zero-page bytes;
+only the full-byte fill value still needs its own byte. The kernel makes
+no calls and leaves the public parameter block intact. Code, cycles, RAM
+outside zero page and stack peaks are unchanged in the isolated rectangle,
+cell and axis profiles. Cold calls still pass with separate or folded tables.
 
 Byte rectangles (`hgr_fill_rect`) traverse rows backwards with Y as the
 offset and pair counter. An odd width enters at the second store; pairs
@@ -1008,15 +1023,24 @@ clipping is added. `gfx_line` selects this kernel on HGR and the C fallback
 on the generic/DHGR backends. `test_hgr_lines.py` compares 464 lines via `hgr_line` and `gfx_line` against the expected pixels on
 both pages, including reversed directions, ties and X >= 256.
 
+The line kernel now keeps its vertical direction in cc65 `tmp4` instead
+of private BSS. It makes no nested calls and documents that clobber. This
+saves five code bytes and one RAM byte without extra zero page or stack.
+Forward/reverse diagonals take 20,729/20,725 instead of 20,927/20,835 cycles.
+The short line remains at 709 cycles. A point-only call rises from 643 to
+645 cycles in the resulting layout; the full benchmark audit also records
+the small ellipse tradeoff without relaxing prior limits.
+
 The public `hgr_line.s` entry validates both endpoints and prepares the
 existing kernel parameters directly. Axis calls reuse the caller's stack
 slots and tail-call the horizontal/vertical routines. Together with the
 separate native axis entries, isolated line clients save **238 loaded bytes**
 compared with the former C line and axis entries. Diagonal C-stack peak falls
 **6 → 5**, reversed horizontal **13 → 5**, vertical **11 → 5**. RAM and zero
-page stay unchanged. Short lines take **709 cycles** (811 before both passes),
+page stayed unchanged at that stage. Short lines took **709 cycles**
+(811 before both passes),
 reversed horizontal **1,083** (1,445), forward/reverse diagonal **20,927 /
-20,835** (21,009 / 21,005). The long vertical through `hgr_line` takes
+20,835** (21,009 / 21,005). The long vertical through `hgr_line` took
 **11,738 instead of 11,618 (+1.03 %)**; this layout-sensitive cost remains
 an explicit tradeoff, and existing cycle references are not relaxed.
 The entry test checks 131,584 coordinate cases, exact axis/core arguments,

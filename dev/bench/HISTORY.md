@@ -4,6 +4,53 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Audit de la onzième session du 5 novembre 2026 — scratch des primitives HGR
+
+Après `ce0404d`, les commits `cf2aede`, `804d5c1` et `a029db5` réutilisent
+le scratch cc65 dans le texte 16×16, les rectangles pixel et les lignes.
+Le texte perd quatre octets de page zéro et une instruction `CLC` inutile ;
+les rectangles libèrent six octets de page zéro ; le sens vertical des
+lignes quitte la BSS pour `tmp4`. Les 43 profils remesurés avant modification
+reproduisent exactement le rapport précédent, avec le même environnement.
+
+Le gate complet `--dhgr --check` passe pour **697 cas**. **132 profils
+réduisent leur page zéro**, dont **84 réduisent aussi le code** et **27
+la RAM hors page zéro**. Les gains par groupe sont :
+
+| Profils | Code chargé | RAM hors page zéro | Page zéro |
+| ---: | ---: | ---: | ---: |
+| 48 | inchangé | inchangée | −6 octets |
+| 41 | −1 octet | inchangée | −4 octets |
+| 27 | −5 octets | −1 octet | −6 octets |
+| 16 | −1 octet | inchangée | −10 octets |
+
+**64 durées diminuent**, 66 sont identiques parmi les profils concernés ;
+les deux hausses sont le point isolé (**643 → 645 cycles**, +0,311 %) et
+l'ellipse large (**167 148 → 167 184**, +0,022 %). Les **565 autres
+dictionnaires sont identiques**. Les piles restent inchangées et tous
+les budgets absolus de trame sont respectés. **388 champs de référence
+sont abaissés**, sans relever de seuil ou modifier les budgets.
+
+La diagonale HGR passe de **20 927 à 20 729 cycles**, la diagonale inversée
+de **20 835 à 20 725**. Le glyphe 16×16 dense passe de **2 657 à 2 641**,
+« APPLE II » blanc de **14 720 à 14 622** et coloré de **14 839 à 14 741**.
+Les 25 profils isolés de rectangles, cellules et axes ne changent que par
+les six octets de page zéro retirés.
+
+Les tests vérifient **280 scènes de texte** et **752 rectangles sur chaque
+CPU**, ainsi que **464 lignes dans chacune des quatre configurations**
+II+/IIe et tables ordinaires/regroupées. Les entrées du texte passent sur
+tous les x et les y/couleurs avec les deux types de tables. Les premiers
+appels des rectangles/cellules/couleurs passent sur les deux CPU. Les tests
+généraux HGR, 69 programmes de sélection d'archives, 158 scènes de contours,
+le filaire et les couleurs passent également.
+
+`make all` réussit. Les disquettes **HGR et SNAKE** et leurs WOZ sont
+reconstruits ; les **18 paires disque/WOZ** correspondent. L'exemple HGR
+passe sur II+ et IIe. Les tests SNAKE vérifient jeu, contrôles, son, cadence
+PAL/NTSC et sauvegarde du record ; la campagne LIGHT3DBALL et l'exemple
+perspective/audio passent aussi.
+
 ## Nouvelle série du 5 novembre 2026 : sens vertical des lignes HGR
 
 L'indicateur de direction verticale du Bresenham utilise `tmp4`, libre

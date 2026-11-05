@@ -1,5 +1,19 @@
 # Current cc65 measurements
 
+The eleventh-session gate passes **697 cases**. Shared cc65 scratch reduces
+zero page in **132 profiles**, code in **84**, and other RAM in **27**.
+Text-only clients save four zero-page bytes and one code byte; pixel
+rectangles save six zero-page bytes. The line kernel saves five code bytes
+and one BSS byte; clients combining text and rectangles free ten zero-page
+bytes. **64 timings improve**; the only increases are a point (+2 cycles,
+0.311%) and a wide ellipse (+36 cycles, 0.022%). **565 result dictionaries
+are identical**, and stack peaks stay unchanged. The HGR diagonal takes
+**20,729 instead of 20,927 cycles**, the dense doubled glyph **2,641 instead
+of 2,657**. All frame budgets pass; 388 reference fields are tightened.
+Pixel oracles pass on both CPUs, including folded-table lines and cold
+rectangle calls. HGR/SNAKE disks and WOZ twins are rebuilt, all 18 pairs
+match, and integration tests pass. See [the eleventh-session audit](HISTORY.md#audit-de-la-onzième-session-du-5-novembre-2026--scratch-des-primitives-hgr).
+
 The tenth-session gate passes **697 cases**. Reusing existing cc65 scratch
 for numeric HUD kernels shrinks **55 clients**: 30 save **28 loaded bytes
 and seven RAM bytes** (16×16), 25 save **six loaded bytes and three RAM
