@@ -32,13 +32,27 @@ page. Calls wrap at the right edge; the last line does not scroll.
 `gfx_cell_color` has no effect with this backend.
 There is no cell-based DHGR text backend; use `dhgr_puts`.
 
-The three numeric text entries live in separate archive members (`gfx_putu.c`,
-`gfx_puti.c`, `gfx_putx.c`). Plain strings no longer pull in the numeric
+The three numeric text entries live in separate archive members (`gfx_putu.s`,
+`gfx_puti.s`, `gfx_putx.s` on cc65; matching C references remain available). Plain strings no longer pull in the numeric
 formatters; unsigned and hexadecimal text pull in only their own conversion.
 With cc65 2.18 `-Oirs`, the minimal archive fixtures in `test_hgr.py` shrink
 from 3,051 to 2,689 bytes for plain text, 3,040 to 2,801 for hexadecimal,
 and 3,058 to 2,841 for plain text plus an unsigned integer. The test also
 checks the excluded archive members and renders all three numeric formats.
+
+The GFX unsigned/signed/hexadecimal text entries use native cc65 wrappers;
+the matching C files remain portable references. The value is saved on the
+hardware stack only while reserving and passing the 6/7/5-byte local buffer,
+then restored before conversion. No persistent buffer or new state is used.
+Measured clients save **6 / 3 / 6 loaded bytes** and **two C-stack bytes**,
+with unchanged RAM, zero page and hardware-stack peaks. Printing unsigned
+zero takes **2,056 instead of 2,129 cycles**, signed −32768 **11,601 instead
+of 11,630**, and hex FFFF **7,087 instead of 7,185**. All 17 new cases improve;
+the previous 453 remain identical, for **470 cases** in total.
+`test_gfx_number_entries.py` checks **199,680 calls per CPU**: every 16-bit
+value in all three formats, NUL termination, caller guards, arbitrary text
+scratch clobbers and 3,072 stack placements. The C entries pass the same
+fixture; the integration fixture renders all formats with the real backend.
 
 The cc65 hexadecimal converter uses `gfx_num_hex.s`; `gfx_num_hex.c` is the
 host reference. Both produce uppercase text without leading zeroes and return

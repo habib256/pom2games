@@ -557,6 +557,13 @@ for suffix,x,y in (('aux',0,0),('main',7,0),('phase6',6,40),
     SCENES['dhgr_point_read_'+suffix]=dict(call=f'dhgr_getpixel({x}u,{y});',
         setup='dhgr_clear(15);',dhgr=True,iie=True,warmup=False)
 
+for kind,values in (('u',(0,9,10,99,100,65535)),
+                    ('i',(0,1,-1,32767,-32768,-100)),('x',(0,15,16,255,65535))):
+    for value in values:
+        SCENES[f'gfx_number_{kind}_{str(value).replace("-","minus")}']=dict(
+            call=f'gfx_put{kind}({value});',
+            setup='gfx_gotoxy(0,0);gfx_text(" ");gfx_gotoxy(0,0);',warmup=False)
+
 # Non-default compile-time variants (dev/lib/ABI.md, "Speed/RAM options"):
 # the listed members are reassembled with the define and linked before hgrc.lib.
 for name in ('hgr_diagonal_cold','hgr_hud_cold','hgr_scene_cold'):

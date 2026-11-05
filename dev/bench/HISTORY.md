@@ -4,6 +4,33 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Série du 5 novembre 2026 : entrées natives des nombres GFX
+
+Les trois formats gardent leurs membres d'archive séparés. L'entrée conserve
+la valeur sur la pile matérielle pendant la réservation du tampon local et
+le passage de son pointeur, puis restaure A/X avant la conversion. Le texte
+reçoit le tampon via la pile C ; aucune adresse de travail ne doit survivre
+à l'appel du moteur de texte. Les références C portables restent disponibles.
+
+| Appel C | Cycles avant → après | Binaire avant → après |
+|---|---:|---:|
+| Non signé 0 | 2 129 → 2 056 | 2 325 → 2 319 |
+| Non signé 65535 | 9 846 → 9 777 | 2 325 → 2 319 |
+| Signé 0 | 2 134 → 2 069 | 2 367 → 2 364 |
+| Signé −32768 | 11 630 → 11 601 | 2 368 → 2 365 |
+| Hexadécimal 0 | 2 073 → 1 993 | 2 300 → 2 294 |
+| Hexadécimal FFFF | 7 185 → 7 087 | 2 300 → 2 294 |
+
+Piles C non signé/signé/hex 19/20/18 → 17/18/16, sans changement de RAM,
+page zéro ou pic matériel. Les 17 nouveaux cas s'améliorent ; les 453
+précédents sont identiques, soit 470 mesures.
+
+Le C puis les entrées natives NMOS/65C02 passent 199 680 appels : tous les
+mots 16 bits dans les trois formats, NUL et absence de caractères résiduels,
+registres scratch du texte écrasés, gardes et 3 072 positions de pile.
+L'intégration HGR rend les trois formats ; 57 clients minimaux, `make all`
+et le gate complet passent. Aucun disque livré ne change.
+
 ## Série du 5 novembre 2026 : lecture et écriture de points DHGR indépendantes
 
 Le calcul d'adresse/masque devient `dhgr_locate.s`, sans changement de son

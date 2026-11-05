@@ -211,6 +211,20 @@ byte return values and 2,048 stack placements. It passes before and after
 the change. Twenty-one new cases bring the benchmark to **453**; all improve
 and the previous 432 remain identical.
 
+The GFX unsigned/signed/hexadecimal text entries use native cc65 wrappers;
+the matching C files remain portable references. The value is saved on the
+hardware stack only while reserving and passing the 6/7/5-byte local buffer,
+then restored before conversion. No persistent buffer or new state is used.
+Measured clients save **6 / 3 / 6 loaded bytes** and **two C-stack bytes**,
+with unchanged RAM, zero page and hardware-stack peaks. Printing unsigned
+zero takes **2,056 instead of 2,129 cycles**, signed −32768 **11,601 instead
+of 11,630**, and hex FFFF **7,087 instead of 7,185**. All 17 new cases improve;
+the previous 453 remain identical, for **470 cases** in total.
+`test_gfx_number_entries.py` checks **199,680 calls per CPU**: every 16-bit
+value in all three formats, NUL termination, caller guards, arbitrary text
+scratch clobbers and 3,072 stack placements. The C entries pass the same
+fixture; the integration fixture renders all formats with the real backend.
+
 The common DHGR rectangle preparation now validates and clips directly
 from its five argument bytes, using the carry out of `x+width` to saturate
 large widths safely. It releases the arguments before tail-calling the
