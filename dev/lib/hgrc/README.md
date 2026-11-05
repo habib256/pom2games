@@ -441,6 +441,23 @@ only when a DHGR function is called. `HGRC_DHGR_SRCS` can also be linked
 directly. The line-address computation is shared
 with HGR in `hgr_layout.h`.
 
+The common colour/monochrome rectangle preparation is native. It rejects
+empty/offscreen calls before changing the span parameters, clips the
+17-bit sum `x+width` to the screen, then produces the inclusive endpoint.
+Height is clipped independently, and the argument slots are released before
+tail-calling the span kernel. Isolated helper clients save **142 loaded
+bytes**, C-stack peak **9 → 5** (rejections **7 → 5**), with unchanged RAM
+and zero page. A small rectangle takes **1,023 instead of 1,291 cycles**;
+the last pixel with width 65535 takes **671 instead of 988**. The public
+colour rectangle saves 126 bytes and takes **12,016 instead of 12,267
+cycles**; a monochrome line saves 117 bytes and takes **2,514 instead of
+2,796**. Measured hardware-stack peaks also fall by one or two bytes.
+`test_dhgr_bit_rect_entry.py` checks 328,704 calls on both CPU models:
+all x values with one-pixel/maximal widths, every width at both screen
+edges, all y/height pairs, rejected parameter state, scratch/caller guards
+and 1,024 stack placements. The fixture passes on the original C entry;
+real colour/mono tests cover both pages/banks, edges, holes and GFX callers.
+
 - `dhgr_capabilities()`: bits `DHGR_CAP_EXTENDED` and `DHGR_CAP_AUX_VIDEO`.
   The probe keeps the display and the bytes used in the video holes.
 - `dhgr_init()`: returns 1 if the ROM model and auxiliary RAM are suitable,

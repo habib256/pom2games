@@ -4,6 +4,44 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Série du 5 novembre 2026 : bornage natif des rectangles DHGR
+
+`dhgr_bit_rect.s` remplace le bornage C commun aux remplissages couleur
+et monochrome. Les validations précèdent toute écriture des paramètres
+du noyau. L'addition x+largeur conserve la retenue du 17e bit pour saturer
+à droite, puis produit la borne inclusive ; la hauteur est bornée à part.
+Les cinq octets d'arguments sont libérés avant le saut vers le noyau de
+span. Aucun tampon local, octet de RAM ou page zéro supplémentaire.
+
+| Appel C | Cycles avant → après | Binaire avant → après |
+|---|---:|---:|
+| Petit rectangle, helper direct | 1 291 → 1 023 | 2 442 → 2 300 |
+| Dernier pixel, largeur 65535 | 988 → 671 | 2 441 → 2 299 |
+| Largeur 65535 à l'origine | 2 308 → 1 975 | 2 438 → 2 296 |
+| x+largeur déborde 16 bits | 1 004 → 676 | 2 444 → 2 302 |
+| Écran entier | 242 925 → 242 457 | 2 441 → 2 299 |
+| Origine hors écran | 201 → 142 | 2 442 → 2 300 |
+| Hauteur nulle | 236 → 122 | 2 439 → 2 297 |
+| Rectangle couleur public | 12 267 → 12 016 | 2 593 → 2 467 |
+| Ligne monochrome publique | 2 796 → 2 514 | 2 725 → 2 608 |
+
+Le helper isolé économise 142 octets, le rectangle public 126, la ligne
+117. Pile C 9 → 5 pour le helper (rejets 7 → 5), 16 → 12 pour le rectangle
+couleur, 24 → 20 pour la ligne ; les pics matériels baissent aussi de un
+ou deux octets. Les onze cas concernés sont plus rapides ; 345 cas restent
+identiques, neuf cas directs sont nouveaux et initialisent le mode DHGR.
+
+La fixture de 328 704 appels passe sur le C puis l'assembleur II+/IIe :
+toutes les abscisses avec largeur 1/65535, toutes les largeurs aux deux
+bords, toutes les paires y/hauteur, paramètres inchangés sur rejet,
+registres de travail écrasés, gardes et 1 024 positions de pile. Les tests
+réels vérifient pixels, 320 lignes colorées, 48 étapes étendues, deux
+backends GFX, deux pages/banques, trous et restauration DOS.
+Validation complémentaire : 50 clients minimaux, intégration HGR,
+`make all`, exemples DHGR (1 000 images NTSC/PAL), ROBOTSTATION IIe/IIc,
+WOZ, relevé complet de 356 cas et gate. DHGR.dsk, ROBOTSTATION.po et leurs
+WOZ sont reconstruits.
+
 ## Série du 5 novembre 2026 : préparation native des effacements DHGR
 
 `dhgr_clear_rows.s` remplace l'enveloppe C. La couleur reste dans X pendant

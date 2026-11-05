@@ -157,6 +157,17 @@ with unchanged RAM and zero page. Reading/writing an 8×8-byte block takes
 with partial masks takes 12,208 instead of 12,683 cycles (−3.7 %);
 fully opaque masks take 10,095 instead of 10,315.
 
+The common DHGR rectangle preparation now validates and clips directly
+from its five argument bytes, using the carry out of `x+width` to saturate
+large widths safely. It releases the arguments before tail-calling the
+span kernel. Isolated helper clients save **142 loaded bytes**, C-stack
+peak **9 → 5**, with unchanged RAM and zero page. Small/last-pixel cases
+fall **1,291 / 988 → 1,023 / 671 cycles**; rejected/empty calls also improve.
+The public colour rectangle saves **126 bytes**, **12,267 → 12,016 cycles**;
+the monochrome line saves **117 bytes**, **2,796 → 2,514 cycles**. Measured
+hardware-stack peaks fall by one or two bytes. Nine new helper cases run
+after `dhgr_init`, including full-width, 16-bit wrap, clipping and rejections.
+
 Bounded DHGR clearing (`dhgr_clear_rows`) uses a register counter for the
 four turns of each pattern pass and passes the row's high address byte in
 A. The native row kernel takes **688 cycles** instead of 712, with **12
