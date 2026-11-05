@@ -4,6 +4,19 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Nouvelle série du 5 novembre 2026 : scratch du HUD 8×8
+
+Les deux masques de bord et l'adresse de base du noyau compact utilisent
+`tmp2..tmp4`, déjà réservés par cc65. Ce noyau ne fait aucun appel et le
+contrôleur conserve son état vivant en BSS. Cette passe retire **six octets
+de code et trois octets de RAM**, sans allocation de page zéro ni pile ajoutée.
+
+Le chiffre modifié passe de **2 282 à 2 255 cycles**, le champ froid de
+**6 324 à 6 208**, et la scène compacte de **15 227 à 15 119**. Les 36 profils
+ciblés ne présentent aucune métrique en hausse ; 25 clients diminuent en
+taille. Les tests de pixels passent sur 6502 et 65C02 : 168 mises à jour,
+70 glyphes aux bords, les 273 origines valides et les largeurs 1..5.
+
 ## Audit de la neuvième session du 5 novembre 2026 — propagation des dommages HGR
 
 Après `8a13d73`, les commits `b81b8f3`, `884ed29` et `f017fe3` réutilisent

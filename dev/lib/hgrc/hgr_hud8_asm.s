@@ -1,14 +1,14 @@
 ; VERHILLE Arnaud — GPL-3.0. Opaque white 8x8 numeric HUD cell.
 ; Init validates geometry. A=ASCII digit/space, main RAM/ZP, D=0.
-; Shared text arguments, no extra ZP. Destroys A/X/Y, ptr1/tmp1. Not reentrant.
+; Shared text arguments, no extra ZP. Destroys A/X/Y, ptr1/tmp1..tmp4.
+; Non-reentrant; the controller retains its live state in BSS across calls.
 .export _hgr_hud8_cell_run
 .import hgr_hud8_digitlo, hgr_hud8_digithi, hgr_fixed_rowlo, hgr_fixed_rowhi, _hgr_base
 .importzp _hgr_g_col, _hgr_g_bit, _hgr_g_y, _hgr_g_glyph
-.importzp ptr1, tmp1
-.bss
-keep0: .res 1
-keep1: .res 1
-base: .res 1
+.importzp ptr1, tmp1, tmp2, tmp3, tmp4
+keep0 = tmp2
+keep1 = tmp3
+base = tmp4
 .code
 _hgr_hud8_cell_run:
         cmp #$20
