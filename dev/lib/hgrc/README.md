@@ -1105,7 +1105,7 @@ routes diagonals to the assembler `hgr_line`. The axis-aligned lines of `gfx_lin
 keep their historical span clipping; `hgr_line` rejects any
 off-screen endpoint, axis-aligned lines included. Valid diagonal pixels are identical.
 For DHGR or an external backend, use `HGRC_GENERIC_VECTOR_SRCS`
-(`gfx_line.c` + rectangles), with exactly one explicit backend.
+(`gfx_line.s` + `gfx_rect.s`), with exactly one explicit backend.
 Do not link both `gfx_line` implementations directly.
 
 The [minimal examples](../../examples/minimal/README.md) provide the three

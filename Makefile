@@ -99,6 +99,8 @@ test-hgr:
 	$(PYTHON) dev/tests/test_gfx_generic_line.py --iie
 	$(PYTHON) dev/tests/test_gfx_circle_entry.py
 	$(PYTHON) dev/tests/test_gfx_circle_entry.py --iie
+	$(PYTHON) dev/tests/test_gfx_ellipse_offset.py
+	$(PYTHON) dev/tests/test_gfx_ellipse_offset.py --iie
 	$(PYTHON) dev/tests/test_gfx_line_entry.py
 	$(PYTHON) dev/tests/test_gfx_line_entry.py --iie
 	$(PYTHON) dev/tests/test_asm_boundaries.py

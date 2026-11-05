@@ -582,6 +582,17 @@ for suffix,coords in (
     SCENES['gfx_outline_'+suffix]=dict(call='gfx_rect('+','.join(f'{v}u' for v in coords)+');')
 
 
+for suffix,coords in (
+    ('point',(140,96,140,96)),('horizontal',(0,96,279,96)),
+    ('vertical',(140,0,140,191)),('small',(20,20,100,80)),
+    ('full',(0,0,279,191)),('reverse',(279,191,0,0)),
+    ('clip',(65535,255,0,0)),('wide',(0,80,65535,100)),
+    ('radius511',(0,0,1023,191)),('radius512',(0,0,1024,191)),
+    ('reject_x',(65535,0,280,191)),('reject_y',(0,192,279,255)),
+):
+    SCENES['gfx_ellipse_'+suffix]=dict(call='gfx_ellipse('+','.join(f'{v}u' for v in coords)+');')
+
+
 for suffix,x,y,r in (
     ('point',139,95,0),('one',139,95,1),('inside',140,96,16),
     ('large',140,96,90),('left',0,96,16),('top',140,0,16),

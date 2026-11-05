@@ -3,8 +3,9 @@
  * gfx_line.c — card-neutral Bresenham line. See gfx.h.
  *
  * Split from the former gfx_draw.c so a program that draws lines + rectangles only doesn't
- * drag in the circle (Bresenham circle) and ellipse (128-byte cos/sin LUTs +
- * soft-multiply) code that ld65 can't strip per-function.
+ * drag in the circle or the ellipse table/scaler code that ld65 can't
+ * strip per-function. The target generic family selects gfx_line.s;
+ * this file remains the portable reference.
  *
  * Straight runs shortcut to the card's fast span (gfx_hline/gfx_vline); the
  * diagonal case walks gfx_plot. Off-screen diagonal endpoints are rejected;

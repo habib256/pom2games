@@ -2,10 +2,10 @@
 /*
  * gfx_ellipse.c — card-neutral 64-segment polyline ellipse. See gfx.h.
  *
- * The biggest gain of the former gfx_draw.c split: this TU carries 80 bytes of
- * cos/sin LUT + drags the cc65 16-bit soft-multiply for scaled radii.
- * A line/rect/circle-only program now
- * skips both costs entirely.
+ * This independent member carries the 80-byte cosine/sine table and the
+ * radius scaler. The target uses gfx_ellipse_offset.s; the portable scaler
+ * below remains the host and cc65 test reference. Line/rect/circle clients
+ * import neither the table nor the scaler.
  *
  * Drawn by stepping the parametric angle from 0..63/64 * 2π, plotting each
  * 64-segment chord through gfx_line (which itself routes straight runs to
@@ -37,6 +37,10 @@ static unsigned gfx_clamp_x(unsigned v)
  * multiplication exceeds 16 bits, including boxes ending at 65535.
  * For ordinary screen-sized radii, keep the original single multiply.
  * centre +/- offset stays inside the unsigned bounding box. */
+#if defined(__CC65__) && !defined(GFX_ELLIPSE_C_OFFSET)
+/* Private native scaler; the portable body remains the host/test reference. */
+int __fastcall__ gfx_ellipse_offset(unsigned radius, signed char c);
+#else
 static int gfx_ellipse_offset(unsigned radius, signed char c)
 {
     unsigned magnitude, offset;
@@ -50,6 +54,7 @@ static int gfx_ellipse_offset(unsigned radius, signed char c)
      * arithmetic shift, rounding negative products down instead of to zero. */
     return c < 0 ? -(int)offset : (int)offset;
 }
+#endif
 static unsigned char gfx_clamp_y(signed int v)
 {
     if (v < 0) return 0;

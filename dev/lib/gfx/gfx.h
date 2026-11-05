@@ -44,13 +44,13 @@ extern const unsigned      gfx_width;
 extern const unsigned char gfx_height;
 
 /* ===========================================================================
- * Shared geometry (gfx_line/rect/circle/ellipse.c) — shared by HGR/DHGR backends.
+ * Shared geometry — shared by HGR/DHGR backends; portable C references remain.
  * ===========================================================================
  * All endpoints inclusive. */
 
 /* Bresenham line. Axes use clipped gfx_hline/gfx_vline spans. Diagonals reject
  * off-screen endpoints. Link exactly one implementation: gfx_line_hgr.s for
- * HGR (ASM kernel), gfx_line.c for generic/DHGR (C fallback through gfx_plot). */
+ * HGR (ASM kernel), gfx_line.s for generic/DHGR (through gfx_plot). */
 void gfx_line(unsigned x0, unsigned char y0, unsigned x1, unsigned char y1);
 
 /* Rectangle OUTLINE through opposite corners (interior untouched). Up to four

@@ -26,8 +26,8 @@ Author: VERHILLE Arnaud. Licence: [GPL-3.0](../../../LICENSE).
 
 ## Archive and text
 
-`HGRC_ALL_SRCS` includes the decimal and hexadecimal conversions, `gfx_text.c`
-and the HGR text backend: `gfx_utoa`, `gfx_itoa`, `gfx_hexstr`, `gfx_gotoxy`,
+`HGRC_ALL_SRCS` includes the decimal and hexadecimal conversions, independent
+native cursor/string members and the HGR text backend: `gfx_utoa`, `gfx_itoa`, `gfx_hexstr`, `gfx_gotoxy`,
 `gfx_text`, `gfx_putu`, `gfx_puti` and `gfx_putx` link without any manual addition.
 Text uses a 35×24 HGR grid of white 8×8 glyphs on the current drawing
 page. Calls wrap at the right edge; the last line does not scroll.
@@ -173,11 +173,20 @@ setup, a wide fill gains 10 to 21 %.
 
 
 The HGR archive selects `gfx_line_hgr.s`: diagonals use the 280-pixel
-assembler kernel of `hgr_line`. The C fallback `gfx_line.c` remains intended
-for the generic/DHGR backends. Both files define the same symbol:
+assembler kernel of `hgr_line`. `HGRC_GENERIC_VECTOR_SRCS` selects
+`gfx_line.s` for generic/DHGR backends, retaining state on the C stack across
+calls to `gfx_plot`. Both native files define the same symbol:
 pick one implementation at link time. No function pointer is added.
-The two HGR APIs are compared on 464 lines; the fallback is tested in both
-DHGR modes, on both pages and banks, rejected inputs included.
+The two HGR APIs are compared on 464 lines; generic lines are tested in both
+DHGR modes, on both pages and banks, with exact ordered traces and rejected inputs.
+
+`gfx_rect.s` and `gfx_circle.s` provide native outlines for all three backends.
+Their private stack state survives backend scratch clobbers. `gfx_ellipse.c`
+uses the native `gfx_ellipse_offset.s` scaler: radii 0..32767 and signed
+coefficients -64..64 are checked exhaustively, including truncation toward
+zero. Matching C geometry files remain portable references; define
+`GFX_ELLIPSE_C_OFFSET` to use the C scaler in a cc65 reference build.
+Current speed, size and stack measurements are in [the benchmark](../../bench/README.md).
 
 Decimal conversion shares the `hgr_utoa` kernel. The signed wrapper lives in
 `gfx_num_signed.s`, so unsigned-only clients omit it. With cc65 2.18 `-Oirs`,

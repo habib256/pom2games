@@ -1,5 +1,11 @@
 # Current cc65 measurements
 
+Native ellipse scaling saves **272 loaded bytes** per client and reduces
+C-stack peaks from 33 to **28 bytes** for ordinary ellipses. A small ellipse
+takes **156,385 cycles instead of 205,861**; a very wide box takes
+**171,778 instead of 257,622**. All **4,227,072** legal radius/coefficient
+pairs are checked, with signed truncation and no additional RAM or zero page.
+
 Native midpoint circles save **263 loaded bytes** in HGR/color clients
 and **241** in DHGR mono. A corner-clipped HGR circle takes **23,331 cycles
 instead of 61,494**; radius 255 takes **87,406 instead of 401,954**. Interior

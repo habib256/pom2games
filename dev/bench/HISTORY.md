@@ -4,6 +4,38 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Série du 5 novembre 2026 : échelle des rayons d'ellipse native
+
+Le coefficient absolu est parcouru sur six bits, avec la récurrence
+`acc = (acc + bit * rayon) >> 1`. Le rayon est au plus 32 767 : chaque
+addition tient sur 16 bits. Les coefficients 0 et ±64 ont un chemin direct.
+Le signe est appliqué après division, conservant la troncature vers zéro.
+Le C portable reste disponible, y compris pour une référence cc65 explicite.
+
+| Appel C | Cycles avant → après | Binaire avant → après |
+|---|---:|---:|
+| Petite ellipse | 205 861 → 156 385 | 3 356 → 3 084 |
+| Boîte plein écran | 236 269 → 186 761 | 3 346 → 3 074 |
+| Coins inversés | 236 453 → 186 945 | 3 346 → 3 074 |
+| Boîte maximale découpée | 276 315 → 190 971 | 3 338 → 3 066 |
+| Boîte très large | 257 622 → 171 778 | 3 348 → 3 076 |
+| Rayon 511 | 243 199 → 188 320 | 3 348 → 3 076 |
+| Rayon 512 | 268 701 → 188 629 | 3 342 → 3 070 |
+
+Chaque client gagne 272 octets ; les sept ellipses non dégénérées mesurées
+réduisent leur pile C de 33 à 28 octets. RAM, page zéro et pile matérielle
+inchangées. La forme horizontale coûte un cycle de placement supplémentaire
+(2 327 → 2 328), avec son ancienne référence conservée. Les 622 cas précédents
+restent identiques ; les 12 nouveaux portent le banc à 634 mesures.
+Les budgets relatifs et absolus du relevé complet restent respectés.
+
+Référence C et natif vérifient les 4 227 072 couples rayon/coefficient,
+les résultats signés, les gardes et 2 048 placements de pile. Le natif passe
+sur II+ et IIe. Les 60 boîtes de l'oracle des coordonnées couvrent les
+largeurs HGR et DHGR, coins inversés, dégénérescences et grands mots x.
+La reconstruction et les 18 WOZ restent identiques. La documentation décrit
+les familles natives et leurs références C.
+
 ## Série du 5 novembre 2026 : cercles GFX natifs et découpage
 
 Le cercle garde sept octets privés sur la pile et choisit une boucle sans
