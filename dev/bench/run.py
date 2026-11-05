@@ -582,6 +582,13 @@ for suffix,coords in (
     SCENES['gfx_outline_'+suffix]=dict(call='gfx_rect('+','.join(f'{v}u' for v in coords)+');')
 
 
+for suffix,name in (('one','A'),('file','DEMO.AYS'),('max','A123456789ABCD.'),
+                    ('empty',''),('digit','1A'),('lower','a'),('slash','A/B'),('long','A123456789ABCDEF')):
+    SCENES['prodos_name_'+suffix]=dict(prodos=True,warmup=False,
+        declarations='#include "prodos.h"\nstatic volatile unsigned char valid;',
+        call=f'valid=prodos_name_valid({json.dumps(name)});')
+
+
 for suffix,coords in (
     ('point',(140,96,140,96)),('horizontal',(0,96,279,96)),
     ('vertical',(140,0,140,191)),('small',(20,20,100,80)),
@@ -834,7 +841,7 @@ def presentation_source(variant):
 
 def measure(work,name,call,dhgr=False,setup='',sprites=False,warmup=True,
             declarations='',sprite_width=None,sprite_height=4,sprite_stride=2,presentation=None,iie=False,cadence=False,
-            pal=False,damage=False,variant=None,spr=None,clock=False,backend=None):
+            pal=False,damage=False,variant=None,spr=None,clock=False,backend=None,prodos=False):
     source=work/(name+'.c'); obj=source.with_suffix('.o'); binary=source.with_suffix('.bin')
     source.write_text('#include "hgr.h"\n#include "gfx.h"\n#include "dhgr.h"\n#include "apple2io.h"\n'
       'void hgr_build_tables(void); void bench_begin(void); void bench_end(void); void bench_present(void);\n'+
@@ -849,9 +856,23 @@ def measure(work,name,call,dhgr=False,setup='',sprites=False,warmup=True,
       (call*int(warmup) if not dhgr else '')+
       '\nbench_begin();\n'+call+
       '\nbench_end();\napple2_getkey(); return 0; }\n')
-    run(['cl65','-t','none','-Oirs','-I',DEV/'lib/hgrc','-I',DEV/'lib/apple2c','-I',DEV/'lib/gfx','-c','-o',obj,source])
+    run(['cl65','-t','none','-Oirs','-I',DEV/'lib/hgrc','-I',DEV/'lib/apple2c','-I',DEV/'lib/gfx','-I',DEV/'lib/prodos','-c','-o',obj,source])
     mapfile=source.with_suffix('.map'); labels=source.with_suffix('.lbl')
     extra=[]
+    if prodos:
+        archive=work/'prodos.lib'
+        if not archive.exists():
+            from test_hgr import compile_source
+            mk=work/'prodos.mk'
+            mk.write_text(f'PRODOS := {DEV}/lib/prodos\ninclude {DEV}/lib/prodos/prodos.mk\n'
+                          'print:\n\t@echo $(PRODOS_SRCS) $(PRODOS_FILE_SRCS) $(PRODOS_DIR_SRCS)\n')
+            objects=[]
+            for member in run(['make','-s','-f',mk,'print']).split():
+                output=work/('pd_'+Path(member).stem+'.o')
+                compile_source(Path(member),output,['-t','none','-Oirs','-I',DEV/'lib/prodos'])
+                objects.append(output)
+            run(['ar65','a',archive,*objects])
+        extra.append(archive)
     if damage:
         from test_hgr import compile_source
         damage_obj=work/(name+'_damage.o')

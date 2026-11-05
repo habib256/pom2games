@@ -97,7 +97,7 @@ def check(work, cpu="6502", overlay=False):
     subprocess.run([str(work/'host')],check=True)
     marker=work/'marker.s'; marker.write_text('.export _done\n.code\n_done: rts\n')
     objects=[]
-    for i,path in enumerate((DEV/'cc65/crt0_apple2.s',src,marker)):
+    for i,path in enumerate((DEV/'cc65/crt0_apple2.s',src,marker,DEV/'lib/prodos/name_valid.s')):
         obj=work/f'{i}.o'
         flags=['-t','none','--cpu',cpu,'-Ors','--static-locals','-I',DEV/'lib/prodos']
         if overlay: flags += ['--rodata-name','CODE','--data-name','CODE']

@@ -1,5 +1,11 @@
 # Current cc65 measurements
 
+Independent native ProDOS name validation saves **1,404 loaded bytes** and
+**547 RAM bytes** in name-only clients, without directory or MLI imports.
+`DEMO.AYS` takes **265 cycles instead of 980**; a valid 15-character name
+takes **435 instead of 1,830**, with no C-stack use. MB Tracker keeps the
+validator in its file overlay and saves **64 bytes there plus 2 BSS bytes**.
+
 Native ellipse scaling saves **272 loaded bytes** per client and reduces
 C-stack peaks from 33 to **28 bytes** for ordinary ellipses. A small ellipse
 takes **156,385 cycles instead of 205,861**; a very wide box takes

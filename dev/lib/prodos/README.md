@@ -216,9 +216,10 @@ Measured with the same injected MLI, successful load (256 B), load_free
 before these checks. These include the test stub, including the added
 SET_EOF call; they exclude disk latency and are not real I/O timings.
 
-## The directory, ProDOS names (`dir.c`)
+## The directory and ProDOS names
 
-C, `$(PRODOS_DIR_SRCS)` (prodos.h). `prodos_dir_list(names, name_len, max,
+`$(PRODOS_DIR_SRCS)` selects `dir.c` and the independent `name_valid.s`
+member (prodos.h). `prodos_dir_list(names, name_len, max,
 suffix)`: GET_PREFIX (into its 512-byte block, a trailing `/` dropped),
 OPEN with `prodos_file_iobuf` as the 1 KB buffer (set it first, as for
 `file.s`), READ 512-byte blocks, the entry length and entries per block
@@ -231,12 +232,20 @@ success). Reading stops as soon as `max` names are found. `max=0` and
 suffixes of 15 or more bytes return an empty list without disk access.
 `prodos_name_valid(s)`:
 1 for a ProDOS name (1-15 characters, an upper-case letter, then upper-case
-letters, digits, dots). It uses `prodos_mli` (`mli_cmd.s`),
-`memcmp`, `memcpy`. Compile it with the program's segment names to place it
+letters, digits, dots). Name-only clients may select `PRODOS_NAME_SRCS`;
+they import no directory buffer or MLI code and use no C stack or persistent
+state. All byte classes, lengths and page-crossing pointers are checked.
+The C reference in `dir.c` remains available on hosts, or with
+`PRODOS_C_NAME_VALID` for a cc65 reference build that omits `name_valid.s`.
+
+The directory uses `prodos_mli` (`mli_cmd.s`), `memcmp`, `memcpy`.
+Compile it with the program's segment names to place it
 (an overlay: `--code-name`, `--rodata-name`, `--data-name`: its four
 parameter lists are initialised data that come back with it; `--bss-name`
-for the block, `prodos_dir_count` and the static locals). 664 B of code
-and data, 525 B of BSS (cc65 2.18 `-Ors --static-locals`).
+for the block, `prodos_dir_count` and the static locals). The native directory
+uses 523 B of BSS; the validator adds none. An assembly wrapper can select
+an overlay segment, define `PRODOS_NAME_CUSTOM_SEGMENT`, then include
+`name_valid.s` (as in MB Tracker's `src/prodos_name.s`).
 `test_prodos_dir.py` checks filtering, long suffixes, bounded reads and
 error priority on host C, cc65/6502 and a 65C02 overlay with code and
 initialised data in the same segment.

@@ -4,7 +4,7 @@
  * with the program's --code-name / --rodata-name / --data-name /
  * --bss-name to place it (an overlay: the parameter lists are initialised
  * data, they come back with it). BSS: the 512-byte directory block (also
- * the prefix's path until the OPEN) and 13 bytes. */
+ * the prefix's path until the OPEN) and 11 bytes on the native target. */
 #include <string.h>
 #include "prodos.h"
 
@@ -64,6 +64,8 @@ unsigned char __fastcall__ prodos_dir_list(char *names, unsigned char name_len, 
     return err;
 }
 
+#if !defined(__CC65__) || defined(PRODOS_C_NAME_VALID)
+/* Portable reference; the target links the independent name_valid.s member. */
 unsigned char __fastcall__ prodos_name_valid(const char *s)
 {
     static unsigned char n, c;
@@ -74,3 +76,4 @@ unsigned char __fastcall__ prodos_name_valid(const char *s)
             return 0;
     return 1;
 }
+#endif

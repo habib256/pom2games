@@ -362,6 +362,8 @@ test-tools:
 	$(PYTHON) dev/tests/test_vbl_lifecycle.py
 	$(PYTHON) dev/tests/test_prodos_file.py
 	$(PYTHON) dev/tests/test_prodos_dir.py
+	$(PYTHON) dev/tests/test_prodos_name.py
+	$(PYTHON) dev/tests/test_prodos_name.py --iie
 	$(PYTHON) dev/tests/test_t80_bounds.py
 	$(PYTHON) dev/tests/test_prodos_sysreloc.py
 	$(PYTHON) dev/tests/test_apple2game.py

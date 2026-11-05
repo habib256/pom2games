@@ -25,7 +25,7 @@ MOUSE := $(DEV)/lib/mouse
 MOUSE_SRCS := $(MOUSE)/mouse.s              # (not mouse.mk: its run-iic is ours)
 MOUSE_INCS := -I $(MOUSE)
 OBJS := $(BUILD)/entry.o $(BUILD)/crt0_prodos.o $(BUILD)/main.o $(BUILD)/song.o $(BUILD)/files.o \
-        $(BUILD)/insed.o $(BUILD)/fileui.o $(BUILD)/dir.o $(BUILD)/voices.o $(BUILD)/mbt_asm.o
+        $(BUILD)/insed.o $(BUILD)/fileui.o $(BUILD)/dir.o $(BUILD)/prodos_name.o $(BUILD)/voices.o $(BUILD)/mbt_asm.o
 LIB_SRCS := $(PRODOS_SRCS) $(PRODOS_FILE_SRCS) $(MOUSE_SRCS) $(APPLE2C_T80_SRCS) $(APPLE2C_T80_PTR_SRCS) \
             $(APPLE2C_VBL_GATE_SRCS)
 LIB_OBJS := $(addprefix $(BUILD)/,$(notdir $(LIB_SRCS:.s=.o)))
@@ -43,6 +43,7 @@ $(BUILD)/%.o: %.c src/mbt.h src/ui.h $(APPLE2C)/apple2t80.h $(APPLE2C)/apple2vbl
 $(BUILD)/dir.o: $(PRODOS_DIR_SRCS) $(PRODOS)/prodos.h
 	@mkdir -p $(@D)
 	$(CL65) $(CFLAGS) --code-name OVL2 --rodata-name OVL2 --data-name OVL2 --bss-name LOWBSS -c -o $@ $<
+$(BUILD)/prodos_name.o: src/prodos_name.s $(PRODOS_NAME_SRCS)
 $(BUILD)/mbt_asm.o: src/mbt_asm.s $(APPLE2)/mockingboard.asm $(APPLE2)/mb_irq.asm $(APPLE2)/aysong.asm $(APPLE2)/auxmem.asm
 	@mkdir -p $(@D)
 	$(CA65) -t none -g -I $(APPLE2) -o $@ $<

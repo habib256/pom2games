@@ -4,6 +4,37 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Série du 5 novembre 2026 : validation des noms ProDOS isolée
+
+Le membre natif `name_valid.s` vérifie les 1–15 caractères sans pile C,
+état persistant, code MLI ni bloc de catalogue. Le premier caractère reste
+une lettre majuscule ; les suivants acceptent aussi chiffres et point.
+Le C original reste une référence explicite. `PRODOS_NAME_SRCS` permet
+une sélection indépendante ; `PRODOS_DIR_SRCS` conserve les deux fonctions.
+
+| Appel C | Cycles avant → après | Binaire avant → après |
+|---|---:|---:|
+| « A » | 216 → 55 | 1 979 → 575 |
+| « DEMO.AYS » | 980 → 265 | 1 986 → 582 |
+| Nom valide de 15 caractères | 1 830 → 435 | 1 993 → 589 |
+| Nom vide | 134 → 46 | 1 978 → 574 |
+| Barre oblique invalide | 258 → 76 | 1 981 → 577 |
+| Nom trop long | 1 818 → 453 | 1 994 → 590 |
+
+Les clients isolés gagnent 1 404 octets chargés et 547 octets de RAM,
+avec piles C/matérielle 2/7 → 0/4 et page zéro inchangée. Les huit nouveaux
+cas s'améliorent ; les 634 précédents restent identiques, pour 642 mesures.
+MB Tracker garde le validateur dans OVL2 : catalogue + validation y passent
+de 645 à 581 octets, et leur BSS de 525 à 523.
+
+La référence C et le natif passent 71 680 appels : tous les premiers/deuxièmes
+octets, toutes les classes à chacune des 16 positions, les longueurs limites,
+2 048 placements de pointeurs/pile, les gardes et l'extraction indépendante
+de l'archive. Le natif passe sur II+ et IIe. Le catalogue passe aussi sur
+hôte, 6502 et 65C02 avec données d'overlay ; les scénarios MB Tracker IIe/IIc
+avec et sans carte passent. MBTRACKER.po et son WOZ sont reconstruits,
+avec les 18 jumeaux vérifiés.
+
 ## Série du 5 novembre 2026 : échelle des rayons d'ellipse native
 
 Le coefficient absolu est parcouru sur six bits, avec la récurrence

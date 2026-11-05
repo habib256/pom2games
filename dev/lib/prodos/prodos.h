@@ -92,5 +92,6 @@ unsigned char __fastcall__ prodos_dir_list(char *names, unsigned char name_len,
                                            unsigned char max, const char *suffix);
 /* A valid ProDOS file name: 1-15 characters, an upper-case letter, then
  * upper-case letters, digits, dots. 1 = valid. */
+/* Independent native member (PRODOS_NAME_SRCS), no directory or MLI state. */
 unsigned char __fastcall__ prodos_name_valid(const char *s);
 #endif
