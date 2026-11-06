@@ -47,7 +47,7 @@ LOWBSS, or the unused HGR page.
 |---|---|---|---|
 | `math.inc` | zero page | `mul_x` (16), `mul_y` (8), `mul_p0..p2` (24), `mul_t`, 4 pointers; 13 B (+3 with `MUL_ACC`), each replaceable by an alias | — |
 | | `MUL_K16 k` | `mul_p = mul_x × k`, k a constant 0..255, inline | general ~60–70 c / 44 B; powers 11–59 c / 8–34 B |
-| | `MUL_KS16 k` | same with signed `mul_x` | general ~70–80 c / 55 B; powers 8–45 B |
+| | `MUL_KS16 k` | same with signed `mul_x` | general ~70–80 c / 55 B; powers 8–40 B |
 | `mul.asm` | `mul_init` | builds the square tables (nothing on disk) | ~28,000 c |
 | | `mul_u8u8` | `mul_p0..1 = mul_x(low) × mul_y` | ~45 c |
 | | `mul_u16u8` | `mul_p = mul_x × mul_y`, unsigned | ~85 c |
@@ -154,8 +154,10 @@ zero page are unchanged.
 
 `test_math_products.py` checks every 16-bit input, signed and unsigned, for
 constants 0, 1, 2, 4, 8, 16, 32, 64, 73, 128, 183 and 255:
-**1,572,864 products**, plus Y preservation and the caller's cheap-label
-scope. The general macros occupy 44/55 bytes instead of the original
+**1,572,864 products** with default aliases, plus ten complete sweeps with
+noncontiguous zero-page and absolute aliases: **2,883,584 products per CPU**.
+It also checks Y and cheap-label scope, 2,400 scratch/input/stack guards,
+and dirty carry/overflow and both IRQ-mask states. The general macros occupy 44/55 bytes instead of the original
 49/60; they save eight cycles per expansion.
 
 Zero, one and powers of two use smaller table-free paths. Low factors
@@ -169,11 +171,11 @@ when including `math.inc`.
 | Factor | Unsigned / signed code bytes | Unsigned cycles, including JSR/RTS |
 |---|---:|---:|
 | 0 | 8 / 8 | 23 |
-| 1 | 12 / 23 | 29 |
-| 2 | 15 / 26 | 35 |
-| 4 | 21 / 32 | 50 |
-| 8 | 27 / 38 | 65 |
-| 16 | 34 / 45 | 71 |
+| 1 | 12 / 18 | 29 |
+| 2 | 15 / 18 | 35 |
+| 4 | 21 / 24 | 50 |
+| 8 | 27 / 30 | 65 |
+| 16 | 34 / 40 | 71 |
 | 32 | 27 / 33 | 65 |
 | 64 | 22 / 26 | 53 |
 | 128 | 17 / 19 | 41 |
@@ -207,3 +209,12 @@ zero suppression and NUL termination stay unchanged. The GFX signed wrapper
 also propagates the sign-test carry through the complement, saving two more
 bytes. `test_gfx_decimal.py` checks every signed and unsigned word, lengths and
 buffer guards on both 6502 and 65C02 (`--iie`).
+
+Signed factors 1/2/4/8/16 now construct the sign extension directly. With
+default zero-page aliases they save 5/8/8/8/5 code bytes; absolute aliases
+save 7/11/11/11/7. Positive/negative costs including JSR/RTS are respectively
+35/36, 36/37, 51/52, 66/67 and 77/78 cycles. Input, Y, other scratch, IRQ
+mask and decimal state are preserved; A/X/NZCV are scratch, with D=0 on
+entry. No RAM or stack is added. There are currently no shipped game callers
+of these signed macro paths. `--reference PATH --bench --out PATH` records
+comparisons and `--iie` selects the 65C02.

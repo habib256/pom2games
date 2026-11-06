@@ -1,6 +1,8 @@
 ; VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root).
 ; Native tile-background restoration. cc65 fastcall height=A, other args
 ; on software stack. Main RAM/ZP, D=0; non-reentrant, never call from IRQ.
+; Code must be writable main RAM: all eight screen operands are patched
+; afresh for each valid row. No patched operand survives as cached state.
 ; A/X/Y, flags, ptr1-ptr4 and tmp1-tmp4 destroyed. The initial popa/popax
 ; helpers preserve these temporaries; all later calls stay within this file.
 .export _hgr_tile_restore
@@ -12,11 +14,10 @@ col = ptr4+1
 width = tmp1
 height = tmp2
 count = tmp3                  ; no longer needed once ID validation succeeds
-rowhi = tmp3
 row = tmp4                   ; origin uses the tile row before scan is set
 scan = tmp4
+map = ptr3                  ; screen stores no longer need a ZP pointer
 .bss
-map: .res 2
 tiles: .res 2
 left: .res 1
 rows: .res 1
@@ -138,23 +139,32 @@ draw_row:
  clc
  lda hgr_fixed_rowlo,x
  adc col                       ; row low byte <=208, column <=39: no carry
- sta ptr3
+ .repeat 8,P
+ sta draw_store0+1+6*P
+ .endrepeat
  lda hgr_fixed_rowhi,x
  ora base
- sta rowhi
+ clc
+ .repeat 8,P
+ sta draw_store0+2+6*P
+ .if P<7
+ adc #4
+ .endif
+ .endrepeat
  lda width
  sta left
+ ldx #0
 draw_tile:
  ldy #0
  lda (ptr1),y
- tax
+ tay
  lsr
  lsr
  lsr
  lsr
  lsr
  sta ptr2+1
- txa
+ tya
  asl
  asl
  asl
@@ -164,25 +174,23 @@ draw_tile:
  lda ptr2+1
  adc tiles+1
  sta ptr2+1
- lda rowhi
- sta ptr3+1
- clc                    ; stays clear: high bytes never pass $5F
+ ldy #0
 .repeat 8,P
- ldy #P
+ .if P>0
+ iny
+ .endif
  lda (ptr2),y
- ldy #0                        ; destination pointer already includes column
- sta (ptr3),y
-.if P<7
- lda ptr3+1
- adc #4
- sta ptr3+1
-.endif
+ .if P=0
+draw_store0:
+ .endif
+ .assert * = draw_store0 + 6*P, error, "tile store stride"
+ sta $FFFF,x
 .endrepeat
  inc ptr1
  bne map_advanced
  inc ptr1+1
 map_advanced:
- inc ptr3                      ; clipped rows never cross a 256-byte boundary
+ inx                           ; next clipped screen column
  dec left
  jne draw_tile
  ; ptr1 already advanced width bytes. Skip to next map row.

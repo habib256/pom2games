@@ -52,7 +52,7 @@ on the last row. The X computation handles the 255→256 transition without a
 This module projects a plane, not an arbitrary 3D scene; it does not scale
 sprites and does not handle depth ordering.
 
-The default native entry occupies **269 code bytes**, with no private RAM,
+The default native entry occupies **257 code bytes**, with no private RAM,
 zero page, tables or self modification. It consumes the five argument bytes
 on every path, returns normalized 0/1 in AX, and shares cc65's `ptr1..ptr4`
 and `tmp1..tmp4`. Output is written only after every check succeeds.
@@ -60,9 +60,9 @@ Its eight-step multiply computes the high byte of the low-X product, then
 adds the high-X contribution. Depths 128..191 carry into the shift-table
 pointer explicitly. Bank selection and the IRQ mask remain unchanged.
 
-Compared with the retained C entry, an isolated linked client saves **444
-loaded bytes**. The x=279, scale=255, shift=0 wrapper takes **634 instead of
-1,543 cycles**; all 7,167 boundary profiles improve by 613..1,000 cycles.
+Compared with the retained C entry, an isolated linked client saves **456
+loaded bytes**. The x=279, scale=255, shift=0 wrapper takes **631 instead of
+1,543 cycles**; all 7,167 boundary profiles improve by 616..1,002 cycles.
 C stack peaks drop from 15 to five bytes and hardware peaks by two or three,
 with unchanged RAM and zero page. `test_perspective_entry.py` checks **71,680
 public products plus 196,608 parameter-domain calls per CPU**, with independent
@@ -70,6 +70,11 @@ integer arithmetic, output guards, C/hardware stack restoration, IRQ states
 and bank selection. `--reference PATH` selects the same harness's C entry;
 `--iie` selects the 65C02 and `--out PATH` records identities and snapshots.
 The older rational-camera grid also runs both native and C target entries.
+
+Centering the rejection return makes all branches short and saves another
+12 code bytes and 2..5 cycles in the 7,167 profiles. Of 14 dedicated early
+rejections, 13 improve; a NULL output costs two extra cycles (167 → 169).
+`test_perspective_bounds.py --invalid` exposes these paths separately.
 
 The retained C entry was first simplified as follows:
 After validating the shift, projection adds it once and checks the sum.

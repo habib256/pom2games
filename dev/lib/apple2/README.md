@@ -875,3 +875,15 @@ identical in both banks (install it again after anything overwrites
 either copy). This is a pattern to
 copy, not a library routine: its address, the entries and the ZP are the
 program's.
+
+## Keyboard entry sharing
+
+`wait_key` and `poll_key` share the pending-key strobe, strip and uppercase
+tail. Linking both saves eight code bytes; either alone saves three.
+Polling saves one cycle without a key and two with a key; wait alone saves
+three, while combined wait keeps its cost. Uppercase-only and unused
+includes remain byte-identical. No zero-page or stack space is added.
+`test_kbd.py` checks 40,960 register/flag cases including D=1, 61,440 exact
+port-access cases, and 192 queued hardware keys on II+/IIe, with renamed
+entries and repeated empty polling. The strobe is accessed exactly once
+per pending key and never for an empty poll.

@@ -1512,9 +1512,20 @@ video memory; an invalid initialisation keeps the old context.
 Restoration keeps its bounds in `ptr4` and `tmp1..tmp4`; tile-row/scanline
 and validation-count/row-address storage have disjoint lifetimes. This saves
 37 loaded bytes and eight RAM bytes without adding zero page or stack use.
-A full page takes 268,169 instead of 271,192 cycles; one tile takes 946
-instead of 989. Tests include high tile IDs and unaligned map/tile pointers
+The subsequent eight-store row kernel saves another ten loaded/code
+bytes and two RAM bytes: a full page now takes **181,665 cycles**
+(previously 268,169), one tile **923** (previously 946), and the combined
+background scene **5,802**. Tests include high tile IDs and unaligned map/tile pointers
 crossing page boundaries on both NMOS 6502 and 65C02.
+
+Each valid tile row repatches all sixteen store-operand bytes; code must
+be writable main RAM, as required by the native ABI. There is no patch cache.
+`test_hgr_tile_rows.py` checks 1,828 calls, 405,904 ordered stores and 610
+code reloads, with all pointer alignments, pages, clips, invalid IDs and
+main/auxiliary guards. `make test-hgr-tile-full` repeats it under real VIA
+IRQs and rejects an intentionally duplicated store. The observer accounts
+for pre-step IRQ samples by complementing every legal destination before
+each call; executed idempotent/duplicate writes remain detectable.
 
 The native initializer scans three 256-byte blocks and a 192-byte tail.
 It keeps `count-1` in A and compares each ID directly through the map

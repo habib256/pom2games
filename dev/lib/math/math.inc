@@ -113,6 +113,10 @@ mul_sqr2_hi = MUL_TABLES + $600
 ; so the low byte's high half can be added directly, without mul_t.
 ; MUL_KS16 k -- the same with mul_x signed (-k << 16 corrects a negative x).
 ; Zero, one and powers of two use smaller/faster table-free shifts.
+; Both macros preserve mul_x, Y and all other math scratch except mul_p0..p2.
+; A, X and arithmetic flags NZCV are scratch; I/D are unchanged (enter D=0).
+; Signed powers extend the sign while forming the product, without a later
+; top-byte correction. No table initialization is needed for these cases.
 ; ----------------------------------------------------------------------------
 ; Private shared body for x * 32/64/128 = (x << 8) >> 3/2/1.
 ; Keep the high byte in A; signed variants repeat its sign bit into carry.
@@ -219,7 +223,58 @@ mul_sqr2_hi = MUL_TABLES + $600
 .endmacro
 
 .macro MUL_KS16 k
-        .if k = 32 .or k = 64 .or k = 128
+        .if k = 1
+                LDA     mul_x
+                STA     mul_p0
+                LDA     mul_x+1
+                STA     mul_p1
+                LDA     #0
+                BIT     mul_x+1
+                BPL     :+
+                LDA     #$FF
+:               STA     mul_p2
+        .elseif k = 2 .or k = 4 .or k = 8
+                LDA     mul_x
+                ASL     A
+                STA     mul_p0
+                LDA     mul_x+1
+                ROL     A
+                STA     mul_p1
+                LDA     #0
+                BCC     :+
+                LDA     #$FF
+:               STA     mul_p2
+                .repeat k / 4
+                        ASL     mul_p0
+                        ROL     mul_p1
+                        ROL     mul_p2
+                .endrepeat
+        .elseif k = 16
+                LDA     mul_x
+                .repeat 4
+                        ASL A
+                .endrepeat
+                STA     mul_p0
+                LDA     mul_x+1
+                .repeat 4
+                        ASL A
+                .endrepeat
+                STA     mul_p1
+                LDA     mul_x
+                .repeat 4
+                        LSR A
+                .endrepeat
+                ORA     mul_p1
+                STA     mul_p1
+                LDA     mul_x+1
+                .repeat 4
+                        LSR A
+                .endrepeat
+                BIT     mul_x+1
+                BPL     :+
+                ORA     #$F0
+:               STA     mul_p2
+        .elseif k = 32 .or k = 64 .or k = 128
                 _MUL_K16_RIGHT k, 1
         .else
         MUL_K16 k

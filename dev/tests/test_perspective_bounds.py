@@ -6,7 +6,7 @@ from test_hgr import DEV,compile_source,run,a2test
 sys.path.insert(0,str(DEV/'bench'))
 import run as bench
 
-def measure(source,iie,full=False):
+def measure(source,iie,full=False,invalid=False):
     with tempfile.TemporaryDirectory(prefix='projection-bench-') as tmp:
         work=Path(tmp)
         c=work/'fixture.c'; c.write_text('''#include "perspective.h"
@@ -17,6 +17,12 @@ void done(void);
 void probe(void){result=a2_perspective_project(&camera,x,0,&point);}
 int main(void){done();return 0;}
 ''')
+        if invalid:
+            text=c.read_text().replace('unsigned char scale,sy,result;', 'unsigned char scale,sy,depth,result;')
+            text=text.replace('void probe(void){result=a2_perspective_project(&camera,x,0,&point);}',
+                              'a2_perspective_t *chosen=&camera; a2_projected_t *target=&point;\n'
+                              'void probe(void){result=a2_perspective_project(chosen,x,depth,target);}')
+            c.write_text(text)
         m=work/'marker.s';m.write_text('.export _done\n.code\n_done:rts\n')
         objects=[]
         for j,s in enumerate((DEV/'cc65/crt0_apple2.s',c,m,source)):
@@ -31,15 +37,34 @@ int main(void){done();return 0;}
                 for shift in (0,279-projected,280-projected,280,65535):
                     name=f'x{x}_q{scale}_s{shift}';cases[name]=(x,scale,shift,191)
         cases['bad_y']=(279,0,0,192)
+        overrides={}
+        if invalid:
+            overrides={'valid':{},'null_out':{'out':0},'null_camera':{'camera':0},
+                       'null_scale':{'scale':0},'null_shift':{'shift':0},'null_screen_y':{'screen_y':0},
+                       'rows_0':{'rows':0},'rows_193':{'rows':193},'rows_255':{'rows':255},
+                       'depth_1':{'depth':1},'depth_255':{'depth':255},
+                       'x_280':{'x':280},'x_ffff':{'x':65535},'sy_192':{'sy':192}}
+            cases={name:(options.get('x',279),255,0,options.get('sy',191))
+                   for name,options in overrides.items()}
         initial=[labels.until('_done',3000)] if iie else a2test.bin_steps(binary)+[labels.until('_done',3000)]
         disk=a2test.build_disk(work,'PROJ',binary) if iie else None
         report={}
         for first in range(0,len(cases),128):
             chunk=dict(list(cases.items())[first:first+128])
             steps=list(initial)
-            for x,scale,shift,sy in chunk.values():
+            for case,(x,scale,shift,sy) in chunk.items():
                 for name,value in (('_x',x.to_bytes(2,'little')),('_shift',shift.to_bytes(2,'little')),('_scale',bytes([scale])),('_sy',bytes([sy])),('_point',b'\x34\x12\x56')):
                     steps+=a2test.pokes(labels[name],value)
+                if invalid:
+                    options=overrides[case]
+                    descriptor=b''.join(options.get(field,labels[label]).to_bytes(2,'little')
+                                        for field,label in (('scale','_scale'),('shift','_shift'),('screen_y','_sy')))
+                    descriptor+=bytes([options.get('rows',1)])
+                    for name,value in (('_camera',descriptor),
+                                       ('_chosen',options.get('camera',labels['_camera']).to_bytes(2,'little')),
+                                       ('_target',options.get('out',labels['_point']).to_bytes(2,'little')),
+                                       ('_depth',bytes([options.get('depth',0)]))):
+                        steps+=a2test.pokes(labels[name],value)
                 steps += ['hwstackwatch',f'stackwatch:{labels["sp"]:02X}:{labels["__STACKSTART__"]:04X}:{labels["__STACKSIZE__"]:04X}',f'call:{labels["_probe"]:04X}:2',labels.peek('_result',1),labels.peek('_point',3),'hwstack','stack']
             r=a2test.run(disk,steps,iie=iie,timeout=180)
             cycles=re.findall(r'call [0-9A-F]+ cycles=\d+ elapsed=(\d+)',r.out)
@@ -51,7 +76,7 @@ int main(void){done();return 0;}
             for peak,capacity,overflow in c_stacks+hw_stacks:
                 assert int(overflow)==0 and int(peak)<int(capacity)
             for i,(name,(x,q,s,y)) in enumerate(chunk.items()):
-                px=x*(q or 256)//256+s;valid=px<=279 and y<=191
+                px=x*(q or 256)//256+s;valid=(name=='valid') if invalid else px<=279 and y<=191
                 assert r.dumps[i][:1]==bytes([valid]),name
                 assert r.dumps[i][1:]==(bytes((px&255,px>>8,y)) if valid else b'\x34\x12\x56'),name
                 report[name]=dict(sizes,cycles=int(cycles[i]),c_stack_peak_bytes=int(c_stacks[i][0]),
@@ -64,10 +89,12 @@ def main():
     parser.add_argument('--reference',type=Path)
     parser.add_argument('--iie',action='store_true')
     parser.add_argument('--full',action='store_true',help='all 256 scale bytes at input/shift boundaries')
+    parser.add_argument('--invalid',action='store_true',help='isolated early-refusal profiles')
     parser.add_argument('--out',type=Path)
     args=parser.parse_args()
     source=(args.reference or DEV/'lib/perspective/perspective_asm.s').resolve()
-    results=measure(source,args.iie,args.full)
+    if args.full and args.invalid:parser.error('choose --full or --invalid')
+    results=measure(source,args.iie,args.full,args.invalid)
     version=subprocess.run(['cl65','--version'],text=True,capture_output=True,check=True)
     digest=lambda p:dict(name=Path(p).name,sha256=hashlib.sha256(Path(p).read_bytes()).hexdigest())
     report=dict(schema=1,scope='complete C wrapper call, outside disk IO',

@@ -117,6 +117,7 @@ test-hgr:
 	$(PYTHON) dev/tests/test_rand16.py
 	$(PYTHON) dev/tests/test_rand16.py --iie
 	$(PYTHON) dev/tests/test_math_products.py
+	$(PYTHON) dev/tests/test_math_products.py --iie
 	$(PYTHON) dev/tests/test_math_division.py
 	$(PYTHON) dev/tests/test_math_division.py --iie
 	$(PYTHON) dev/tests/test_verlet.py
@@ -240,6 +241,7 @@ test-hgr:
 	$(PYTHON) dev/tests/test_sprengine_dirty.py
 	$(PYTHON) dev/tests/test_tilemap_init.py
 	$(PYTHON) dev/tests/test_tilemap.py
+	$(PYTHON) dev/tests/test_hgr_tile_rows.py
 
 test-frame:
 	$(PYTHON) dev/tests/test_frame.py
@@ -432,6 +434,7 @@ test-tools:
 	$(PYTHON) dev/tests/test_prodos_dir_native.py
 	$(PYTHON) dev/tests/test_prodos_name.py
 	$(PYTHON) dev/tests/test_prodos_name.py --iie
+	$(PYTHON) dev/tests/test_kbd.py
 	$(PYTHON) dev/tests/test_t80_bounds.py
 	$(PYTHON) dev/tests/test_t80_scroll.py
 	$(PYTHON) dev/tests/test_t80_flip.py
@@ -499,3 +502,8 @@ audit-libs:
 	$(PYTHON) dev/tools/audit_lib_usage.py
 .PHONY: audit-libs
 
+
+test-hgr-tile-full: $(A2RUN)
+	$(PYTHON) dev/tests/test_hgr_tile_rows.py --irq --negative
+
+.PHONY: test-hgr-tile-full

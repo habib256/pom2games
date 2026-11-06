@@ -4,6 +4,60 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Audit de la vingt-cinquième session du 6 novembre 2026 — tuiles, clavier et produits
+
+Après `7a9422c`, la restauration HGR déroule les huit écritures d'une tuile
+et utilise `ptr3` pour la base de carte : **−10 octets CODE/chargés, −2 BSS**,
+sans page zéro ni pile supplémentaire. Les seize octets des opérandes sont
+recalculés à chaque ligne valide, sans cache ; le code reste en RAM principale
+modifiable. Les 19 profils ciblés comptent sept accélérations et douze égalités.
+Page complète **268 169 → 181 665 cycles** (−32,3 %), région 4×3
+**4 210 → 3 327**, une tuile **946 → 923**, scène avec deux sprites masqués
+**6 390 → 5 802**. Les archives du constructeur partagé économisent les
+mêmes dix octets (1 316 → 1 306 chargés).
+
+Pour chaque ancienne/nouvelle source, avec et sans IRQ VIA réelles, l'oracle
+indépendant valide **1 828 appels, 405 904 écritures ordonnées et 610
+rechargements du code**, tous les alignements de pointeurs, les pages, les
+régions et les refus intercalés. Il garde 16 Ko principaux et 16 Ko auxiliaires,
+les sources, le contexte, les piles et les banques. L'observateur échantillonne
+STA avant que l'émulateur accepte une IRQ : les destinations sont donc
+complémentées avant chaque appel, hors observation. Seul un échantillon
+différé inchangé avec I=0 est écarté ; une vraie écriture répétée reste visible.
+Le contrôle négatif avec duplication et I=1 échoue comme attendu.
+
+Les entrées clavier partagent leur traitement de touche présente :
+**−8 octets** avec wait+poll, **−3** avec une seule entrée ; uppercase seul
+ou inclusion inutilisée identiques. Poll gagne un/deux cycles sans/avec
+touche ; wait seul trois, combiné inchangé. Les **40 960 cas A/X/Y/P**,
+**61 440 séquences de ports** et **192 touches réelles** couvrent les deux
+CPU, D=0/1, entrées renommées, attente différée et lectures répétées.
+
+`MUL_KS16` construit directement l'extension de signe pour 1/2/4/8/16 :
+**23/26/32/38/45 → 18/18/24/30/40 octets** avec les alias ZP par défaut.
+Les coûts positifs/négatifs, appels inclus, deviennent 35/36, 36/37,
+51/52, 66/67 et 77/78 cycles. Avec alias absolus, économie de
+7/11/11/11/7 octets. Aucun client livré n'utilise ces chemins. Les
+**2 883 584 produits par source/CPU** et **2 400 gardes** couvrent aussi
+les alias ZP non contigus/absolus, les tables empoisonnées, Y, l'entrée et
+les autres temporaires. A/X/NZCV restent scratch ; I/D et piles préservés.
+
+Le refus central de projection rend toutes les branches courtes :
+**269 → 257 octets CODE**, **634 → 631 cycles** dans le profil canonique.
+Les 7 167 frontières gagnent 2..5 cycles sans autre changement de mémoire
+ou de pile. Sur 14 refus précoces, treize accélèrent ; NULL output coûte
+deux cycles de plus (167 → 169). Les 268 288 appels publics par CPU
+conservent exactement les sorties, gardes, IRQ, banques et piles.
+
+Le gate global passe **793 cas et 16 budgets** : neuf clients gagnent
+dix octets chargés et deux RAM, sept accélèrent, deux sont à égalité et
+**784 dictionnaires restent identiques**. **34 limites sont abaissées**,
+aucune relevée. `make all test-woz` valide les 18 paires ; les tests
+ARKABREAKOUT, CHESS, MICRO-SOKOBAN, LOGO, CUTROPE et WILDERNESS passent,
+ainsi que HELLO sur II+/IIe, la démo Shufflepuck, les options de bibliothèque
+et le graphe Makefile. Cinq DSK et six WOZ suivis sont reconstruits.
+
+
 ## Audit de la vingt-quatrième session du 6 novembre 2026 — état HGR, projection et initialisation
 
 Après `e11f3a3`, le défilement T80 garde sa direction dans X jusqu'au

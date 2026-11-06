@@ -5,17 +5,12 @@
 .export _a2_perspective_project
 .import incsp5
 .importzp sp,ptr1,ptr2,ptr3,ptr4,tmp1,tmp2,tmp3,tmp4
-.macpack longbranch
 .code
 _a2_perspective_project:
         sta ptr4
         stx ptr4+1
         ora ptr4+1
-        bne @camera
-@reject:
-        lda #0
-        tax
-        jmp incsp5
+        beq @reject
 @camera:
         ldy #3
         lda (sp),y
@@ -77,7 +72,13 @@ _a2_perspective_project:
         ldy tmp4
         lda (ptr1),y
         cmp #192
-        jcs @reject
+        bcc @screen_ok
+; Central return keeps every validation branch within the relative range.
+@reject:
+        lda #0
+        tax
+        jmp incsp5
+@screen_ok:
         sta tmp3
         lda (ptr2),y
         sta tmp2
@@ -93,12 +94,12 @@ _a2_perspective_project:
         lda (ptr3),y
         sta ptr1+1
         cmp #2
-        jcs @reject
+        bcs @reject
         cmp #0
         beq @input
         lda ptr1
         cmp #24
-        jcs @reject
+        bcs @reject
 @input:
         ldy #1
         lda (sp),y
@@ -139,12 +140,12 @@ _a2_perspective_project:
         txa
         adc ptr1+1
         cmp #2
-        jcs @reject
+        bcs @reject
         tax
         beq @store
         lda tmp1
         cmp #24
-        jcs @reject
+        bcs @reject
 @store:
         ldy #0
         lda tmp1

@@ -1,5 +1,13 @@
 # Current cc65 measurements
 
+The twenty-fifth-session gate passes **793 cases and 16 frame budgets**.
+Nine tile-restoration clients save **ten code/loaded bytes and two RAM
+bytes**; seven accelerate and two keep their timing. All 784 other metric
+dictionaries are identical; **34 limits are lowered**, none raised. A full
+page takes **181,665 instead of 268,169 cycles** (−32.3%). Dedicated profiles
+also validate smaller keyboard entries, signed constant products and a
+257-byte native projection. See [the twenty-fifth-session audit](HISTORY.md#audit-de-la-vingt-cinquième-session-du-6-novembre-2026--tuiles-clavier-et-produits).
+
 The twenty-fourth-session gate passes **793 cases and 16 frame budgets**,
 with **every timing identical**. Eight HGR controls save 48 RAM bytes;
 22 text clients save two or four loaded/code bytes. All 763 other
@@ -957,7 +965,7 @@ loop currently measures 34,044 cycles including its wait. The per-series
 tradeoffs are recorded in [HISTORY.md](HISTORY.md).
 
 The optional tilemap backend restores eight 7×8 tiles then draws two masked
-sprites without save-under in 6,704 cycles. The map is 960 bytes, supplied by
+sprites without save-under in 5,802 cycles. The map is 960 bytes, supplied by
 the application; a full rebuild is not presented as a 30 FPS workload. The
 region profiles keep the 6,000-cycle reservation.
 

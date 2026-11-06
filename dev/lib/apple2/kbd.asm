@@ -36,9 +36,9 @@ _KBD_ASM_LOADED_ = 1
 wait_key:
 @wk:    LDA     KBD
         BPL     @wk             ; bit 7 = 0 -> no key, keep polling
-        BIT     KBDSTRB         ; acknowledge (clear the strobe)
-        AND     #$7F
-        JMP     kbd_upcase
+        .ifref poll_key
+        JMP     kbd_take         ; skip the nonblocking entry
+        .endif
 .endif
 
 ; ----------------------------------------------------------------------------
@@ -48,16 +48,20 @@ wait_key:
 .ifref poll_key
 poll_key:
         LDA     KBD
-        BPL     @none           ; bit 7 = 0 -> no key
-        BIT     KBDSTRB
-        AND     #$7F
-        JMP     kbd_upcase
-@none:  LDA     #$00
+        BMI     kbd_take        ; bit 7 = 1 -> take the pending key
+        LDA     #$00
         RTS
 .endif
 
+; Shared pending-key path, reached only after observing the latch set.
+.if .referenced(wait_key) .or .referenced(poll_key)
+kbd_take:
+        BIT     KBDSTRB         ; acknowledge once, after reading the key
+        AND     #$7F
+.endif
+
 ; kbd_upcase -- 'a'..'z' -> 'A'..'Z', anything else unchanged. Sets Z/N from A.
-.ifref kbd_upcase
+.if .referenced(kbd_upcase) .or .referenced(wait_key) .or .referenced(poll_key)
 kbd_upcase:
         CMP     #'a'
         BCC     @done
