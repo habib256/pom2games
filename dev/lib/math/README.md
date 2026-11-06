@@ -45,7 +45,7 @@ LOWBSS, or the unused HGR page.
 
 | File | Routine | Effect | Cost |
 |---|---|---|---|
-| `math.inc` | zero page | `mul_x` (16), `mul_y` (8), `mul_p0..p2` (24), `mul_t`, 4 pointers; 13 B (+3 with `MUL_ACC`), each replaceable by an alias | — |
+| `math.inc` | zero page | `mul_x` (16), `mul_y` (8), `mul_p0..p2` (24), `mul_t`, 4 pointers; 15 B (+3 with `MUL_ACC`), each replaceable by an alias | — |
 | | `MUL_K16 k` | `mul_p = mul_x × k`, k a constant 0..255, inline | general ~60–70 c / 44 B; powers 11–59 c / 8–34 B |
 | | `MUL_KS16 k` | same with signed `mul_x` | general ~70–80 c / 55 B; powers 8–40 B |
 | `mul.asm` | `mul_init` | builds the square tables (nothing on disk) | ~28,000 c |

@@ -160,6 +160,9 @@ conversion. An overflow keeps the pixels and the histories.
 directly to the requested page without changing the global pages or the banks.
 The 40×24 map and the 7×8 glyphs live outside both video pages. The region
 is clipped before a full validation of the IDs, then rebuilt in ASM.
+The kernel needs writable main RAM: it repatches both source operands for
+every context and all screen operands for every row. Reloading code or
+interleaving rejected calls does not require a separate cache reset.
 The application owns the dirty regions, the layer order and the histories
 of its pages; this path does not change the existing save-under engine.
 

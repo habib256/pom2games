@@ -250,9 +250,9 @@ on (inverse lower case, MouseText), text page 1. cc65's `ptr1`/`ptr2`/
 | `t80_scroll(down)`, `t80_sw` | columns 0 .. 2 `t80_sw` + 1 (39 at first: all 80) of the `t80_x` rows from `t80_y` one row up (0: the last row keeps its text, to be redrawn) or down (the first); `t80_y` left moved |
 | `t80_ptr_x`, `t80_ptr_y`, `t80_ptr_on`, `t80_ptr_show()`, `t80_ptr_hide()` | `apple2t80_ptr.s` (`APPLE2C_T80_PTR_SRCS`): the cell shown inverse (an inverse one normal, MouseText `+`); move it between hide and show |
 
-354 B code + 4 B (the row table in CODE: a program may reuse its RODATA at
-the exit); the pointer 115 B + 4 B, and `apple2t80.s` assembled with
-`$(APPLE2C_T80_PTR_AFLAGS)` (`-D T80_PTR=1`, +51 B) so that the text routines
+348 B code + 4 B (the row table in CODE: a program may reuse its RODATA at
+the exit); the pointer 106 B + 4 B, and `apple2t80.s` assembled with
+`$(APPLE2C_T80_PTR_AFLAGS)` (`-D T80_PTR=1`, +49 B) so that the text routines
 draw under it (what they write there is kept for `t80_ptr_hide`, shown
 flipped) and `t80_scroll` hides it meanwhile. MB TRACKER (its whole screen;
 the mouse read with 80STORE off stays in the program: the firmware's screen

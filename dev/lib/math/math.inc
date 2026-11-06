@@ -10,7 +10,7 @@
 ;               only when referenced before the include (.ifref), in any
 ;               order (sqrt.asm only reads the tables, through math.inc).
 ;
-; Zero page (13 bytes, +3 with MUL_ACC):
+; Zero page (15 bytes, +3 with MUL_ACC):
 ;   mul_x  (2)  16-bit operand (unsigned or signed, by routine)
 ;   mul_y  (1)  8-bit operand
 ;   mul_p0..mul_p2  24-bit product, little endian
@@ -21,7 +21,7 @@
 ;   mul_acc0..mul_acc2  only with MUL_ACC = 1: sum of products
 ; Each slot is skipped if the program defined the name before the include
 ; (alias onto its own scratch). With zp.inc included first, mul_t and
-; mul_p0 are its mul_tmp / mul_res0 (11 bytes of our own then).
+; mul_p0 are its mul_tmp / mul_res0 (13 bytes of our own then).
 ;
 ; Tables (2 KB, mul_init builds them at start, nothing on the disk):
 ;   mul_sqr1_lo/hi[x] = floor(x*x/4), x = 0..511

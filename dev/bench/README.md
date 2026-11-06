@@ -1,5 +1,12 @@
 # Current cc65 measurements
 
+Final November 6 audit: **18 optimization passes**, **793 passing cases
+and 16 frame budgets**, complete HGR/DHGR/tools suites, and a clean build
+reproducing every tracked disk and all 18 WOZ pairs. Across the 707
+original comparable cases, 210 timings improve, 477 are equal and 20
+have documented costs; 272 linked clients shrink. No comparable RAM, ZP
+or stack metric increases. See [the consolidated audit](HISTORY.md#bilan-du-chantier-jusquà-6-h-40--6-novembre-2026).
+
 The thirtieth-session gate passes **793 cases and 16 frame budgets**.
 Six tile timings improve by 23..27 cycles; **787 metric dictionaries are
 identical**, with no footprint or stack changes. **Six cycle limits are
@@ -509,10 +516,11 @@ The two-table diagonal still uses less RAM and initializes faster with
 independent builders. All 256 alignments are verified.
 
 The native math fixtures are measured by `python3 dev/tests/test_math.py`.
-Quarter-square table construction takes **37,691 cycles and 110 code bytes**
-(−22.6 % and −18 bytes); square-root seed construction takes 24,031 cycles.
-The root kernel saves two bytes and two cycles per ordinary candidate step,
-with a two-cycle cost increase when returning 255. All 65,536 roots and
+Quarter-square table construction takes **28,216 cycles and 107 code bytes**;
+square-root seed construction takes **23,519 cycles and 20 bytes**.
+The 42-byte root kernel saves two cycles per ordinary candidate step,
+with a two-cycle cost increase when returning 255; the full root sweep
+costs **5,529,438 cycles** including the fixture loop/output. All 65,536 roots and
 every generated table byte are checked at two table placements; details are
 in [lib/math](../lib/math/README.md).
 
@@ -520,8 +528,9 @@ General constant multiplication macros save **5 bytes and 8 cycles** per
 expansion, signed or unsigned. Zero, one and powers of two now use smaller
 table-free paths: ×64 takes **53 cycles and 22 code bytes**, compared with
 80 cycles and 44 bytes in the general path (input $FFFF, JSR/RTS included). `mul_acc_shr6` saves **3 bytes and 3 cycles**
-by falling through to the shift. `test_math_products.py` checks 1,572,864
-products and the optional accumulator/shift inclusion combinations. These
+by falling through to the shift. `test_math_products.py` checks 2,883,584
+products per CPU, including noncontiguous ZP and absolute aliases, plus
+scratch/stack guards and optional accumulator/shift inclusion combinations. These
 native math costs are separate from the C graphics benchmark gate.
 
 The unsigned 16/8 divider uses two byte stages for long quotients: **51
@@ -529,16 +538,21 @@ code bytes** instead of 52 and **92 fewer cycles** on that path, with a
 **two-cycle increase** for short quotients. `make test-math-division-full`
 checks all 16,777,216 input pairs, including zero divisors and preserved Y.
 For 65535/255 the cost is **349 instead of 441 cycles** including JSR/RTS;
-RAM, zero page and stack are unchanged.
+RAM, zero page and stack are unchanged. The later carry-fed high-byte
+loop keeps the 51-byte size and short-path costs, while saving another
+0..35 long-path cycles: 65535/1 is 412 instead of 447 cycles. All input
+pairs and every code alignment pass on both CPUs.
 
 The corridor kernel extracted from Light3DBall is measured separately with
 `python3 dev/bench/corridor_projection.py` (`make bench-corridor`). All
 65,536 depth differences and coordinates 0..127 for every admissible factor
 are checked with both IRQ masks. Costs include JSR/RTS, with no C arguments:
-selection 65..77 cycles, X 135..170, Y 129..164. The extraction keeps the
-binaries identical and changes these measurements by 0 %. `--before DIR`
-compares an earlier capture containing `game.bin`, `game.lbl` and
-`assets.bin`. The addresses of branches and tables affect these costs.
+selection **65..71 cycles**, X 135..170, Y 129..164. The initial extraction
+kept binaries/timings identical; direct carry construction for shift one
+subsequently saves two loaded bytes and six near-depth cycles.
+`--before DIR --current DIR --out PATH` compares captured `game.bin`,
+`game.lbl` and `assets.bin` artifacts, checks both public output domains,
+and reports timing deltas. Branch/table addresses affect these costs.
 
 ```sh
 make bench

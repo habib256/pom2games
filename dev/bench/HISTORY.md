@@ -4,6 +4,66 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Bilan du chantier jusqu'à 6 h 40 — 6 novembre 2026
+
+**18 séries d'optimisations**, de `1ef8225` à `229369d`, et un correctif
+de justesse séparé (`6f78d57`, gains physiques K=0..2), après la base
+`8d71903`. Trois agents Sol 6.1 ont travaillé sur HGR/DHGR, Apple II/ProDOS
+et math/physique, avec prototypes temporaires, preuves appariées, relectures
+indépendantes et intégration centrale. Le code exécutable est gelé depuis
+la dernière série ; les retouches finales corrigent uniquement la documentation
+et deux commentaires de comptage ZP, sans changement hors commentaires.
+
+Les rapports initial/final utilisent les mêmes compilateur, options,
+émulateurs, ROM et méthode de mesure. Sur les **707 cas comparables**
+(le banc final en compte **793**), **210 accélèrent, 477 gardent leur durée
+et 20 ralentissent légèrement**. Le plus grand écart relatif est un refus
+d'ellipse : 239 → 245 cycles (+6, soit 2,51 %). Les autres coûts de
+placement sont documentés dans les passes correspondantes. **272 clients
+sont plus petits, 420 identiques et 15 plus grands**, notamment lorsqu'un
+gain de vitesse justifie quelques octets supplémentaires.
+
+| Profil comparable | Avant | Après | Mémoire chargée avant → après |
+|---|---:|---:|---:|
+| Restauration HGR complète | 271 192 cycles | 168 837 cycles (−37,7 %) | 1 821 → 1 748 octets |
+| Ellipse GFX complète | 182 151 | 136 649 (−25,0 %) | 3 045 → 2 778 |
+| Overlay DHGR, 31 lignes | 28 080 | 18 498 (−34,1 %) | 6 127 → 6 139 |
+| Contrôle sprite HGR, origine | 183 | 183 | 3 478 → 1 431 |
+| Contrôle HGR non initialisé | 123 | 123 | 3 406 → 677 |
+
+RAM réduite dans **184 cas**, ZP dans **77**, pile C dans **26**, pile
+matérielle dans **trois** ; aucun de ces quatre indicateurs n'augmente
+dans les 707 cas comparables. **1 094 champs de référence déjà présents
+au départ sont abaissés, aucun relevé**. Les nouvelles mesures disposent
+de leurs propres références et preuves ; les profils natifs dédiés
+(projection, ProDOS, math, physique, clavier) restent distincts du banc
+graphique global. Les économies entre clients ne sont pas additionnées.
+
+Validation finale : gate **793 cas / 16 budgets**, `make check test-woz`
+(reconstruction complète, disques suivis identiques, **18 paires WOZ**),
+puis suites complètes `make test-hgr`, `make test-dhgr` et `make test-tools`.
+Elles se terminent respectivement à **6 h 17, 6 h 10 et 6 h 03 Réunion**,
+sans échec. Les jeux réellement modifiés passent aussi leurs tests normaux,
+avec modèles/cadence/budgets pour les six clients physiques. Les oracles
+ciblés, traces ordonnées, IRQ réelles, gardes et contrôles négatifs sont
+décrits dans chaque audit.
+
+Les relectures indépendantes ajoutent 158 760 appels bruts de projection
+(pointeurs/piles traversant les pages, nettoyage exact de cinq octets),
+des alias math ZP/absolus, 458 752 paires de division par source/CPU et
+1 179 648 facteurs par CPU pour K=0..8. Aucun défaut d'ABI ou arithmétique
+supplémentaire n'est trouvé. La documentation math indiquait depuis avant
+ce chantier 13 octets ZP au lieu de **15**, ou **18 avec accumulateur** :
+ce comptage est corrigé, sans changement d'allocation. Les tailles T80
+et les mesures math/corridor récapitulatives sont également actualisées.
+
+La piste RWTS (−8 octets dans MICRO-SOKOBAN) reste écartée : certaines
+configurations déplaçaient le buffer ou les boucles de retry et coûtaient
+jusqu'à 240/246 cycles supplémentaires. Le warning ld65 de taille d'adresse
+de la constante `dhgr_spr_slots`, observé au clean build, préexistait
+avec les mêmes déclarations ; il ne provient pas de ces changements.
+
+
 ## Audit de la trentième session du 6 novembre 2026 — sortie de dernière ligne
 
 Après `749918c`, le compteur de lignes est décrémenté immédiatement après
