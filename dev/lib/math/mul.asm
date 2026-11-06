@@ -2,7 +2,7 @@
 ; ============================================================================
 ; mul.asm -- quarter-square products, exact, for fixed-point physics
 ; ============================================================================
-;   mul_init      build the 2 KB of tables (once, at start). ~38 000 cycles.
+;   mul_init      build the 2 KB of tables (once, at start). ~28 000 cycles.
 ;                 MUL_INIT_BOOT = 1 before the include puts it in segment
 ;                 "INIT" (boot code that a buffer overwrites afterwards).
 ;   mul_u8u8      mul_p0..p1 = mul_x (low byte) * mul_y, unsigned. ~45 cycles
@@ -220,8 +220,8 @@ mul_u8u8:
         RTS
 .endif
 
-; mul_init -- sqr1[x] = floor(x*x/4) by steps of floor((x+1)/2), x = 0..511;
-; sqr2[x] = sqr1[255-x] (x < 256), sqr1[x-255] (x >= 256)
+; mul_init -- advance sqr1[n] = floor(n*n/4), n = 0..255, and generate
+; sqr1[n+256] from it. sqr2[x] = sqr1[|x-255|], x = 0..511.
 .if .defined(MUL_INIT_BOOT)             ; no symbol defined here: it would
 .if MUL_INIT_BOOT                       ; end the scope of the @ labels
 .segment "INIT"
@@ -229,38 +229,41 @@ mul_u8u8:
 .endif
 mul_init:
         LDA     #0
-        STA     mul_p0                  ; f = sqr1[x]
+        STA     mul_p0                  ; f(n) = floor(n*n/4), n = 0..255
         STA     mul_p1
-        STA     mul_t                   ; next difference, incremented on odd x
-        LDX     #1                      ; halves left minus one: low, then high
-        TAY                             ; low byte
-@s1:    TXA
-        BEQ     @hi
-        LDA     mul_p0
+        STA     mul_t
+        LDY     #0
+@s1:    LDA     mul_p0
         STA     mul_sqr1_lo,Y
         LDA     mul_p1
         STA     mul_sqr1_hi,Y
-        JMP     @step
-@hi:    LDA     mul_p0
+        ; f(n+256) = f(n) + 128*n + 16384. C from the low sum
+        ; enters the high sum; its intermediate is <=191, so no wrap.
+        TYA
+        LSR     A
+        TAX                             ; floor(n/2), C = n&1
+        LDA     #0
+        ROR     A                       ; 128*(n&1), C=0
+        ADC     mul_p0
         STA     mul_sqr1_lo+256,Y
-        LDA     mul_p1
+        TXA
+        ADC     mul_p1
+        ADC     #64
         STA     mul_sqr1_hi+256,Y
-@step:  TYA                             ; f += floor((x + 1) / 2)
-        LSR     A                       ; difference changes only on odd x
-        BCC     @add
-        INC     mul_t                   ; wrap after x=511 is unused
-@add:   CLC
-        LDA     mul_p0
-        ADC     mul_t
+        TYA                             ; f(n+1) - f(n) = ceil(n/2)
+        LSR     A
+        ADC     #0                      ; <=128, C=0 for the following sum
+        ADC     mul_p0
         STA     mul_p0
         BCC     @nc
         INC     mul_p1
 @nc:    INY
         BNE     @s1
-        DEX
-        BPL     @s1
         LDX     #0
         LDY     #255                    ; mirror first half while copying second
+        STY     mul_p1                  ; retain the former final scratch value
+        CLC
+        CLV
 @s2:    LDA     mul_sqr1_lo,Y
         STA     mul_sqr2_lo,X
         LDA     mul_sqr1_hi,Y

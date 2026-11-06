@@ -83,16 +83,47 @@ def cases(n, full):
 FIXTURE='''#include "hgr.h"
 #include <string.h>
 extern const hgr_mspr_t *spr_shape[HGR_SPR_MAX];
-extern unsigned char spr_count,spr_capacity,spr_drawn[2][HGR_SPR_MAX];
+extern unsigned spr_x[HGR_SPR_MAX],spr_px[2][HGR_SPR_MAX];
+extern unsigned char spr_y[HGR_SPR_MAX],spr_active[HGR_SPR_MAX];
+extern unsigned char spr_py[2][HGR_SPR_MAX],spr_drawn[2][HGR_SPR_MAX];
+extern unsigned char *spr_under[2];
+extern unsigned char spr_count,spr_capacity,spr_invalid,spr_dbuf,spr_drawpage;
+#if HGR_SPR_DAMAGE
+extern unsigned char spr_box[HGR_SPR_MAX][4];
+#endif
+extern unsigned char spr_block[HGR_SPR_MAX],spr_dirty;
 extern void (*spr_damage_fn)(void);
+typedef struct {unsigned char *data;unsigned char size;} region_t;
+#define R(field) {(unsigned char*)&spr_##field,sizeof(spr_##field)}
+static const region_t regions[]={R(shape),R(x),R(y),R(active),R(px),R(py),R(drawn),R(under),
+ R(count),R(capacity),R(invalid),R(dbuf),R(drawpage),
+#if HGR_SPR_DAMAGE
+ R(box),
+#endif
+ R(block),R(dirty),R(damage_fn)};
 void ready(void);void done(void);void probe_call(void);
+#ifdef STATE_GUARDS
+void guard_fill(void);unsigned char guard_check(void);
+#endif
 unsigned char inputs[16][16],records[16][192],result[16],headers[512],*current,*shape_pointer,index;
+static void poison(unsigned char value){
+ unsigned char r;
+ for(r=0;r<sizeof(regions)/sizeof(regions[0]);++r)memset(regions[r].data,value,regions[r].size);
+}
+static void snapshot(unsigned char *destination){
+ unsigned char r;
+ for(r=0;r<sizeof(regions)/sizeof(regions[0]);++r){
+  memcpy(destination,regions[r].data,regions[r].size);destination+=regions[r].size;
+ }
+}
 int main(void){
- unsigned serial=0,state_size;unsigned char slot;
- state_size=(unsigned char*)&spr_damage_fn+sizeof(spr_damage_fn)-(unsigned char*)spr_shape;
+ unsigned serial=0;unsigned char slot;
  for(;;){ready();for(slot=0;slot<16;++slot){
   current=inputs[slot];index=(unsigned char)serial++;
-  memset(spr_shape,index,state_size);memset(result,0,16);
+#ifdef STATE_GUARDS
+  guard_fill();
+#endif
+  poison(index);memset(result,0,16);
   shape_pointer=headers+index;
   shape_pointer[0]=current[10];shape_pointer[1]=current[11];
   shape_pointer[2]=current[12];shape_pointer[3]=current[13];
@@ -103,8 +134,11 @@ int main(void){
   }
   if(index&1){asm("sei");}else{asm("cli");}
   probe_call();asm("cli");
+#ifdef STATE_GUARDS
+  result[15]=guard_check();
+#endif
   memcpy(records[slot],result,16);memcpy(records[slot]+16,shape_pointer,6);
-  memcpy(records[slot]+22,spr_shape,state_size);
+  snapshot(records[slot]+22);
  }done();}
  return 0;
 }
@@ -246,27 +280,115 @@ clobber:
 '''
 
 
-def c_reference(work, flags):
+def c_reference(work, flags, engine=None):
     """Explicit C objects win over the independent native archive entries."""
     objects = []
     for name in ('hgr_sprengine', 'hgr_sprdefault'):
         obj = work / ('ref_' + name + '.o')
-        compile_source(DEV / 'lib/hgrc' / (name + '.c'), obj,
+        source = engine if name == 'hgr_sprengine' and engine else DEV / 'lib/hgrc' / (name + '.c')
+        compile_source(source, obj,
                        ['-t', 'none', '-Oirs', '-DHGR_SPR_C_ENTRY=1', *flags,
                         '-I', DEV / 'lib/hgrc', '-I', DEV / 'lib/apple2c'])
         objects.append(obj)
     return objects
 
 
-def check(n, damage, reference=False, iie=False, full=False):
+def state_regions(n,damage):
+    result=[('shape',2*n),('x',2*n),('y',n),('active',n),('px',4*n),('py',2*n),('drawn',2*n),('under',4),('count',1),('capacity',1),('invalid',1),('dbuf',1),('drawpage',1)]
+    if damage:result.append(('box',4*n))
+    return result+[('block',n),('dirty',1),('damage_fn',2)]
+
+
+def module_bss(text, member):
+    marker = member + '.o):'
+    if marker not in text:
+        return 0
+    section = text.split(marker)[1].split('.o):')[0]
+    match = re.search(r'BSS\s+Offs=[0-9A-F]+\s+Size=([0-9A-F]+)', section)
+    return int(match[1], 16) if match else 0
+
+
+def guard_source(n,damage):
+    lines=['.bss']
+    guards=[]
+    for i,(name,size) in enumerate(state_regions(n,damage)):
+        for suffix in ('before','after'):guards.append(f'guard_{i}_{suffix}')
+        lines +=[f'.export _spr_{name}',f'guard_{i}_before:.res 1',f'_spr_{name}:.res {size}',f'guard_{i}_after:.res 1']
+    lines +=['.code','.export _guard_fill,_guard_check','_guard_fill:',' lda #$6d']
+    lines +=[' sta '+g for g in guards]
+    lines +=[' rts','_guard_check:',' ldx #0']
+    for g in guards:lines+=[' lda '+g,' cmp #$6d',' beq :+',' inx',':']
+    lines+=[' txa',' beq :+',' lda #0',' ldx #0',' rts',': lda #1',' ldx #0',' rts']
+    return '\n'.join(lines)+'\n'
+
+
+def extern_state(source):
+    """Keep the actual C entries/types; the guard object supplies their backing.
+
+    Only mutable data declarations become extern. The slot/factory constants
+    and all function bodies remain intact, including the retained C reference.
+    """
+    first = source.index('/* --- per-sprite state:')
+    last = source.index('/* Native cc65 entries', first)
+    declarations = source[first:last].splitlines()
+    for index, line in enumerate(declarations):
+        if line.startswith(('const hgr_mspr_t *spr_shape', 'unsigned ',
+                            'unsigned char ', 'void (*spr_damage_fn')):
+            declarations[index] = 'extern ' + line
+    return source[:first] + '\n'.join(declarations) + '\n\n' + source[last:]
+
+
+def build_control(work, source, probe, flags, n, damage, reference, guarded, overrun):
+    extra = [probe]
+    engine = None
+    if guarded:
+        flags = [*flags, '-DSTATE_GUARDS=1']
+        guards = work / 'guards.s'
+        guards.write_text(guard_source(n, damage))
+        extra.append(guards)
+        engine = work / 'guard_engine.c'
+        engine.write_text(extern_state((DEV / 'lib/hgrc/hgr_sprengine.c').read_text()))
+    corrupted = None
+    if overrun:
+        corrupted = work / 'overrun_init.s'
+        text = (DEV / 'lib/hgrc/hgr_spr_init_pool.s').read_text()
+        needle = ' lda _spr_slots\n asl a\n tax\n lda #0\n'
+        assert needle in text
+        corrupted.write_text(text.replace(needle, needle.replace(' tax\n', ' tax\n inx\n')))
+    original_compile, original_run = test_hgr.compile_source, test_hgr.run
+
+    def compile_member(member, obj, options):
+        if engine and Path(member).name == 'hgr_sprengine.c':
+            member = engine
+        if corrupted and Path(member).name == 'hgr_spr_init_pool.s':
+            member = corrupted
+        return original_compile(member, obj, options)
+
+    def link_guards(args, **kwargs):
+        # build() performs an initial fixture link. Guard definitions must be
+        # explicit before the archive so its ordinary state members stay out.
+        if guarded and str(args[0]) == 'cl65' and work / 'hgrc.lib' in args:
+            at = args.index(work / 'hgrc.lib')
+            args = [*args[:at], work / 'guards.o', *args[at:]]
+        return original_run(args, **kwargs)
+
+    try:
+        test_hgr.compile_source, test_hgr.run = compile_member, link_guards
+        test_hgr.build(work, source, extra_sources=extra, cflags=flags)
+    finally:
+        test_hgr.compile_source, test_hgr.run = original_compile, original_run
+    objects = c_reference(work, flags, engine) if reference else []
+    return [*objects, *([work / 'guards.o'] if guarded else [])]
+
+
+def check(n, damage, reference=False, iie=False, full=False, guarded=False, overrun=False):
     with tempfile.TemporaryDirectory(prefix='hgr-spr-control-') as directory:
         work = Path(directory)
         source, probe = work / 'control.c', work / 'probe.s'
         source.write_text(FIXTURE)
         probe.write_text(PROBE)
         flags = [f'-DHGR_SPR_MAX={n}', f'-DHGR_SPR_DAMAGE={damage}']
-        test_hgr.build(work, source, extra_sources=[probe], cflags=flags)
-        objects = c_reference(work, flags) if reference else []
+        objects = build_control(work, source, probe, flags, n, damage, reference, guarded, overrun)
         binary, mapfile, labelsfile = (work / name for name in
                                       ('control.bin', 'control.map', 'control.lbl'))
         run(['cl65', '-t', 'none', '-C', DEV / 'cc65/apple2_hgr_c.cfg',
@@ -275,14 +397,17 @@ def check(n, damage, reference=False, iie=False, full=False):
              work / 'apple2io_asm.o', *objects, work / 'hgrc.lib'])
         labels = a2test.labels(labelsfile)
         disk = a2test.build_disk(work, 'CONTROL', binary)
-        base = labels['_spr_shape']
-        length = labels['_spr_damage_fn'] + 2 - base
-        assert length == 15 * n + 12 + 4 * n * damage
-        assert 22 + length <= SLOT
-        fields = {name: labels['_spr_' + name] - base for name in
-                  ('shape', 'active', 'drawn', 'under', 'count', 'capacity',
-                   'invalid', 'dbuf', 'drawpage', 'block', 'dirty', 'damage_fn')}
+        fields = {};length=0
+        for name,size in state_regions(n,damage):fields[name]=length;length+=size
+        assert length==15*n+12+4*n*damage and 22+length<=SLOT
         text = mapfile.read_text()
+        if not guarded and not reference:
+            sizes={'hgr_sprshape':2*n,'hgr_sprtargets':3*n,'hgr_spractive':n,'hgr_sprhistory':6*n,'hgr_sprengine':3*n+12}
+            if damage:
+                sizes={name:0 for name in sizes};sizes['hgr_sprengine']=19*n+12
+            for member,size in sizes.items():
+                actual=module_bss(text,member)
+                assert actual==size,(member,actual,size)
         bss_start = int(re.search(r'(?m)^BSS\s+([0-9A-F]+)',
                                  text.split('Segment list:')[1])[1], 16)
         # The C fallback deliberately keeps its compatibility pool static.
@@ -301,6 +426,7 @@ def check(n, damage, reference=False, iie=False, full=False):
             shape = labels['_headers'] + index
             header = bytes((dl, dh, ml, mh, stride, height))
             result = bytearray(16)
+            result[15]=int(guarded)
             frame = 6 if mode == 0 else 0 if mode == 2 else 1
             result[2] = (index + frame) & 255
             result[3] = 0x10 + int(index + frame > 255)
@@ -383,7 +509,8 @@ def check(n, damage, reference=False, iie=False, full=False):
                     assert got == want, (n, damage, reference, iie, ordinal,
                                          current.hex(), got.hex(), want.hex())
         print(f'HGR controls: {len(inputs):,} calls; MAX={n}, DAMAGE={damage}, '
-              f'{"C reference" if reference else "native"}, {"IIe" if iie else "NMOS"}.')
+              f'{"C reference" if reference else "native"}, {"IIe" if iie else "NMOS"}, '
+              f'array guards={guarded}.', flush=True)
 
 
 SCENES = {
@@ -447,9 +574,10 @@ def bench(out=None, reference=False):
             version = subprocess.run(['cl65', '--version'], capture_output=True,
                                      text=True, check=True)
             sources = ('hgr_sprengine.c', 'hgr_sprdefault.c', 'hgr_spr_init_pool.s',
+                       'hgr_sprshape.c', 'hgr_sprtargets.c', 'hgr_spractive.c', 'hgr_sprhistory.c',
                        'hgr_spr_define.s', 'hgr_spr_init.s', 'hgr_sprengine_asm.s',
                        'hgr_spr_control.s', 'hgr_spr_visibility.s',
-                       'hgr_sprdamage.s', 'hgr_sprmask.s', 'hgr.h', 'hgrc.mk')
+                       'hgr_sprdamage.s', 'hgr_sprmask.s', 'hgr.h', 'hgrc.mk', 'hgrc_build.mk')
             report = dict(schema=2, compiler=(version.stdout + version.stderr).strip(),
                           flags='-Oirs', results=results,
                           case_environments={name: 'ii_plus' for name in results},
@@ -477,8 +605,37 @@ ARCHIVE_ENTRIES = {
 }
 
 
+def check_source_order():
+    """Both direct test archives and the shared builder retain the state order."""
+    with tempfile.TemporaryDirectory(prefix='hgr-state-order-') as directory:
+        work = Path(directory)
+        hgr = DEV / 'lib/hgrc'
+        mk = work / 'order.mk'
+        mk.write_text(f'DEV := {DEV}\nHGRC := {hgr}\nGFX := {DEV}/lib/gfx\n'
+                      f'include {hgr}/hgrc.mk\n'
+                      'all:\n\t@true\n'
+                      f'HGRC_BUILD := {work}/objects\nHGRC_LIB := {work}/hgrc.lib\n'
+                      f'HGRC_EXTRA_SRCS := {DEV}/lib/apple2c/apple2io_asm.s '
+                      f'{hgr}/hgr_sprhistory.c\n'
+                      f'include {hgr}/hgrc_build.mk\n'
+                      'print:\n\t@echo DIRECT $(HGRC_ALL_SRCS)\n'
+                      '\t@echo BUILDER $(HGRC_ARCHIVE_SRCS)\n')
+        expected = [str(hgr / ('hgr_spr' + name + '.c'))
+                    for name in ('shape', 'targets', 'active', 'history')]
+        for line in run(['make', '-s', '-f', mk, 'print']).splitlines():
+            mode, *sources = line.split()
+            assert mode in ('DIRECT', 'BUILDER'), line
+            at = sources.index(str(hgr / 'hgr_sprengine.c'))
+            assert sources[at-4:at] == expected, (mode, sources[at-4:at])
+            assert len(sources) == len(set(sources)), (mode, 'duplicates')
+            others = [source for source in sources if source not in expected]
+            assert others == sorted(others), (mode, 'unrelated member order changed')
+        print('Sprite state order: direct/shared archives keep original member positions; extras deduplicated.')
+
+
 def check_archive():
     """Link each public entry separately; assert the actual archive closure."""
+    check_source_order()
     for n in (1, 2, 8):
         for damage in (0, 1):
             with tempfile.TemporaryDirectory(prefix='hgr-spr-extract-') as directory:
@@ -511,6 +668,16 @@ def check_archive():
                     }
                     for member, wanted in expected.items():
                         assert (member in text) == wanted, (n, damage, name, member, wanted)
+                    state = {'hgr_sprshape': 2*n, 'hgr_sprtargets': 3*n,
+                             'hgr_spractive': n, 'hgr_sprhistory': 6*n}
+                    used = {'hgr_sprshape': not damage, 'hgr_spractive': not damage,
+                            'hgr_sprtargets': not damage and (control or frame),
+                            'hgr_sprhistory': not damage and frame}
+                    for member, size in state.items():
+                        assert module_bss(text, member) == (size if used[member] else 0), (
+                            n, damage, name, member, size, used[member])
+                    assert module_bss(text, 'hgr_sprengine') == (
+                        (19*n+12) if damage else (3*n+12))
                 print(f'Sprite archive MAX={n}, DAMAGE={damage}: nine independent entries OK.',
                       flush=True)
 
@@ -548,9 +715,10 @@ def bench_archive(out=None):
         version = subprocess.run(['cl65', '--version'], capture_output=True,
                                  text=True, check=True)
         members = ('hgr_sprengine.c', 'hgr_sprdefault.c', 'hgr_spr_init_pool.s',
+                   'hgr_sprshape.c', 'hgr_sprtargets.c', 'hgr_spractive.c', 'hgr_sprhistory.c',
                    'hgr_spr_define.s', 'hgr_spr_init.s', 'hgr_sprengine_asm.s',
                    'hgr_spr_control.s', 'hgr_spr_visibility.s', 'hgr_sprdamage.s',
-                   'hgr_sprmask.s', 'hgr.h', 'hgrc.mk')
+                   'hgr_sprmask.s', 'hgr.h', 'hgrc.mk', 'hgrc_build.mk')
         artifacts = [DEV / 'lib/hgrc' / name for name in members]
         report = dict(schema=2, compiler=(version.stdout + version.stderr).strip(),
                       flags='-Oirs', results=results,
@@ -566,6 +734,19 @@ def bench_archive(out=None):
               f'{values["ram_bytes"]:,} RAM; {values["zp_bytes"]} ZP.')
 
 
+def negative_guard_check():
+    """A one-past clear must fail the canary while named fields still match."""
+    try:
+        check(8, 0, guarded=True, overrun=True)
+    except AssertionError as error:
+        result = error.args[0]
+        actual, wanted = bytes.fromhex(result[-2]), bytes.fromhex(result[-1])
+        assert [i for i, pair in enumerate(zip(actual, wanted)) if pair[0] != pair[1]] == [15]
+        print('State guard negative control: one-past clear detected; named fields unchanged.')
+    else:
+        raise AssertionError('state guard negative control unexpectedly passed')
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--max', type=int, choices=range(1, 9), default=8,
@@ -576,6 +757,8 @@ def main():
     parser.add_argument('--full', action='store_true', help='exhaust every 16-bit pointer/size')
     parser.add_argument('--matrix', action='store_true',
                         help='check MAX 1/2/8, DAMAGE 0/1, native/C, NMOS/IIe')
+    parser.add_argument('--guards', action='store_true', help='place canaries around every state array/scalar')
+    parser.add_argument('--negative-guard', action='store_true', help='prove detection of a one-past clear')
     parser.add_argument('--bench', action='store_true', help='measure 16 archive-linked clients')
     parser.add_argument('--archive', action='store_true',
                         help='check 54 archive links; with --bench measure 53 render/extraction cases')
@@ -583,12 +766,15 @@ def main():
     args = parser.parse_args()
     if args.out and not args.bench:
         parser.error('--out requires --bench')
-    if args.bench and (args.max != 8 or args.damage or args.iie or args.full or args.matrix):
+    if args.bench and (args.max != 8 or args.damage or args.iie or args.full or args.matrix or
+                       args.guards or args.negative_guard):
         parser.error('--bench uses default MAX=8, DAMAGE=0 and NMOS')
     if args.archive and (args.max != 8 or args.damage or args.iie or args.full or
-                         args.matrix or args.reference):
+                         args.matrix or args.reference or args.guards or args.negative_guard):
         parser.error('--archive checks all MAX/DAMAGE variants; use no control-fixture options')
-    if args.archive:
+    if args.negative_guard:
+        negative_guard_check()
+    elif args.archive:
         bench_archive(args.out) if args.bench else check_archive()
     elif args.bench:
         bench(args.out, args.reference)
@@ -597,9 +783,9 @@ def main():
             for damage in (0, 1):
                 for reference in (False, True):
                     for iie in (False, True):
-                        check(n, damage, reference, iie, args.full)
+                        check(n, damage, reference, iie, args.full, args.guards)
     else:
-        check(args.max, args.damage, args.reference, args.iie, args.full)
+        check(args.max, args.damage, args.reference, args.iie, args.full, args.guards)
 
 
 if __name__ == '__main__':

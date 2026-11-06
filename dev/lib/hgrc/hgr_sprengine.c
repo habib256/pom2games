@@ -9,18 +9,31 @@
 #include "hgr_internal.h"
 
 /* --- per-sprite state: parallel static arrays ------------------------------ */
+/* Native default state starts in four preceding archive members, in the same
+ * order as these original declarations. Init/define omit coordinates/history;
+ * move/hide/invalidate omit history. Full renderers retain the packed layout.
+ * Hosts, C references and DAMAGE keep the original monolithic backing, so an
+ * engine-only DAMAGE override remains valid. */
+#if HGR_SPR_DAMAGE || !defined(__CC65__) || (defined(HGR_SPR_C_ENTRY) && HGR_SPR_C_ENTRY)
 const hgr_mspr_t *spr_shape[HGR_SPR_MAX]; /* 0 = undefined            */
+#endif
+#if HGR_SPR_DAMAGE || !defined(__CC65__) || (defined(HGR_SPR_C_ENTRY) && HGR_SPR_C_ENTRY)
 unsigned      spr_x[HGR_SPR_MAX];          /* target position (move)   */
 unsigned char spr_y[HGR_SPR_MAX];
+#endif
+#if HGR_SPR_DAMAGE || !defined(__CC65__) || (defined(HGR_SPR_C_ENTRY) && HGR_SPR_C_ENTRY)
 unsigned char spr_active[HGR_SPR_MAX];     /* 0 = hidden               */
+#endif
 
 /* Per PAGE (index 0 = page 1, 1 = page 2): where the sprite was drawn on THAT
  * page and whether it is currently drawn there. Two copies because in double-
  * buffer mode each page holds a 1-frame-old background with its own set of
  * sprites stamped in. Single-buffer mode only ever uses index 0's discipline
  * on whatever the draw page is (see hgr_spr_init). */
+#if HGR_SPR_DAMAGE || !defined(__CC65__) || (defined(HGR_SPR_C_ENTRY) && HGR_SPR_C_ENTRY)
 unsigned      spr_px[2][HGR_SPR_MAX];
 unsigned char spr_py[2][HGR_SPR_MAX];
+#endif
 unsigned char spr_drawn[2][HGR_SPR_MAX];
 
 /* Caller-owned save-under storage. The compatibility pool is in its own

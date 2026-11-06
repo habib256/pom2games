@@ -75,7 +75,7 @@ def host_check(work, tool):
     print('Host: 112280 projections, varied cameras, invalid inputs and unchanged outputs OK')
 
 
-def target_check(work, tool, iie):
+def target_check(work, tool, iie, source=None):
     (work/'camera.h').write_text(tool.generate())
     fixture=work/'fixture.c'
     fixture.write_text('''#include "perspective.h"
@@ -116,7 +116,7 @@ int main(void) {
     marker.write_text('.export _done\n.code\n_done: rts\n')
     objects=[]
     for source in (DEV/'cc65/crt0_apple2.s',fixture,marker,
-                   DEV/'lib/perspective/perspective.c'):
+                   source or DEV/'lib/perspective/perspective_asm.s'):
         obj=work/(source.stem+'.o')
         compile_source(source,obj,['-t','none','-Oirs','-I',work,'-I',DEV/'lib/perspective'])
         objects.append(obj)
@@ -141,13 +141,14 @@ int main(void) {
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--iie',action='store_true')
+    parser.add_argument('--reference',action='store_true',help='use the retained C target entry')
     args=parser.parse_args()
     tool=load_tool('perspective_tables',DEV/'tools/perspective.py')
     run(['make','-s','-C',DEV/'tools'/('a2shot' if args.iie else 'a2run')])
     with tempfile.TemporaryDirectory(prefix='pom2-perspective-') as temp:
         work=Path(temp)
         host_check(work,tool)
-        target_check(work,tool,args.iie)
+        target_check(work,tool,args.iie,DEV/'lib/perspective/perspective.c' if args.reference else None)
 
 
 if __name__=='__main__':

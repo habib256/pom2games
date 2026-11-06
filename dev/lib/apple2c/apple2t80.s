@@ -162,27 +162,25 @@ _t80_fill:
 ; redrawn) or down (A != 0: the first). t80_y is left moved.
 .if T80_PTR
 _t80_scroll:
-        ldy _t80_ptr_on          ; the pointer off meanwhile
-        phy
-        pha
+        pha                     ; direction while checking pointer visibility
+        lda _t80_ptr_on
+        beq @plain
         jsr _t80_ptr_hide
         pla
         jsr scroll
-        pla
-        beq :+
         jmp _t80_ptr_show
-:       rts
+@plain: pla                     ; no pointer: fall through to the scroll
 .else
 _t80_scroll = scroll
 .endif
 
-scroll: sta tmp1
+scroll: tax
         lda _t80_x
         beq @end
         dec a
         sta tmp2                 ; rows to copy
         beq @end
-        lda tmp1
+        txa
         bne @down
 @up:    jsr @pair                ; dst = t80_y, src = t80_y + 1
         inc _t80_y

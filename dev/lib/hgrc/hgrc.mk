@@ -27,7 +27,8 @@ HGRC_SPRITES_SRCS := $(HGRC)/hgr_sprites.s $(HGRC)/hgr_blit7.s
 HGRC_PRESHIFT_SRCS := $(addprefix $(HGRC)/,hgr_preshift.s hgr_preshift_xor.s hgr_preshift_validate.s)
 HGRC_X2_SRCS := $(HGRC)/hgr_x2_target.s $(HGRC)/hgr_inflate_x2_asm.s $(HGRC)/hgr_blit_x2.s
 HGRC_SPRMASK_SRCS := $(HGRC)/hgr_sprmask.s
-HGRC_SPRENGINE_SRCS := $(addprefix $(HGRC)/,hgr_sprengine.c hgr_spr_init_pool.s hgr_spr_define.s \
+HGRC_SPR_STATE_SRCS := $(addprefix $(HGRC)/,hgr_sprshape.c hgr_sprtargets.c hgr_spractive.c hgr_sprhistory.c)
+HGRC_SPRENGINE_SRCS := $(HGRC_SPR_STATE_SRCS) $(addprefix $(HGRC)/,hgr_sprengine.c hgr_spr_init_pool.s hgr_spr_define.s \
     hgr_sprengine_asm.s hgr_sprdamage.s hgr_sprdefault.c hgr_spr_init.s \
     hgr_spr_control.s hgr_spr_visibility.s)
 HGRC_GEOM_SRCS := $(addprefix $(HGRC)/,hgr_hline.s hgr_vline.s hgr_line.s hgr_outline.s \
@@ -89,3 +90,10 @@ HGRC_DHGR_SPR_SRCS := $(addprefix $(HGRC)/,dhgr_spr_api.s dhgr_spr_palette.s dhg
 
 # Optional DHGR members are extracted only when referenced. gfx backends remain explicit.
 HGRC_ALL_SRCS := $(sort $(HGRC_ALL_SRCS) $(HGRC_DHGR_SRCS) $(HGRC_DHGR_SMALL_TEXT_SRCS) $(HGRC_65C02_NUM_SRCS))
+# Preserve the original full-client BSS layout after deduplicating the families.
+# Partial archive clients can still omit targets/history; all four prefix state
+# members precede the C tail exactly where the monolithic engine member stood.
+hgrc_state_order = $(if $(filter $(HGRC)/hgr_sprengine.c,$(1)),\
+    $(foreach hgr_src,$(filter-out $(HGRC_SPR_STATE_SRCS),$(1)),\
+    $(if $(filter $(HGRC)/hgr_sprengine.c,$(hgr_src)),$(filter $(1),$(HGRC_SPR_STATE_SRCS))) $(hgr_src)),$(1))
+HGRC_ALL_SRCS := $(call hgrc_state_order,$(HGRC_ALL_SRCS))

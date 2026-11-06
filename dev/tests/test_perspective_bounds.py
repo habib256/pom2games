@@ -66,7 +66,7 @@ def main():
     parser.add_argument('--full',action='store_true',help='all 256 scale bytes at input/shift boundaries')
     parser.add_argument('--out',type=Path)
     args=parser.parse_args()
-    source=(args.reference or DEV/'lib/perspective/perspective.c').resolve()
+    source=(args.reference or DEV/'lib/perspective/perspective_asm.s').resolve()
     results=measure(source,args.iie,args.full)
     version=subprocess.run(['cl65','--version'],text=True,capture_output=True,check=True)
     digest=lambda p:dict(name=Path(p).name,sha256=hashlib.sha256(Path(p).read_bytes()).hexdigest())

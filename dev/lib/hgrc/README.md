@@ -1040,6 +1040,17 @@ extractions across MAX=1/2/8 and DAMAGE=0/1; adding `--bench --out PATH`
 measures the 53 extraction/render clients. The full native/C state matrix
 continues to pass without changing C-owned state or callback layout.
 
+For native non-DAMAGE builds, shape, target positions, activity and history
+now live in four ordered C members. Initialization/definition clients omit
+**72 more RAM bytes** at MAX=8; standalone move/hide/invalidate omit **48**.
+Their loaded size, timings, zero page and stacks stay exactly equal. Full
+rendering retains the original member order and BSS layout. C fallback,
+host and DAMAGE builds keep their original monolithic backing.
+The control oracle compares every named field and can place independent
+canaries around each array/scalar (`--matrix --guards`); `--negative-guard`
+proves a one-past clear is caught even when all named state still matches.
+The regular/guarded MAX/DAMAGE/native/C/CPU matrix checks 4,300,544 calls.
+
 Masked save/restore setup skips the drawing-only data/mask pointer reads.
 Row advancement reuses the clear carry from the bounded screen address
 calculation; byte loops preserve it, and the drawing path still clears carry

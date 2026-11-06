@@ -5,6 +5,9 @@ CA65 ?= ca65
 AR65 ?= ar65
 PYTHON ?= python3
 HGRC_ARCHIVE_SRCS := $(sort $(HGRC_ALL_SRCS) $(HGRC_EXTRA_SRCS))
+ifneq ($(value hgrc_state_order),)
+HGRC_ARCHIVE_SRCS := $(call hgrc_state_order,$(HGRC_ARCHIVE_SRCS))
+endif
 # ar65 indexes by basename: encode both directory and source extension.
 hgrc_object = $(HGRC_BUILD)/$(subst /,__,$(patsubst $(DEV)/lib/%,%,$(1))).o
 HGRC_OBJECTS := $(foreach s,$(HGRC_ARCHIVE_SRCS),$(call hgrc_object,$(s)))

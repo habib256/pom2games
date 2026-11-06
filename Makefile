@@ -112,6 +112,8 @@ test-hgr:
 	$(PYTHON) dev/tests/test_dosbin.py
 	$(PYTHON) dev/tests/test_dos_append.py
 	$(PYTHON) dev/tests/test_math.py
+	$(PYTHON) dev/tests/test_math_init.py
+	$(PYTHON) dev/tests/test_math_init.py --iie
 	$(PYTHON) dev/tests/test_rand16.py
 	$(PYTHON) dev/tests/test_rand16.py --iie
 	$(PYTHON) dev/tests/test_math_products.py
@@ -266,6 +268,7 @@ test-dhgr:
 	$(PYTHON) dev/tests/test_audio.py --iie
 	$(PYTHON) dev/tests/test_perspective.py --iie
 	$(PYTHON) dev/tests/test_perspective_bounds.py --iie
+	$(PYTHON) dev/tests/test_perspective_entry.py --iie
 	$(PYTHON) dev/tests/test_shufflepuck_example.py --iie
 	$(MAKE) -C dev/examples/dhgr test
 	$(PYTHON) dev/tests/test_dhgr_extended.py
@@ -367,6 +370,8 @@ test-math-division-full: $(A2RUN)
 test-hgr-spr-control-full: $(A2RUN)
 	$(PYTHON) dev/tests/test_hgr_spr_control.py --archive
 	$(PYTHON) dev/tests/test_hgr_spr_control.py --matrix
+	$(PYTHON) dev/tests/test_hgr_spr_control.py --matrix --guards
+	$(PYTHON) dev/tests/test_hgr_spr_control.py --negative-guard
 	$(PYTHON) dev/tests/test_hgr_spr_control.py --full
 	$(PYTHON) dev/tests/test_hgr_spr_control.py --full --reference
 .PHONY: test-hgr-spr-control-full
@@ -415,6 +420,7 @@ test-tools:
 	$(PYTHON) dev/tests/test_audio.py
 	$(PYTHON) dev/tests/test_perspective.py
 	$(PYTHON) dev/tests/test_perspective_bounds.py
+	$(PYTHON) dev/tests/test_perspective_entry.py
 	$(PYTHON) dev/tests/test_shufflepuck_example.py
 	$(PYTHON) dev/tests/test_stack_profile.py
 	$(PYTHON) dev/tests/test_build_config.py
@@ -427,6 +433,7 @@ test-tools:
 	$(PYTHON) dev/tests/test_prodos_name.py
 	$(PYTHON) dev/tests/test_prodos_name.py --iie
 	$(PYTHON) dev/tests/test_t80_bounds.py
+	$(PYTHON) dev/tests/test_t80_scroll.py
 	$(PYTHON) dev/tests/test_t80_flip.py
 	$(PYTHON) dev/tests/test_prodos_sysreloc.py
 	$(PYTHON) dev/tests/test_apple2game.py

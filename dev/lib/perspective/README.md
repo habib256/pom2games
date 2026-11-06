@@ -1,7 +1,7 @@
 # Plane and corridor projection
 
-Two independent modules: `perspective.c` projects an HGR plane onto 280
-pixels; `corridor.asm`, extracted from Light3DBall, projects both axes of a
+Two independent modules: `perspective_asm.s` projects an HGR plane onto
+280 pixels (with `perspective.c` retained as a C reference); `corridor.asm`, extracted from Light3DBall, projects both axes of a
 corridor cross-section according to depth. Each client picks its module.
 
 ## HGR plane
@@ -19,7 +19,9 @@ python3 dev/tools/perspective.py --out build/camera.h --name camera \
 ```
 
 Include `perspective.mk` after `apple2.mk`, add `$(PERSPECTIVE_SRCS)` to the
-sources and `$(PERSPECTIVE_INCS)` to the C flags. The generated file belongs to
+sources and `$(PERSPECTIVE_INCS)` to the C flags. Use `$(PERSPECTIVE_C_SRCS)`
+instead for the retained C target implementation; host builds can compile
+`perspective.c` directly. The generated file belongs to
 the application; include it in a single C unit to avoid duplicating
 the tables. A 192-row camera costs 768 bytes of tables and a
 7-byte descriptor on cc65. The runtime allocates no pool and no BSS.
@@ -50,6 +52,26 @@ on the last row. The X computation handles the 255→256 transition without a
 This module projects a plane, not an arbitrary 3D scene; it does not scale
 sprites and does not handle depth ordering.
 
+The default native entry occupies **269 code bytes**, with no private RAM,
+zero page, tables or self modification. It consumes the five argument bytes
+on every path, returns normalized 0/1 in AX, and shares cc65's `ptr1..ptr4`
+and `tmp1..tmp4`. Output is written only after every check succeeds.
+Its eight-step multiply computes the high byte of the low-X product, then
+adds the high-X contribution. Depths 128..191 carry into the shift-table
+pointer explicitly. Bank selection and the IRQ mask remain unchanged.
+
+Compared with the retained C entry, an isolated linked client saves **444
+loaded bytes**. The x=279, scale=255, shift=0 wrapper takes **634 instead of
+1,543 cycles**; all 7,167 boundary profiles improve by 613..1,000 cycles.
+C stack peaks drop from 15 to five bytes and hardware peaks by two or three,
+with unchanged RAM and zero page. `test_perspective_entry.py` checks **71,680
+public products plus 196,608 parameter-domain calls per CPU**, with independent
+integer arithmetic, output guards, C/hardware stack restoration, IRQ states
+and bank selection. `--reference PATH` selects the same harness's C entry;
+`--iie` selects the 65C02 and `--out PATH` records identities and snapshots.
+The older rational-camera grid also runs both native and C target entries.
+
+The retained C entry was first simplified as follows:
 After validating the shift, projection adds it once and checks the sum.
 Each term is at most 279, so this addition cannot wrap the 16-bit target
 integer. This removes three bytes from the C function and an unused runtime

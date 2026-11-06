@@ -276,3 +276,14 @@ extra state or stack. `test_t80_flip.py` checks all 256 inputs exactly and
 runs the pointer bounds/bank checks; 96 inputs save 3..7 cycles, the rest
 keep their timing. `--reference PATH --bench --out PATH` records comparable
 measurements and source/compiler/environment identities.
+
+Scrolling keeps the direction in X until dispatch. With pointer support,
+a hidden pointer falls straight into scrolling; a visible one is hidden,
+scrolled and restored through a tail call. This saves **two code bytes plain,
+four with pointer support**. The 1,593 seeded/repeated scroll cases all
+improve: 1..2 cycles plain, 39..41 hidden-pointer and 8..9 visible-pointer.
+Hardware stack peaks stay equal plain and fall by three/one bytes respectively.
+The 22 text output/fill timings are unchanged. `test_t80_scroll.py` checks
+up/down/nonzero directions, 0/1-row no-ops, both banks and holes, pointer state,
+PAGE1 exit and both IRQ-mask states. `--reference PATH --bench --out PATH`
+records source/compiler/emulator identities and the full scroll/text matrix.

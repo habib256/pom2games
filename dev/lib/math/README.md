@@ -23,7 +23,7 @@ MUL_INIT_BOOT = 1            ; optional: mul_init in the "INIT" segment (startup
                              ; code that a buffer later overwrites)
 .include "math.inc"          ; AT THE TOP: zero page and macros
 
-        JSR mul_init          ; once at startup (~38,000 cycles)
+        JSR mul_init          ; once at startup (~28,000 cycles)
         JSR sqrt_init         ; if isqrt16 is used (after mul_init)
         ...
 ; at the end of the source, after the callers (.ifref):
@@ -48,7 +48,7 @@ LOWBSS, or the unused HGR page.
 | `math.inc` | zero page | `mul_x` (16), `mul_y` (8), `mul_p0..p2` (24), `mul_t`, 4 pointers; 13 B (+3 with `MUL_ACC`), each replaceable by an alias | — |
 | | `MUL_K16 k` | `mul_p = mul_x × k`, k a constant 0..255, inline | general ~60–70 c / 44 B; powers 11–59 c / 8–34 B |
 | | `MUL_KS16 k` | same with signed `mul_x` | general ~70–80 c / 55 B; powers 8–45 B |
-| `mul.asm` | `mul_init` | builds the square tables (nothing on disk) | ~38,000 c |
+| `mul.asm` | `mul_init` | builds the square tables (nothing on disk) | ~28,000 c |
 | | `mul_u8u8` | `mul_p0..1 = mul_x(low) × mul_y` | ~45 c |
 | | `mul_u16u8` | `mul_p = mul_x × mul_y`, unsigned | ~85 c |
 | | `mul_s16s8` | same, signed, exact 24 bits (product inline without `mul_u16u8`) | ~115 c |
@@ -133,17 +133,24 @@ It also checks all 2,048 generated quarter-square bytes, all 256 seed bytes,
 and all 65,536 square roots at both table placements in a separate fixture,
 on both 6502 and 65C02.
 
-`mul_init` advances the quarter-square difference every other entry and uses
-a descending half counter in X and a low index in Y. A single pass copies both
-halves of the mirrored table. In the exhaustive fixture this takes **37,687
-cycles and 109 bytes**, down from 37,691/110 before the counter pass
-(originally 48,707/128). The square-root kernel
-uses the candidate's wrap to detect the maximum root: 42 bytes instead of 44.
-Seed construction reuses the root already returned in Y: **23,519 cycles
-and 20 bytes**, down from 24,031/21 (originally 25,049 cycles). The complete root
-sweep, including the fixture's stores and loop, takes 5,529,438 instead of
-5,727,330 cycles. Returning the maximal root 255 costs two extra cycles;
-other candidate steps save two. Table storage and zero page are unchanged.
+`mul_init` builds both halves together using
+`floor((n+256)^2/4) = floor(n^2/4) + 128*n + 16384`, then copies the mirrored
+table. Its initializer shrinks from **109 to 107 code bytes** and takes
+**28,216 instead of 37,687 cycles** in the canonical fixture (25.1% less).
+This is a one-time startup gain; runtime arithmetic is unchanged. No RAM or
+stack is added, and the former scratch/register/flag outputs are preserved.
+`test_math_init.py --alignments` verifies 325 cases per CPU, all entry low
+bytes, CODE/INIT placement, dirty scratch and tables at $0800/$4000/$8000.
+It checks every table byte and all 18 scratch bytes; `--reference PATH`,
+`--iie` and `--out PATH` provide reproducible comparisons.
+
+The square-root kernel uses the candidate's wrap to detect the maximum root:
+42 bytes instead of 44. Seed construction reuses the root already returned
+in Y: **23,519 cycles and 20 bytes**, down from 24,031/21 (originally 25,049
+cycles). The complete root sweep, including the fixture's stores and loop,
+takes 5,529,438 instead of 5,727,330 cycles. Returning the maximal root 255
+costs two extra cycles; other candidate steps save two. Table storage and
+zero page are unchanged.
 
 `test_math_products.py` checks every 16-bit input, signed and unsigned, for
 constants 0, 1, 2, 4, 8, 16, 32, 64, 73, 128, 183 and 255:

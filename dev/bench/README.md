@@ -1,5 +1,14 @@
 # Current cc65 measurements
 
+The twenty-fourth-session gate passes **793 cases and 16 frame budgets**,
+with **every timing identical**. Eight HGR controls save 48 RAM bytes;
+22 text clients save two or four loaded/code bytes. All 763 other
+metric dictionaries are identical, and **52 limits are lowered**. Dedicated
+profiles cover 72-byte sprite-init RAM savings, a native projection saving
+444 loaded bytes and 613..1,000 cycles per call, and a 25.1% faster math
+initializer. Shared archive ordering preserves the full HGR demo byte for
+byte. See [the twenty-fourth-session audit](HISTORY.md#audit-de-la-vingt-quatrième-session-du-6-novembre-2026--état-hgr-projection-et-initialisation).
+
 The twenty-third-session gate passes **793 cases and 16 frame budgets**.
 Splitting sprite archive members saves **1,538..1,775 loaded bytes,
 571..1,009 RAM bytes and 11 ZP bytes** in eight move clients, with identical

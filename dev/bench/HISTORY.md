@@ -4,6 +4,82 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Audit de la vingt-quatrième session du 6 novembre 2026 — état HGR, projection et initialisation
+
+Après `e11f3a3`, le défilement T80 garde sa direction dans X jusqu'au
+choix de boucle. Avec pointeur, le chemin caché entre directement dans
+scroll ; le chemin visible termine par un appel terminal de restauration.
+**Deux octets CODE en moins sans pointeur, quatre avec**. Les **1 593 cas
+ciblés accélèrent tous** : 1..2 cycles sans pointeur, 39..41 caché et 8..9
+visible. Pics de pile matérielle inchangés sans pointeur, réduits de trois
+ou un octet avec. Les 22 profils de texte/remplissage gardent leurs durées.
+L'oracle compare les deux banques, trous écran, curseur, buffer du pointeur
+et sortie PAGE1, avec directions 0/1/255, plages de zéro/une ligne, appels
+successifs et les deux états du masque IRQ. Le décimal reste clair.
+
+Quatre membres C séparent forme, coordonnées demandées, activité et ancien
+positionnement HGR. En natif sans DAMAGE, les clients init/define économisent
+**72 octets RAM à MAX=8**, les contrôles seuls **48**. Code chargé, durées,
+page zéro et piles restent exactement identiques dans les 69 profils.
+Les clients complets conservent l'ordre et les adresses du BSS ; les versions
+C/hôte et DAMAGE gardent leur ancien état monolithique. Une fonction commune
+rétablit cet ordre après le tri dans les deux constructeurs d'archives.
+L'assertion durable couvre aussi les sources supplémentaires et leur déduplication.
+Le vrai binaire HGR MAX=3 et ses 17 adresses d'état sont **identiques à e11**.
+
+Les **48 configurations** normalisées/avec gardes indépendantes, MAX=1/2/8,
+DAMAGE=0/1, C/natif et deux CPU passent **4 300 544 appels**. Un dépassement
+volontaire d'un octet est détecté par les gardes alors que tous les champs
+nommés restent identiques. Les 54 liens sélectifs, tailles C par MAX, pixels,
+stress, dégâts et 1 000 trames NTSC/PAL avec ticks AY sous IRQ passent.
+
+La projection reçoit une entrée native de **269 octets CODE**, sans état
+privé ni table. `PERSPECTIVE_SRCS` la sélectionne ; `PERSPECTIVE_C_SRCS`
+conserve le C précédent, toujours utilisable sur hôte. Toutes les sorties
+refusées restent intactes, les cinq octets d'arguments sont consommés sur
+chaque chemin, AX renvoie 0/1. Le produit bas utilise huit pas, puis ajoute
+la contribution de x≥256 ; l'index 2*y porte dans le pointeur pour y≥128.
+Les bornes x/décalage limitent la somme à 558, sans wrap possible.
+
+Le client lié économise **444 octets chargés**. Les **7 167 profils par CPU**
+gagnent tous **613..1 000 cycles** ; x=279, échelle=255, décalage=0 passe de
+**1 543 à 634 cycles**. Pile C **15 → 5 octets**, matérielle réduite de deux
+ou trois ; RAM et page zéro identiques. Pour chaque source C/native et CPU,
+les **71 680 produits publics** et **196 608 combinaisons de domaines**
+(x complet, décalage complet, profondeur/nombre de lignes) donnent les mêmes
+empreintes. Les gardes de sortie, restauration des deux piles, IRQ et banques
+sont vérifiés. Le modèle rationnel historique passe ses 112 280 projections
+hôte, 1 536 par cible et 12 refus/ABI dans les deux implémentations. Une
+relecture indépendante confirme les calculs, l'ABI et les rapports.
+
+`mul_init` construit les deux moitiés de table ensemble grâce à
+`floor((n+256)²/4) = floor(n²/4) + 128*n + 16384`. **109 → 107 octets CODE**,
+**37 687 → 28 216 cycles** (−25,1 %) au démarrage uniquement. Aucune RAM ou
+pile supplémentaire ; instructions arithmétiques d'exécution inchangées.
+Les **325 cas par CPU** couvrent toutes les positions d'entrée dans une
+page, CODE/INIT, tables $0800/$4000/$8000 et quatre motifs de temporaires.
+Chaque octet des 2 048 tables, les 18 temporaires, A/X/Y/P et la pile sont
+identiques à l'ancien code. Tous les placements gagnent 9 216..9 984 cycles.
+Le modèle mathématique complet, les racines exhaustives et produits passent.
+
+Le banc global passe **793 cas et 16 budgets** : **toutes les durées sont
+identiques**. Huit clients gagnent 48 RAM, onze clients texte perdent deux
+CODE/chargés et onze quatre. Les **763 autres dictionnaires sont identiques**,
+aucune métrique ne monte. **52 plafonds sont abaissés**, aucun relevé.
+La correction du tri partagé ne change pas l'ordre déjà mesuré par ce banc ;
+les disques sont reconstruits avec le constructeur final.
+
+`make all test-woz` passe et les 18 paires correspondent. Les trois disques
+modifiés **CUTROPE, DIRTBIKE et MBTRACKER** passent tous leurs tests. HGR
+retrouve exactement son disque précédent. MBTRACKER dispose de **698 octets
+libres** avant OVL2. Les démonstrations LANDER, ROPE, HALFPIPE, CATAPULT et
+projection/audio passent modèle, cadence, blanking et fonctionnement.
+Le placement dû aux deux octets mathématiques change légèrement les durées
+réelles : CATAPULT en vol **10 204 → 10 206 médiane, 44 199 → 44 204 pire**,
+visée −1 cycle, mêmes six dépassements sur 2 598 ; CUTROPE et ROPE accélèrent.
+Ces variations restent sous les budgets. Options, constructeur d'archives,
+structure du Makefile et vérifications d'espaces passent.
+
 ## Audit de la vingt-troisième session du 6 novembre 2026 — membres d'archive et chemins communs
 
 Après `cc03e4b`, les contrôles HGR move/hide/invalidate et les helpers de
