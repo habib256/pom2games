@@ -2,7 +2,8 @@
 ; Native tile-background restoration. cc65 fastcall height=A, other args
 ; on software stack. Main RAM/ZP, D=0; non-reentrant, never call from IRQ.
 ; Code must be writable main RAM: all eight screen operands are patched
-; afresh for each valid row. No patched operand survives as cached state.
+; afresh for each valid row. Both tile-base ADC operands are also refreshed
+; from each supplied context before drawing; no patched operand is cached.
 ; A/X/Y, flags, ptr1-ptr4 and tmp1-tmp4 destroyed. The initial popa/popax
 ; helpers preserve these temporaries; all later calls stay within this file.
 .export _hgr_tile_restore
@@ -20,11 +21,8 @@ map = ptr3                  ; screen stores no longer need a ZP pointer
 ; Preflight retains height/count until checked. Its origin/next_map_row
 ; helpers touch ptr1 only; ptr2 becomes a source pointer at draw_tile.
 check_rows = ptr2
-; After preflight, count is dead and height is consumed as the row countdown.
-left = tmp3
+; Drawing consumes the clipped height directly; count is dead after preflight.
 rows = height
-.bss
-tiles: .res 2
 .rodata
 maplo: .repeat 24,I
  .byte <(I*40)
@@ -91,12 +89,13 @@ context:
  ora map
  jeq bad
  iny
+ ; Refresh both source operands even after rejected calls or a CODE reload.
  lda (ptr1),y
- sta tiles
+ sta source_low+1
  iny
  lda (ptr1),y
- sta tiles+1
- ora tiles
+ sta source_high+1
+ ora source_low+1
  jeq bad
  iny
  lda (ptr1),y
@@ -153,8 +152,6 @@ draw_row:
  adc #4
  .endif
  .endrepeat
- lda width
- sta left
  ldx #0
 draw_tile:
  ldy #0
@@ -171,10 +168,12 @@ draw_tile:
  asl
  asl
  clc
- adc tiles
+source_low:
+ adc #$FF
  sta ptr2
  lda ptr2+1
- adc tiles+1
+source_high:
+ adc #$FF
  sta ptr2+1
  ldy #0
 .repeat 8,P
@@ -192,8 +191,8 @@ draw_store0:
  bne map_advanced
  inc ptr1+1
 map_advanced:
- inx                           ; next clipped screen column
- dec left
+ inx                           ; X is the clipped column count (width 1..40)
+ cpx width                     ; next tile/row arithmetic resets C before reuse
  jne draw_tile
  ; ptr1 already advanced width bytes. Skip to next map row.
  lda #40

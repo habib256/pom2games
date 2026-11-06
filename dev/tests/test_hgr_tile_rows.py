@@ -332,8 +332,9 @@ def run_oracle(source, irq=False, limit=None, masked=False):
 KERNEL = DEV / 'lib/hgrc/hgr_tile_restore.s'
 
 def negative_control(work):
+    production_source_sha256 = hashlib.sha256(KERNEL.read_bytes()).hexdigest()
     source = KERNEL.read_text()
-    changes = [('.endrepeat\n lda hgr_fixed_rowhi,x', '.endrepeat\n sta duplicate_store+1\n lda hgr_fixed_rowhi,x'), ('.endrepeat\n lda width\n sta left\n ldx #0', '.endrepeat\n sta duplicate_store+2\n lda width\n sta left\n ldx #0'), ('.endrepeat\n inc ptr1\n bne map_advanced', '.endrepeat\nduplicate_store:\n sta $FFFF,x\n inc ptr1\n bne map_advanced')]
+    changes = [('.endrepeat\n lda hgr_fixed_rowhi,x', '.endrepeat\n sta duplicate_store+1\n lda hgr_fixed_rowhi,x'), ('.endrepeat\n ldx #0', '.endrepeat\n sta duplicate_store+2\n ldx #0'), ('.endrepeat\n inc ptr1\n bne map_advanced', '.endrepeat\nduplicate_store:\n sta $FFFF,x\n inc ptr1\n bne map_advanced')]
     for before, after in changes:
         assert source.count(before) == 1, 'negative-control template changed'
         source = source.replace(before, after)
@@ -347,7 +348,9 @@ def negative_control(work):
         match = STORE.match(event)
         assert int(match[6], 16) & 4, 'negative duplicate must execute with I=1'
         print('Deliberate executed duplicate rejected after filtering:', event)
-        return dict(rejected=True, event=event, irq_masked=True)
+        return dict(rejected=True, event=event, irq_masked=True,
+                    production_source_sha256=production_source_sha256,
+                    negative_source_sha256=hashlib.sha256(path.read_bytes()).hexdigest())
     raise AssertionError('duplicate store incorrectly accepted')
 
 def bench(source, out):

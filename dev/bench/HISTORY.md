@@ -4,6 +4,41 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Audit de la vingt-huitième session du 6 novembre 2026 — adresse source et compteur de tuiles
+
+Après `aae57cd`, les deux ADC de la base des tuiles deviennent immédiats,
+repatchés à chaque contexte avant dessin. L'adresse est vérifiée après
+chargement des deux octets ; refus intercalés et rechargements CODE ne
+laissent aucun état implicite. X compte déjà les colonnes : CPX width
+remplace le second compteur et supprime son initialisation par ligne.
+La largeur est bornée à 1..40 ; l'arithmétique suivante réinitialise la
+retenue. **−6 octets CODE/chargés, −2 BSS** : le noyau n'a plus de BSS
+privé. Page zéro et pics de pile restent identiques.
+
+Les 19 profils donnent **sept accélérations et douze égalités** : page
+complète **180 531 → 174 643 cycles**, région 4×3 **3 291 → 3 200**,
+une tuile **909 → 903**, scène avec sprites **5 778 → 5 716**. Le vrai
+constructeur partagé confirme CODE 651 → 645, chargé 1 295 → 1 289,
+BSS 2 → 0, autres segments et ordre des membres identiques.
+
+Ancien/nouveau avec/sans IRQ VIA et SEC avant RTI passent chacun
+**1 828 appels, 405 904 écritures ordonnées, 610 rechargements CODE**.
+Tous les pointeurs, régions, pages, clips, refus, sources/contexte, piles,
+banques et gardes principales/auxiliaires restent contrôlés. Ancien :
+31 368 IRQ/5 394 échantillons différés ; nouveau : 30 373/5 902.
+Le contrôle négatif mute le candidat courant avec le nouveau marqueur
+de boucle et rejette une duplication effectivement exécutée avec I=1.
+Les pixels publics passent sur les deux sources et les deux CPU.
+
+
+Le gate global passe **793 cas et 16 budgets** : neuf clients économisent
+six octets CODE/chargés et deux RAM ; sept accélèrent, deux gardent leur
+durée, et les **784 autres dictionnaires restent identiques**. **34 limites
+abaissées**, aucune relevée. `make all test-woz`, options et graphe Makefile
+passent ; tous les disques restent identiques. Les rapports du contrôle
+négatif identifient séparément le noyau courant et sa mutation, même
+lorsque l'oracle principal utilise une ancienne référence.
+
 ## Audit de la vingt-septième session du 6 novembre 2026 — banques texte et profondeur du corridor
 
 Après `9b9afc2`, l'initialisation T80 parcourt les deux banques dans une

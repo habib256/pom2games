@@ -1520,7 +1520,14 @@ rows, then reuses dead count/height slots for left/draw rows. This removes
 another **11 code/loaded bytes and two BSS bytes**, including one redundant
 carry clear: the low address is at most 208+39, and the operand patches
 preserve its clear carry. Current costs are **180,531** for a full page,
-**909** for one tile and **5,778** for the combined scene. Tests include high tile IDs and unaligned map/tile pointers
+**909** for one tile and **5,778** for the combined scene.
+The next pass patches both tile-base ADC immediates from every supplied
+context and compares the existing X column count directly with width.
+It saves another **six code/loaded bytes and the last two private BSS
+bytes**, with no extra ZP or stack. Costs are now **174,643** cycles for
+a full page, **3,200** for a 4×3 region, **903** for one tile and **5,716**
+for the combined scene. Both source operands are refreshed even after
+rejected calls or code reloads; nothing depends on cached patches. Tests include high tile IDs and unaligned map/tile pointers
 crossing page boundaries on both NMOS 6502 and 65C02.
 
 Each valid tile row repatches all sixteen store-operand bytes; code must
