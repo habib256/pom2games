@@ -40,7 +40,7 @@ validated in emulation only (POM2 with the real //e and //c ROMs, a2shot).
   CPU test (`src/boot.s`) but has never been tried; decide whether to detect the ROM or
   document it as unsupported.
 - The //c+ is not validated by the shared mouse driver (`dev/lib/mouse/README.md`).
-- Frozen addresses (`src/spare.s`): 58 bytes of code, 49 of constant data and 13 of
+- Frozen addresses (`src/spare.s`): 38 bytes of code, 60 of constant data and none of
   variables separate the C files from the assembly modules, and `src/sound.s` keeps 27.
   When a spare runs out or a `dev` library changes size, the module addresses move:
   record the new ones in the asserts, run `make test` on every profile and compare the

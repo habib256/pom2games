@@ -6,12 +6,14 @@
 #   make            -> ../dist/NEOWILDERNESSXL.po (ProDOS 8, 800 KB volume)
 #   make run        -> boot it in POM2 (IIe enhanced preset)
 #   make inspect    -> list the volume and the auxiliary-memory placement
-#   make test       -> in a2shot (enhanced //e), through the start menu (Sierra
-#                      Nevada, level 4; tests/test_menu.py drives the six
-#                      scenarios): the DHGR view pixel for pixel against
-#                      tools/dhgr_ref.py (band events of tools/view_ref.py)
-#                      (turns, random positions, random commands against a
-#                      model of the player) and the simulation (tests/test_sim.py)
+#   make test       -> test-xl in a2shot (enhanced //e): the XL interface
+#                      (menus, transfers, care, craft, journeys) and the DHGR
+#                      view pixel for pixel against tools/dhgr_ref.py
+#                      (tests/test_view.py)
+#   make test-all-editions -> start menu and six scenarios (tests/test_menu.py),
+#                      random positions / commands against a model of the
+#                      player, the simulation (tests/test_sim.py), the stars
+#                      and hall of fame benches
 #   make fuzz       -> longer random positions / synthetic maps
 #
 # Analysis of the original (docs/ANALYSE.md). Its images are copyrighted and

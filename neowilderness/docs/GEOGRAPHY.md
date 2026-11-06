@@ -169,7 +169,7 @@ de la faune suit dans `stationary_resources`. Itinéraires : `direct`
 (trame rectiligne crash → rangers, en-tête TOPO `$6083`/`$6080` ou
 `Map.start`/`Map.goal`), `detour` (en L), `meander` (marche aléatoire
 déterministe vers le but, segments de 5 à 20 pas), `scenario`
-(`tests/scenario.py` : WALK 1 H, SWIM 1 H, WALK 30 MIN au cap 128° depuis
+(`tests/play_scenario.py`, `REFERENCE_SCRIPT` : WALK 1 H, SWIM 1 H, WALK 30 MIN au cap 128° depuis
 le crash, ~15 demi-pas), `walk-fixture` (`test_walk.py` : 25 demi-pas
 vers l'est depuis la case 10,40) et `shore-fixture-*` (`test_shore.py` :
 caps E, O, N, S, NE, ~28 demi-pas). Les rives sont toutes les cases sèches

@@ -18,7 +18,7 @@ cœur sur la même disquette.
 
     make            # -> ../dist/ROGUE.dsk (+ ../dist/woz/ROGUE.woz)
     make run        # POM2 en Apple II+ avec la carte dans l'emplacement 4
-    make test       # lanceur, détection, VRAM, timing VDP, sons (~5 s)
+    make test       # lanceur, détection, VRAM, timing VDP, sons, DHGR //e et //c, carte POM2
 
 ## Quelle version démarre ?
 
@@ -103,7 +103,7 @@ octet à leur valeur finale.
 **Mémoire.** Les deux pages DHGR prennent `$2000-$5FFF` (principale et
 auxiliaire) : DOS 3.3 charge `ROGUE.DHGR` à `$3C00`, puis le jeu le
 **libère** : le moteur d'affichage part dans la RAM de la carte langage
-(`$D000-$F13D`, la ROM du moniteur recopiée en `$F800-$FFFF`), `$9600-$BFFF`
+(`$D000-$F23A`, la ROM du moniteur recopiée en `$F800-$FFFF`), `$9600-$BFFF`
 sert de BSS. Pour **sortir** (ESC au titre, ESC puis Y en jeu, Ctrl-RESET),
 le jeu pose une marque et **redémarre la disquette** : son `HELLO` voit la
 marque, dit « ROGUE: BYE! » et s'arrête au prompt BASIC, DOS 3.3 revenu

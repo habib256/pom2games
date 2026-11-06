@@ -7,7 +7,7 @@ the [README](README.md); level sources and solutions in
 ## Next up / ideas
 
 None of these is started. Each is grounded in a comment, a release note or a
-known limit; the resident budget (about 380 bytes free, 230 in `BOOTCODE`)
+known limit; the resident budget (about 155 bytes free, 230 in `BOOTCODE`)
 means any addition must first free memory.
 
 - **Real-hardware check.** Every release note says the tests validate
@@ -15,10 +15,6 @@ means any addition must first free memory.
   on real hardware" (1.2 notes), and the disk timings are POM2 cycles, not a
   physical Disk II. Boot the image on an Apple II+ or //e, listen to the duet
   and the game sounds, and time the boot.
-- **Refresh the header comment of `src/micro_sokoban.s`.** It still says the
-  packs are "up to 4 KB" and "BLOADed", that "H or ESC = menu", and lists
-  T / O / F / Q as HELP keys. The packs are at most 2 KB and read through
-  RWTS, H opens HELP, and those letters are menu keys.
 - **Freeze deadlocks.** The DEADLOCK warning covers dead squares only; a crate
   frozen against another (a 2 × 2 block, for example) is not detected, while
   `tools/solver.py` already has the freeze rule. Worth porting only if it fits

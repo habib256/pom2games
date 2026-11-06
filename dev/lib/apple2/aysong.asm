@@ -35,7 +35,7 @@
 ;   AYSONG_CPU65C02 = 1     65C02 forms (4 B smaller); default 0: NMOS.
 ;   AYSONG_FAST_PERIODS = 1 a 96-note period table (192 B) instead of the
 ;                           12-note table + octave shifts with a per-voice
-;                           cache (3 B a voice): +112 B, ~230 cycles less on
+;                           cache (3 B a voice): +116 B, ~230 cycles less on
 ;                           a row of three new notes, ~25 a tick on average.
 ;   AYSONG_WRITE            a macro: X = register 0..13, A = value, Y = chip
 ;                           (0/1); it may clobber A/Y, must keep X (the
@@ -46,8 +46,8 @@
 ; first to place them); BSS: ays_regs (16 a chip), ays_out (16 a chip,
 ; = mb_shadow if mb_irq.asm came first, or define it), 19 bytes a voice
 ; (16 with AYSONG_FAST_PERIODS), 22 bytes of song state.
-; Measured (dev/tests/test_aysong.py): 1,091 B of code and tables for 3
-; voices (1,169 for 6); a tick ~950 cycles + ~90 a register written (mean
+; Measured (dev/tests/test_aysong.py): 1,082 B of code and tables for 3
+; voices (1,160 for 6); a tick ~950 cycles + ~90 a register written (mean
 ; ~1,320 on the demo), up to ~3,600 on a row of three notes and a pattern
 ; change.
 .ifndef _AYSONG_DEFS_

@@ -8,7 +8,7 @@ modèle Python ne suffisent pas à établir cette parité.
 
 ## Exécution
 
-Depuis `wilderness/`, avec les disques originaux déjà extraits localement :
+Depuis `neowilderness/`, avec les disques originaux déjà extraits localement :
 
 ```sh
 make test

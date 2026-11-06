@@ -5,8 +5,8 @@ ProDOS 8: double hi-res in 16 colours, 60 sectors, six capsules, enemies, two-vo
 music on the built-in speaker, and an AppleMouse II to steer the paddle. Bootable
 140 KB disk: [`CHROMABREAK.po`](../dist/CHROMABREAK.po) (ProDOS 8 2.4.3).
 
-Version 1.1 in preparation. Last published release: 1.0, with
-[notes](../docs/releases/chromabreak-1.0.md) and the
+Version 1.1, published 2026-10-25 ([disk and tag](https://github.com/habib256/pom2games/releases/tag/chromabreak-1.1)).
+Release 1.0: [notes](../docs/releases/chromabreak-1.0.md) and
 [disk](https://github.com/habib256/pom2games/releases/tag/chromabreak-1.0).
 
 ChromaBreak is a separate profile from [`arkabreakout`](../arkabreakout/README.md),
@@ -69,7 +69,7 @@ like. After 15 s without a key, click or mouse motion, the demo mode plays by it
 | Mouse, horizontal | Paddle position |
 | Mouse, vertical | Paddle height (absolute, from the floor up to mid-field) |
 | Click, Space or Enter (in game) | Release an attached ball; fire with the Laser capsule |
-| `M` / `K` / `J` | Choose mouse / keyboard / joystick or paddles; `K` and `J` also start a game from the title. Once chosen, the joystick stays selected from one game to the next and after a demo |
+| `M` / `K` / `J` | Choose mouse / keyboard / joystick or paddles; `M`, `K` and `J` also start a game from the title. Once chosen, the joystick stays selected from one game to the next and after a demo |
 | Joystick X or paddle 0 | Paddle position (absolute) |
 | Joystick Y or paddle 1 | Paddle height (absolute) |
 | Button 0 or 1 (or an Apple key) | Same as the click: release the ball, fire the laser |
@@ -393,7 +393,7 @@ are stored already aligned on their 10 cells.
 their tables: a taken branch or an indexed read that crosses a page costs one more cycle,
 and a few bytes of shift have already cost a frame in the heavy scenes. `game.c` and
 `records.c` are linked before them; `src/spare.s` separates them with a few spare bytes
-(58 of code, 49 of constant data, 13 of variables) and three link-time assertions. When
+(38 of code, 60 of constant data, none left for variables) and three link-time assertions. When
 one of the two C files changes size, adjust the spare by as much: nothing moves after
 them and the frame rate needs no new measurement. `sound.s` keeps its size the same way
 (27 bytes spare since the player moved to page 3).
@@ -468,6 +468,7 @@ and the [Apple IIc technical notes on VBL](https://mirrors.apple2.org.za/Apple%2
 | [`dev/lib/prodos`](../dev/lib/prodos/README.md) | ProDOS MLI, `crt0_prodos`, file I/O for `HIGHSCORES` and `ENDING` |
 | [`dev/lib/mouse`](../dev/lib/mouse/README.md) | AppleMouse II and native //c mouse driver; VBL mode 9 and the ProDOS interrupt handler on the //c |
 | [`dev/lib/apple2c`](../dev/lib/apple2c/README.md) | Keyboard and the VBL frame pacing (`apple2frame`) |
+| [`dev/lib/apple2`](../dev/lib/apple2/README.md) | `duet.asm`: the two-voice speaker player copied to page 3 |
 | [`dev/lib/gfx`](../dev/lib/gfx/README.md) | `gfx_u16_digits` (65C02): the decimal digits of the HUD and score screens |
 | [`dev/lib/font`](../dev/lib/font/README.md) | The Beautiful Boot master glyphs, from which `fine_font.inc` is generated |
 | [`dev/tools/prodos`](../dev/tools/prodos/README.md) | ProDOS 8 2.4.3 image, boot block and volume builder |
@@ -476,7 +477,7 @@ and the [Apple IIc technical notes on VBL](https://mirrors.apple2.org.za/Apple%2
 
 - **1.0**: [release notes](../docs/releases/chromabreak-1.0.md),
   [disk and tag](https://github.com/habib256/pom2games/releases/tag/chromabreak-1.0).
-- **1.1** (in preparation): the paddle rising diagonally under a bottom-row tile, or
+- **1.1** (2026-10-25, [disk and tag](https://github.com/habib256/pom2games/releases/tag/chromabreak-1.1)): the paddle rising diagonally under a bottom-row tile, or
   widened between a tile and a wall, no longer leaves the field (the machine used to
   freeze); the score reaches 650 000 on six digits and an extra life comes every 5 000
   points, with `HIGHSCORES` in format 2 and format 1 files converted; `?` with the

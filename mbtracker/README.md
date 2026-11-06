@@ -203,14 +203,14 @@ sa souris (un clic, une note, `HELP`, `ORD`). 18 contrôles, ~15 s.
 |---|---|
 | main `$0800-$0EE2` | sauvegarde de la page zéro (crt0), tables de l'encodeur, morceau d'écoute |
 | main `$1000-$1F47` | tampon OPEN, bloc de catalogue (`dev/lib/prodos/dir_list.s`), préfixe, motif courant (`grid`) + motif de travail (aussi les noms de l'écran de chargement) (pages libres du bitmap ProDOS : les lectures MLI y sont permises) |
-| main `$2000-$7A35` | saut d'entrée, RODATA (≥ 512 o : le FORMAT de `/RAM` écrase `$2000-$21FF` à la sortie), crt0, code résident (18 Ko), données |
-| main `$7A36-$7CEF` | libre (698 o) |
+| main `$2000-$7A10` | saut d'entrée, RODATA (≥ 512 o : le FORMAT de `/RAM` écrase `$2000-$21FF` à la sortie), crt0, code résident (18 Ko), données |
+| main `$7A11-$7CEF` | libre (735 o) |
 | main `$7CF0-$8DFF` | les recouvrements (4 368 o) : OVL1 l'éditeur d'instrument et `^W` (4 173 o), OVL2 les écrans de fichiers + `files.c` + le décodeur AYS (4 266 o) |
 | main `$8E00-$BDFF` | le morceau AYS (12 Ko), lu par le lecteur ; au démarrage, le transit de `MBT.HELP` et de `MBT.OVL` |
 | main `$BE00-$BEFF` | pile C |
 | aux `$0400-$07FF` | colonnes paires du texte 80 colonnes |
 | aux `$0800-$97FF` | les motifs, 3 octets par cellule (`/RAM` déconnecté) |
-| aux `$9800-$A3FF` | les pages d'aide (3 pages, un en-tête de 4 mots ; 2 909 o) |
+| aux `$9800-$A3FF` | les pages d'aide (3 pages, un en-tête de 4 mots ; 2 923 o) |
 | aux `$A400-$A87F` | le presse-papiers des blocs (6 voix × 64 lignes) |
 | aux `$A880-$ACFF` | le motif gardé pour `^Z` |
 | aux `$AD00-$BFFF` | libre (4,8 Ko) |

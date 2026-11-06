@@ -40,7 +40,7 @@
 ; Zero page (each slot skipped if the program defined the name first, the
 ; math.inc pattern: alias it onto the program's own scratch):
 ;   core 7 B          vl_val (2), vl_vx (2), vl_w0, vl_w1, vl_w2
-;   +13 = 20 B        with VL_NCON, VL_GROUND or VL_ROTATE: vl_dx (2), vl_dy (2),
+;   +13 = 20 B        with VL_NCON, VL_GROUND, VL_ROTATE or VL_THRUST: vl_dx (2), vl_dy (2),
 ;                     vl_ca, vl_cb, vl_cur, vl_qx, vl_fcoef, vl_pen (2), vl_vn (2)
 ;   +13 = 33 B        with VL_GROUND: vl_vy (2), vl_vt (2), vl_nx, vl_ny,
 ;                     vl_tptr (2), vl_hxl, vl_hxh, vl_hgt, vl_hm2, vl_hp2

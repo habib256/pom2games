@@ -88,8 +88,7 @@ toujours résident jusqu'au premier `overlay_load 3` :
    rend la main à ProDOS.
 4. L'introduction revient, avec « SIERRA NEVADA, LEVEL 4 » (« (FREE) » pour
    un voyage libre) au-dessus de `LOADING...`, et reste affichée pendant la
-   lecture du paquet `NEOWILD.R1`…`R6` (même format, même boucle, un OPEN de
-   plus), l'initialisation et le premier rendu ; puis `start`.
+   lecture du paquet de la région dans `NEOWILD.DAT`, l'initialisation et le premier rendu ; puis `start`.
 
 Le chargeur écrit le niveau en `MAP+22` et le genre de voyage en `MAP+33`
 (0 scénario, 1 voyage libre, octet libre de l'en-tête). Le relief et la base
@@ -322,9 +321,9 @@ illisible ou inconnu n'est jamais réécrit.
   (latitude, températures, vent, indice, déclinaison, longitude, limite des
   arbres), cartes `build/maps/rN.bin`.
 - `tools/dhgr_palette.py` / `gendhgr.py` : `REGIONS`, tables par région.
-- `tools/build_disk.py` : tronc commun `NEOWILD.DAT` et `NEOWILD.R1`…`R6`
-  (étape 2, toujours produits), `layout.json` par paquet ; `NEOWILD.HOF` à
-  l'étape 6. `tools/genmenu.py` : textes du menu.
+- `tools/build_disk.py` : `NEOWILD.DAT` (tronc commun, six paquets de région
+  et module de préparation à la suite), `layout.json` par paquet ;
+  `NEOWILD.HOF` à l'étape 6. `tools/genmenu.py` : textes du menu.
 - `tools/stars_catalog.py`, `tools/stars_ref.py` (référence entière),
   `tools/genstars.py` (tables assemblées) ; `src/stars.s` : module horaire
   `wildsky.bin` (ID 25) ; `src/stars_draw.s` : liste et tracé par colonne
@@ -363,8 +362,8 @@ finale du lot 6 (IIc, couleurs sur machine réelle).
 ## 11. Préparation du voyage et niveaux (lot 1 de fidélité)
 
 Éléments P1 et P2 de l'inventaire des manques (`ORIGINAL_GAP.md` § 2.9).
-Code : `src/prepare.s` (fichier `NEOWILD.PRE`, 5 005 octets, 3 702
-compressés, 9 blocs),
+Code : `src/prepare.s` (module compressé en fin de `NEOWILD.DAT`, 3 647
+octets stockés),
 référence Python `tools/prepare_ref.py`, sonde `tools/re_prepare_probe.py`
 (`make prepare-probe`), test `tests/test_prepare.py` (`--original`).
 

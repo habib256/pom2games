@@ -3,7 +3,7 @@
 Ce document décrit la version du lot 4, complétée au lot 7 par le tronc
 commun, les paquets de région, le menu de démarrage, la faune et les
 couleurs par région, les étoiles et le hall of fame (§ 9) : démarrage ProDOS 8 depuis
-`dist/NEOWILDERNESS.po`, tous les modules préchargés en RAM auxiliaire (lots
+`dist/NEOWILDERNESSXL.po` (l'édition 140 Ko est archivée), tous les modules préchargés en RAM auxiliaire (lots
 1–2), paysage DHGR sur une seule page (`$2000-$3FFF` principale et
 auxiliaire, lot 3), interface DHGR, texte 80 colonnes et TOPO calculée en RAM
 (lot 4, § 8 ; les tableaux des §§ 1–2 sont à jour du lot 4, les §§ 4–7

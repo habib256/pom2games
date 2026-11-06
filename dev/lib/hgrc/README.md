@@ -81,7 +81,7 @@ RAM by leaving the option off. See the [option table](../ABI.md#speedram-options
 Costs measured by `make bench` (cycles at 1.02 MHz): clearing a page
 46 000 (self-modifying loop from `HGR_CLEAR_LOOP`, lib/apple2), page flip
 via `hgr_flip_rows` (unrolled loop, one EOR per line), 8x8 text
-`hgr_puts8` 7 751 for "APPLE II" (glyph shifted across two bytes per
+`hgr_puts8` 7 390 for "APPLE II" (glyph shifted across two bytes per
 line), 16x16 text `hgr_puts` through the colour blitter with the white
 carriers `$7F/$7F` (a single blitter, ~5 times faster than the old
 pixel-by-pixel drawing). The C wrappers read `hgr_col7` / `hgr_phase7` /
@@ -251,9 +251,9 @@ only one high difference bit needs to join the low-byte shifts. The string
 pointer survives all lazy builders in the existing text state. Isolated
 clients save 74 loaded bytes and their C-stack peak falls from 5 to 3.
 Empty/rejected calls also reduce the hardware peak from 7 to 6; RAM and
-zero page stay unchanged. `"APPLE II"` now takes 7,751 / 8,498 / 8,389 cycles
+zero page stay unchanged. `"APPLE II"` now takes 7,390 / 8,176 / 8,067 cycles
 at phases 0/3/6. An empty string takes 287 instead of 461, and a final
-screen-edge glyph takes 1,090 instead of 1,246. All row/column/phase tables
+screen-edge glyph takes 1,054 instead of 1,246. All row/column/phase tables
 are still initialized before coordinate rejection.
 
 `test_hgr_text8_entry.py` uses an assembly sink to inspect the actual
@@ -439,8 +439,8 @@ excluding routines that were previously linked for nothing.
 macOS. Its 21 steps compare both video pages with a Python model:
 256/280-pixel rectangles, limits, pixels, SET/CLEAR/XOR sprites and seven
 phases, white/coloured text, numbers, cells, colourising. Four additional scenes check `gfx` cell text on
-page 2, the cursor and the numeric conversions. Thirty-eight minimal
-programs also check that the archive excludes unused kernels and zero-page
+page 2, the cursor and the numeric conversions. Seventy-one minimal
+programs (18 of them DHGR) also check that the archive excludes unused kernels and zero-page
 blocks. This test is part of `make test` and of CI.
 
 ×2 sprite enlargement is available on cc65 with
@@ -734,7 +734,7 @@ referenced members and their dependencies. ChromaBreak follows this rule with
 `platform.lib`, including for the Apple II, ProDOS and mouse modules. Its test
 checks the link map to exclude generic pixels, rectangles and transfers,
 8×8 text and unused text wrappers. The library tests also check
-59 minimal consumers of the archive.
+71 minimal consumers of the archive.
 
 ### Memory contract and transitions
 
@@ -750,8 +750,9 @@ checks the link map to exclude generic pixels, rectangles and transfers,
 The mode keeps `80COL` on and `80STORE` off: `PAGE2` thus selects
 the displayed page. `RAMWRT` allows auxiliary writes; the trampoline
 reads with `RAMRD` without losing access to the main code. The primitives
-cannot be called from an interrupt. Clearing blocks IRQs
-for about 189 000 cycles; prefer blocks/segments in animation.
+cannot be called from an interrupt. Clearing masks IRQs
+one 256-byte page at a time (about 1,750 cycles); prefer blocks/segments in
+animation.
 
 `hgr_init`, `hgr_init_clear` and `hgr_text_restore` put the IIe soft switches
 back into native HGR/text state. `dhgr_text_restore` prepares the ROM text routines.
@@ -860,15 +861,15 @@ Robot Space Station moved one pixel in a room of 7×8 RECTS tiles):
 
 | Case | Cycles | First version |
 |---|---:|---:|
-| `dhgr_spr_move` (tile map, 2 groups × 12 rows rewritten) | 15,939 | 20,241 |
-| `dhgr_spr_move_wide` (same, 3 groups) | 20,667 | 26,184 |
-| `dhgr_spr_move_cells` (C `paint` callback) | 18,776 | 22,843 |
-| `dhgr_spr_move_solid` (one-colour background) | 11,025 | 14,341 |
+| `dhgr_spr_move` (tile map, 2 groups × 12 rows rewritten) | 15,910 | 20,241 |
+| `dhgr_spr_move_wide` (same, 3 groups) | 20,689 | 26,184 |
+| `dhgr_spr_move_cells` (C `paint` callback) | 18,513 | 22,843 |
+| `dhgr_spr_move_solid` (one-colour background) | 10,910 | 14,341 |
 | `dhgr_spr_move_chunky` (6×5 CHUNKY ship over TILE tiles) | 9,380 | 10,461 |
-| `dhgr_spr_overlay_move` (4×6-byte pointer moved, room recomposed under it) | 13,196 | 20,412 |
-| `dhgr_cursor_move` (4×6-byte save-under cursor, one byte and one row) | 9,003 | 9,019 |
+| `dhgr_spr_overlay_move` (4×6-byte pointer moved, room recomposed under it) | 11,872 | 20,412 |
+| `dhgr_cursor_move` (4×6-byte save-under cursor, one byte and one row) | 7,759 | 9,019 |
 | `dhgr_spr_double_move` (`DHGR_SPR_DOUBLE`, one pixel a frame: this move and the previous one rewritten) | 16,697 | — |
-| `dhgr_spr_vbl_move` (`DHGR_SPR_VBL`, started at a VBL edge: composed, then written after the next edge) | 21,871 | — |
+| `dhgr_spr_vbl_move` (`DHGR_SPR_VBL`, started at a VBL edge: composed, then written after the next edge) | 21,780 | — |
 
 Robot Space Station erased and redrew the same drone in 35,000-45,000
 cycles before it moved to the compositor (2026-10-31: a drone turn went
@@ -1004,7 +1005,7 @@ accesses with endpoint masking.
 - The host ×2 conversion declarations are in `hgr_host.h`.
 - [Measurements and budgets](../../bench/README.md): CPU cycles, code, ROM, RAM and ZP.
 - `make test-hgr`: 21 primitive checks, four `gfx` text scenes,
-  24 sprite-engine scenes and sixteen minimal link edits.
+  24 sprite-engine scenes and 71 minimal link edits.
 - `python3 dev/tests/test_dhgr_spr.py` (in `make test-dhgr`): the
   compositor on //e and //c, seven canvas/option builds (one with
   `DHGR_SPR_OVERLAY_INSIDE`; `double`: `DHGR_SPR_DOUBLE`, both pages
@@ -1148,8 +1149,8 @@ also prepare the X tables when called directly.
 `hgr_line` uses an assembler Bresenham for diagonals over 280 pixels,
 with the same pixel choices as the old C API. Axis-aligned lines keep the
 fast spans. Off-screen endpoints are rejected; no implicit segment
-clipping is added. `gfx_line` selects this kernel on HGR and the C fallback
-on the generic/DHGR backends. `test_hgr_lines.py` compares 464 lines via `hgr_line` and `gfx_line` against the expected pixels on
+clipping is added. `gfx_line` selects this kernel on HGR and the native generic
+Bresenham `gfx_line.s` on the generic/DHGR backends. `test_hgr_lines.py` compares 464 lines via `hgr_line` and `gfx_line` against the expected pixels on
 both pages, including reversed directions, ties and X >= 256.
 
 The line kernel now keeps its vertical direction in cc65 `tmp4` instead
@@ -1200,7 +1201,7 @@ byte: `hgr_rect` (140×16 pixels) 6,117 → 5,213 cycles, `hgr_byte_rect`
 (40 columns × 16 lines, a new bench case) 9,266 → 7,824, `hgr_span` (a
 280-pixel line) 1,096 → 993. +21 and +28 bytes of code; `ptr2`, already
 imported by the pixel kernel, holds its two counts, the byte kernel uses
-`tmp3`/`tmp4`. `test_hgr.py`, `test_gfx_outlines.py` and `test_hgr_lines.py`
+`tmp1`..`tmp3` (19 cycles a pair since the backward Y loop). `test_hgr.py`, `test_gfx_outlines.py` and `test_hgr_lines.py`
 check the pixels, clipping, holes and both pages.
 
 ## DHGR clearing with IRQ servicing
@@ -1470,7 +1471,7 @@ or the pixel-rectangle parameters on a HUD-only client.
 Both controllers reuse the digit count returned by conversion/compaction
 and finish the origin's division by seven in eight bits after reducing it
 below 56. This saves 24 code bytes per format without adding RAM or tables.
-An unchanged value still takes 312 cycles in either format.
+An unchanged value takes 286 cycles (16×16) or 265 (8×8).
 
 The 16×16 kernel writes its second byte column directly to both scanlines:
 that column always lies wholly inside the 16/18-pixel cell. Its other
@@ -1496,9 +1497,9 @@ while edge masks and the row counter use `ptr3/ptr4`, saving another 28 code
 bytes and seven BSS bytes. The controller restores its field pointer after
 each cell; glyph lookup completes before the fragments are initialized.
 These kernels remain non-reentrant and document their scratch clobbers.
-Neither change adds zero page or stack use. A changed 16×16 digit takes
-3,770 cycles (previously 3,930), and an 8×8 digit 2,255 (previously 2,282).
-Five changed 16×16 digits take 14,218..15,013 cycles across the seven phases.
+Neither change adds zero page or stack use. A changed 16×16 digit now takes
+3,711 cycles (3,930 before this pass), and an 8×8 digit 2,255 (previously 2,282).
+Five changed 16×16 digits take 14,074..14,875 cycles across the seven phases.
 
 The tests check 168 updates with decimal carry and wrap and 70 digits placed
 against the right and bottom edges, in all seven phases. The same oracle
@@ -1640,13 +1641,13 @@ This optional backend is used with the masked blitter `hgr_ms_run` (explicit
 internal contract in `hgr_internal.h`) to avoid the save-under pool.
 The historical engine keeps its saved-background restoration.
 The restorer keeps no redundant context-pointer copy or high count byte.
-It adds the destination column to each row pointer once, then uses Y=0
-for all eight scanline stores. Row low bytes plus valid columns cannot
+Each row's eight absolute screen stores are patched once (column added
+to the row low byte) and indexed by X, which is also the map column. Row low bytes plus valid columns cannot
 cross a 256-byte boundary. These passes save **11 loaded bytes and 3 RAM
 bytes**, with unchanged zero-page and stack requirements. A full-page
-restore takes **271,192 instead of 278,943 cycles**; the game's scheduling
+restore now takes **168,837 cycles** (278,943 before these passes); the game's scheduling
 must still budget that work. An eight-tile region with two masked draws
-costs **6,623 cycles**, down from 6,703 before these passes.
+(`hgr_tile_background`) now costs **5,635 cycles** (6,703 before these passes).
 `test_tilemap.py` checks both pages, clipped/full regions, palette and memory
 holes, the 256-count path and atomic rejection on 6502 and 65C02.
 The `HGRC_TILEMAP_SRCS` family is extracted only when it is called.
@@ -1715,8 +1716,8 @@ backgrounds, not a universal speedup. Tests also cover cell heights 5, 7,
 
 Native text advances with increments; doubled text reuses the bit-wrap
 carry when adding its column offset. This removes duplicated column
-updates: `hgr_text8_asm.s` CODE is 141 B (was 157), and
-`hgr_text16_asm.s` CODE is 318 B (was 331). No RAM/ZP is added.
+updates: `hgr_text8_asm.s` CODE is now 137 B (157 before this pass), and
+`hgr_text16_asm.s` 287 B (331 before). No RAM/ZP is added.
 
 A warmed cc65 `-Oirs` fixture rendering `"APPLE II"` at x=3 measured
 9,363 → 9,249 cycles for native text and 20,341 → 20,419 for doubled

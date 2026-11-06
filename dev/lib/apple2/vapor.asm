@@ -21,7 +21,7 @@
 ;                  Clobbers A, X, Y.
 ;   vapor_mark_both -- vapor_mark on both HGR pages ($3FD0-$3FE7 and
 ;                  $5FD0-$5FE7), for a program that flips them: the page
-;                  shown always carries it. Clobbers A, X. (.ifref, 13 B)
+;                  shown always carries it. Clobbers A, X. (.ifref, 14 B)
 ;   vapor_pace_init -- vapor_count, the frame kept in polls for vapor_pace;
 ;                  C = 1 when there is no floating bus (then do not call
 ;                  vapor_pace: run unpaced). Clobbers A, X, Y.

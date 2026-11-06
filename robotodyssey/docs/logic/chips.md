@@ -21,7 +21,7 @@ Outil : `tools/chips.py`
 
 ```sh
 python3 -I tools/chips.py library            # bibliothèque complète (face B)
-python3 -I tools/chips.py code build/files/B_LABS/0A6_D000.bin 0200000000000000
+python3 -I tools/chips.py code build/files/B_LABS/0A6_D000_cd_chip0.bin 0200000000000000
 python3 -I tools/chips.py sim 3 9 1=1        # puce 3 de la bibliothèque, 9 cycles, broche 1 à 1
 ```
 

@@ -2,7 +2,8 @@
 
 Validate every gameplay change with `../dev/tools/a2shot` (screenshots,
 memory reads, cycle and frame counts) and `make test`
-(`tests/check_generation.py`, 100 seeds). A scripted run must still reach the
+(`tests/check_generation.py` on 100 seeds, then seed entry, rendering,
+joystick, configuration, profiles, ergonomics and a full playthrough). A scripted run must still reach the
 shop, beat the dragon and win; exits without the relic, and the last one
 before the dragon's death, must stay shut.
 

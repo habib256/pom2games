@@ -32,7 +32,7 @@
 ;                 the timer still runs after 255 counts (~2.8 ms: no stick,
 ;                 or one pushed past the full scale): joy_x = 255. joy_y
 ;                 untouched (PTRIG starts both timers; Y's runs out on its
-;                 own, ~3 ms at most). Clobbers A, X. 19 B.
+;                 own, ~3 ms at most). Clobbers A, X. 24 B (22 with joy_x in ZP).
 ;   stick_dir  -- after read_stick: A = JOY_UP / JOY_DOWN / JOY_LEFT /
 ;                 JOY_RIGHT, or JOY_NONE (0, Z set) inside the dead zone.
 ;                 The vertical axis wins a diagonal. Clobbers A.
@@ -57,7 +57,7 @@
 ;                 Options: STICK_KEY_FAST = 1 samples with read_stick_fast
 ;                 (retune JOY_LO / JOY_HI to its scale); STICK_KEY_REPEAT =
 ;                 n repeats a held direction every n calls (+1 B BSS
-;                 stick_key_rep, +20 B code; buttons never repeat).
+;                 stick_key_rep, +21 B code; buttons never repeat).
 ;   joy_buttons -- A = buttons held (bit 0 = button 0, bit 1 = button 1),
 ;                 X = newly pressed since the last call (same bits), Z from
 ;                 A. State joy_btn_last (1 B BSS, zero it at start). 25 B.

@@ -58,6 +58,15 @@ use the Apple II's native video. Every game in the repository shares them.
                        preshift7 (7 HGR phases, palette bit, masks, 2-dot cells)
       tools/a2test.py  test harness: ld65 labels, a2run/a2shot launch,
                        memory dump decoding, test disk, ProDOS volumes
+      tools/dsk2woz.py  140K .dsk/.po -> WOZ 2 twin in dist/woz/ (--check DIST:
+                       make test-woz)
+      tools/applesoft.py  lists a tokenized Applesoft program
+      tools/tms9918.py  renders a TMS9918A picture from VRAM and registers
+      tools/audit_lib_usage.py  make audit-libs
+      tools/test_changed.py  make test-changed
+      tools/example_memory.py  memory.json of examples/minimal
+      tools/build_config.py, build_deps.py  archive signature, cc65 -S
+                       dependency retargeting (build helpers)
       tools/a2profile.py  a2shot `pcprof` response: cycles per address, per
                        routine (ld65 labels), per region, per group; table
       tools/re6502/    6502 reverse engineering: 6502/65C02 opcodes, code
@@ -75,7 +84,9 @@ use the Apple II's native video. Every game in the repository shares them.
                        pt3play.py: a Vortex Tracker II (.pt3) player, the
                        registers of lib/apple2/pt3 tick for tick;
                        pt3import.py: PT3 -> AYS (aysong.py --import-pt3),
-                       with a report of what does not map
+                       with a report of what does not map;
+                       tune.py: notes -> tune.asm events;
+                       breakout_tunes.py: the breakout games' duet tunes
       tools/perspective.py  configurable fixed-camera tables
       tools/dos33_system.bin  DOS 3.3 system tracks (0-2) from the Apple master disk
       tools/a2shot/    headless, scripted runs with PNG captures
@@ -84,6 +95,8 @@ use the Apple II's native video. Every game in the repository shares them.
                        DHGR, frame pacing, examples, assets (make test, make test-dhgr)
       bench/           cycle and size measurements, regression budgets
       examples/hello/  asm + C starter program on one disk
+      examples/minimal/ three minimal integrations (HGR single/double DOS,
+                       DHGR ProDOS) and their memory.json; images in build/
       examples/hgr/    animated HGR starter: sprites, counter, keyboard, pacing
       examples/dhgr/   DHGR 560×192 / 16 colours, Apple IIe 128 KB or IIc
       examples/perspective/ HGR grid + audio effect; disk in build/
@@ -120,7 +133,8 @@ so the disk joins the others in `dist/`.
 
 Every `Makefile` starts with `include $(DEV)/cc65/apple2.mk`, which provides the
 tool variables (`CA65`, `CL65`, `PYTHON`, `POM2`, `A2RUN`…), the library
-paths (`APPLE2`, `HGR`, `FONT`, `HGRC`, `GFX`, `APPLE2C`), `A2_INCS` and
+paths (`APPLE2`, `HGR`, `FONT`, `HGRC`, `GFX`, `APPLE2C`, `AUDIO`,
+`PERSPECTIVE`, `MATH`, `PHYSICS`), `A2_INCS` and
 `A2_ASM_DEPS` for the assembler, the `$(DOS33)` command that builds the
 disk, and the `run` (`APPLE2_PRESET`, `APPLE2_RUN_FLAGS`), `clean`,
 `distclean` and `$(A2RUN)` targets. The program's `Makefile` keeps only its
@@ -130,8 +144,9 @@ Assembly libraries are included **after** the code that calls them: a
 routine is only assembled if it was referenced before the include (`.ifref`),
 so a game only pays for what it uses.
 
-`pom2games` depends on no other folder: cc65 and python3 are all you need
-to build the disks (plus libslirp for a2shot). `make run` launches the installed
+`pom2games` depends on no other folder: cc65, python3 and a C/C++ compiler
+are all you need to build the disks (`fhpack` for the LZ4FH titles, `a2run`
+for the tests; plus libslirp for a2shot). `make run` launches the installed
 POM2 (`/Applications/POM2.app`, or `make run POM2=path/to/POM2`).
 
 The full ProDOS profile is [`chromabreak`](../chromabreak/README.md):
@@ -196,7 +211,8 @@ files replaced, added or dropped. Same allocator and fixed date as
 subprocess builds they replace.
 `tools/dos33.py` also reads an image back: `catalog()`, `read_file()`,
 `replace_file()` (game saves). The MICRO-SOKOBAN,
-ARKABREAKOUT, CHROMABREAK, Maze3D, `tests/` and `bench/` scripts use it.
+ARKABREAKOUT, Maze3D, DIRTBIKE, SNAKE, PINBALL, Wilderness, `tests/` and
+`bench/` scripts use it.
 
 ## a2shot
 
@@ -243,7 +259,12 @@ MCU), `--mockingboard` a Mockingboard (on the //c, the Mockingboard 4c).
 (default 4) of a ][+ or //e, in silicon-strict mode: an access the VDP cannot
 serve yet is dropped and counted, R1 bit 7 selects 16 KB addressing (set
 it); the run ends with `vdp_dropped=N` (`Result.vdp_dropped`, must be 0).
-`--ezcolor-lax` turns the window off. The VDP's frame is its own: 17,062
+`--ezcolor-lax` turns the window off. `--pal` selects PAL beam timing
+(frames of 20,280 cycles). `--mouse-slot=N` moves the AppleMouse to slot N
+(a //e with mouse and Mockingboard). `--hdd[=N]` forces POM2's block card in
+slot N (default 7) for any size; volumes over 800 KB use it on their own
+(steps `hddinfo`, `hddflush`, `hddsave:F`, `hddprotect:0|1`). The full list
+of steps is in the header of `tools/a2shot/a2shot.cpp`. The VDP's frame is its own: 17,062
 cycles (a2run's model uses the same). `a2test.run(disk, steps,
 emulator=a2test.A2SHOT, ezcolor=N)`.
 
@@ -291,7 +312,8 @@ script syntax, plus a few steps for tests:
 
 | Step              | Effect                                             |
 |-------------------|----------------------------------------------------|
-| `wait:N`, `until:`, `key:`, `press:`, `shot:`, `peek:`, `joy:`, `btn:`, `reset`, `pc` | as in a2shot (`\^` `\v`: up/down arrows) |
+| `wait:N`, `until:`, `key:`, `press:`, `shot:`, `joy:`, `btn:`, `reset`, `pc` | as in a2shot (`\^` `\v`: up/down arrows) |
+| `peek:ADR[:LEN]`  | dumps RAM (no I/O side effects, unlike a2shot's bus read) |
 | `text`            | prints the 40×24 text page                         |
 | `poke:ADR:VAL`    | writes one byte to RAM                             |
 | `spk`             | number of speaker toggles since the last `spk`     |
@@ -328,7 +350,7 @@ Each program has two targets (convention from `cc65/apple2.mk`):
 At the root, `make test` runs the fast tiers and the fast checks
 of `dev/` (`make test-dev`: libraries, tools, examples,
 `bench-check`), `make test-long` the long tiers, `make test-all` both.
-`make test-changed [BASE=<ref>] [LONG=1]` tests only the programs that
+`make test-changed [BASE=<ref>] [LONG=1] [SOURCES_ONLY=1]` tests only the programs that
 the working tree touches (sources in the folder, or a rebuilt disk image
 that differs from BASE's: see `tools/test_changed.py`), plus
 `make test-dev` if `dev/` changed.
@@ -375,6 +397,6 @@ separates the physical tests still to be done from the emulated validations.
 ## Shared resource audit
 
 `make audit-libs`, from the root, checks the actual dependencies of the
-15 projects with ca65/cc65 and make's build graph. Build
+26 projects (root `DIRS` plus `examples/minimal`) with ca65/cc65 and make's build graph. Build
 the software and the minimal examples first so the generated resources
 are available. See [the inventory and sharing opportunities](lib/USAGE.md).

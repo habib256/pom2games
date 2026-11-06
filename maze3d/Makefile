@@ -2,7 +2,9 @@
 #
 #   make            -> ../dist/MAZE3D.dsk (bootable 5.25" DOS 3.3 image)
 #   make run        -> boot it in POM2 as an Apple II+
-#   make test       -> maze generation across seeds, in a2shot
+#   make test       -> generation across seeds, seed entry, rendering, joystick,
+#                      configuration, profiles, ergonomics and a playthrough
+#                      (a2shot and a2run)
 #   make clean      -> remove build/ (the disk stays)
 #   make distclean  -> remove build/ and the disk
 #

@@ -15,7 +15,7 @@
 ;
 ; Controls (input.inc): joystick X or paddle 0 = lean (analog), button 0 = throttle,
 ; button 1 = brake. Keyboard: A/Z or up/down = throttle level, left/right
-; or J/L = lean, SPACE = brake, R = restart, ESC = menu.
+; or J/L = lean, SPACE = brake, R = restart, S = sound on/off, ESC = menu.
 ; ============================================================================
 
 .include "apple2.inc"

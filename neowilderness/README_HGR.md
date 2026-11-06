@@ -1,5 +1,9 @@
 # Wilderness
 
+> Copie du README de `../wilderness/` (version HGR/DOS 3.3 de référence).
+> Commandes, fichiers et touches ci-dessous décrivent cette référence, pas
+> Neowilderness : voir [README.md](README.md).
+
 Réimplémentation de *Wilderness: A Survival Adventure* (Electric Transit,
 1985) pour Apple II+ 48 Ko, sous DOS 3.3. Le joueur survit à un crash d'avion
 et doit rejoindre le poste de rangers en gérant son équipement, ses réserves
@@ -35,7 +39,7 @@ les déplacements et la cadence originale des réactions en prochaine priorité.
 Depuis `wilderness/`, avec les outils cc65 et les outils partagés de `dev/` :
 
 ```sh
-make                 # construit ../dist/NEOWILDERNESS.dsk
+make                 # construit build/WILDERNESS.dsk
 make run             # lance la disquette dans POM2
 make test            # tests dans l'émulateur a2shot
 make fuzz            # comparaisons de rendu plus longues

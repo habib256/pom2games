@@ -1,6 +1,8 @@
 # MICRO-SOKOBAN — Apple II+ / DOS 3.3
 
-Version 1.3, in preparation. Latest release: **1.2** — [disk image and release
+Version 1.3, published 2026-10-24 ([disk and
+tag](https://github.com/habib256/pom2games/releases/tag/micro-sokoban-1.3)).
+Release 1.2: [disk image and release
 notes](https://github.com/habib256/pom2games/releases/tag/1.2)
 ([notes in this repository](../docs/releases/1.2.md)).
 
@@ -400,8 +402,9 @@ vectors). What is only needed at startup (reading and checking `MICROHOF`,
 taking over old rankings) forms the `BOOTCODE` segment: it follows the
 resident in the file, so the loader leaves it where the BSS will be, and
 `main` moves it down to `$1000` before anything else; the first level pack
-then takes its place. About **380 bytes** remain for the resident (the
-segment must also fit below `$9AA0` on arrival) and **230** in this
+then takes its place. About **155 bytes** remain for the resident (the
+segment must also fit below `$9AA0` on arrival: BSS ends at `$99DC`, the
+arriving `BOOTCODE` at `$9A04`) and **230** in this
 three-page segment: see `build/micro_sokoban.map`.
 
 The level packs are loaded at `$1000`; the active profile's records and

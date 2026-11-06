@@ -114,13 +114,12 @@ Les coûts de déplacement sont inchangés. La préparation d'une arme est
 présentée avant la chasse ; une annulation ne prépare ni ne consomme rien.
 
 Port séparé de Wilderness pour Apple IIe enhanced 128 Ko et IIc, avec
-rendu DHGR et modules préchargés en RAM, en deux éditions (14 octobre
-2026), même jeu et même chargeur : **Neowilderness**
-(`dist/NEOWILDERNESS.po`, disquette 5,25" de 140 Ko, Disk II : la Sierra
-Nevada seule, la préparation, cinq parties) et **NeoWildernessXL**
+rendu DHGR et modules préchargés en RAM : **NeoWildernessXL**
 (`dist/NEOWILDERNESSXL.po`, disquette 3,5" de 800 Ko : IIe avec carte
 contrôleur 3,5" (UniDisk 3.5/Liron, SuperDrive) ou IIc avec lecteur
-SmartPort, IIc Plus ; les six scénarios). Le premier objectif est de
+SmartPort, IIc Plus ; les six scénarios). L'édition 140 Ko
+(`NEOWILDERNESS.po`, la Sierra Nevada seule) est archivée depuis le
+16 octobre 2026. Le premier objectif est de
 supprimer les lectures disque pendant les commandes et déplacements
 courants.
 
@@ -215,7 +214,7 @@ Sierra sur des cartes reconstituées) avec leur meilleur score, un voyage
 libre (région et niveau au choix, hasard renouvelé, jamais classé), le
 **hall of fame** (`H` : cinq meilleurs voyages par scénario) et le retour à
 ProDOS ; puis le niveau 1–10 (RETURN = 4). Seul le paquet de la région
-choisie est lu (son paquet dans `NEOWILD.DAT`, 14 à 17 blocs) : la première vue
+choisie est lu (son paquet dans `NEOWILD.DAT`, 15 à 17 blocs) : la première vue
 apparaît 9,2 à 9,8 s après le choix. Chaque région a sa faune (deux à
 quatre espèces, règles de rencontre et de réaction de l'original), ses
 couleurs de sol, d'eau et de végétation, son texte de départ ; un arrêt de
@@ -243,14 +242,14 @@ Lot 9 ([SAVE.md](docs/SAVE.md)) : **SAVE** et **RESTORE** gardent cinq
 parties sur la disquette du jeu, comme l'original. Le numéro est demandé
 (`SAVE THE JOURNEY AS GAME 1-5?`) ou tapé à la suite (`SAVE 2`,
 `RESTORE 2`) ; une partie occupée est décrite (région, heures) avant
-`REPLACE IT? Y/N`. RESTORE reprend la partie octet pour octet (horloge,
+`REPLACE IT? Y: YES   N/ESC: NO`. RESTORE reprend la partie octet pour octet (horloge,
 santé, météo, objets, faune, hasards) et redessine la vue ; il refuse une
 partie d'une autre région (`GAME 1: SIERRA NEVADA ONLY.`), d'une autre
 version du jeu ou abîmée, sans rien changer. Une disquette protégée
 affiche `DISK WRITE-PROTECTED: NOT SAVED.`. Ce sont, avec la fin de
-voyage, les seuls accès disque de la partie : SAVE ≈ 4,5 s, RESTORE 6 à
-9 s (la vue est redessinée). L'aide (HELP) ne les mentionne pas encore :
-son module est plein.
+voyage et les lectures de `NEOWILD.BLK`, les seuls accès disque de la
+partie : SAVE ≈ 4,5 s, RESTORE 6 à 9 s (la vue est redessinée). L'aide
+(HELP) les présente dans sa page SAVE & LEAVE.
 
 Lot 7 de fidélité, orientation ([ORIENTATION.md](docs/ORIENTATION.md)) :
 LOOK N/E/S/W et LOOK AZ exigent, comme l'original, une aide en usage
@@ -330,8 +329,8 @@ d’OBJECTS, HELP, OPTIONS ou MENU conserve la sélection ; Échap quitte la pag
 Le joystick pilote désormais la vue, la grille, les pages et le menu de
 choix du voyage (bouton 0 : valider, bouton 1 : retour). Les dialogues P/G
 et les confirmations en jeu se choisissent aux directions ; haut/bas règle
-les invites numériques. Dans MAP, Entrée ouvre l'exploration : directions
-pour défiler, Entrée pour recentrer, retour pour quitter ce mode. Le nom
+les invites numériques. Dans MAP, Entrée (bouton 0) ouvre le planificateur
+de destination ; I, J, K, L défilent, C recentre. Le nom
 du score peut se composer avec haut/bas et droite. La préparation
 personnalisée et quelques attentes particulières restent à raccorder ; le
 plan complet, dont les actions et quantités d'OBJECTS, est dans le TODO.
@@ -339,35 +338,38 @@ plan complet, dont les actions et quantités d'OBJECTS, est dans le TODO.
 ## Construction
 
 ```sh
-make            # ../dist/NEOWILDERNESS.po (140 Ko, 280 blocs) et ../dist/NEOWILDERNESSXL.po (800 Ko, 1 600 blocs)
+make            # ../dist/NEOWILDERNESSXL.po (800 Ko, 1 600 blocs)
 make run        # POM2, préréglage IIe enhanced
 make inspect    # catalogue du volume, enregistrements et placement auxiliaire
-make test       # tests a2shot sur //e : images DHGR, état comparé à la référence HGR
+make test       # suite XL a2shot sur //e : images DHGR, état comparé à la référence HGR
+make test-all-editions  # tests historiques des deux éditions, bancs des étoiles et du hall of fame
 make -f dhgr.mk test   # banc DHGR indépendant (primitives, humeurs, disque de démonstration)
 make -f stars.mk test  # banc des étoiles (référence Python, module horaire, tracé)
 make -f hof.mk test    # banc du score et du hall of fame (fichier, écrans, disque protégé)
 ```
 
-`make test` lance aussi les bancs des étoiles et du hall of fame
-(≈ 7 minutes au total dans POM2).
+`make test` ne lance que la suite XL ; les bancs des étoiles et du hall of
+fame passent par `make test-all-editions`.
 
-Les deux volumes contiennent `PRODOS` (2.4.3), `NEOWILD.SYSTEM` (chargeur
+Le volume contient `PRODOS` (2.4.3), `NEOWILD.SYSTEM` (chargeur
 et menu ; le nom `NEOWILDERNESS.SYSTEM` dépasse 15 caractères),
 `NEOWILD.DAT` (tronc commun, paquets de région et préparation du voyage
 dans un seul fichier ; un seul paquet est lu après le choix au menu), le
 module de fin de partie `NEOWILD.END`, le hall of fame `NEOWILD.HOF` (un
 bloc, réécrit en place), le module de SAVE/RESTORE `NEOWILD.SAV` et les
-cinq parties `NEOWILD.S1`…`S5` (réécrites en place, lot 9) ; XL ajoute
-`NEOWILD.BLK` (CAMP, MEDVIEW, TREE et ORIENT, rarement chargés, lus par
+cinq parties `NEOWILD.S1`…`S5` (réécrites en place, lot 9) et
+`NEOWILD.BLK` (TOPOGEN, CAMP, CRAFT, STATUS XL, FIRE, MEDVIEW, TREE,
+ORIENT, FORAGE, les dialogues NAVIGATION/TRIP/GUIDANCE/CAMPUI/THREAT, HELP
+et les sprites de site, rarement chargés, lus par
 bloc dans leur fenêtre au lieu d'occuper le stock auxiliaire ; une copie
 fichier par fichier qui déplacerait ce fichier est refusée au démarrage,
 docs/MEMORY.md § 14). 36 appels MLI avant la partie ; pendant la partie,
-aucun sauf SAVE (8), RESTORE (6) et, sur XL, les lectures de
+aucun sauf SAVE (8), RESTORE (6) et les lectures de
 `NEOWILD.BLK` ; 9 en fin de voyage (module, lecture et écriture du hall of
-fame). Volumes : 140 Ko, 224 blocs sur 280 ; XL, 305 blocs sur 1 600
+fame). Volume : 432 blocs sur 1 600
 (`make inspect` : blocs et mémoire libre par paquet). POM2 et a2shot
 démarrent XL sur la carte SmartPort 3,5" du slot 5 (a2shot choisit le
-contrôleur d'après la taille de l'image), le 140 Ko sur Disk II. La construction
+contrôleur d'après la taille de l'image). La construction
 demande les en-têtes de région et les cartes reconstituées
 (`make regions`, données originales locales). `BOOT_PACKING=raw|lz|auto`
 choisit la compression des enregistrements (`lz` par défaut depuis les

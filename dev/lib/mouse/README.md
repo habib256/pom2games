@@ -42,7 +42,7 @@ which replaced its own CLAMPMOUSE call (`_mouse_wide`, −59 bytes).
 `ca65 -D MOUSE_INIT_BOOT=1` puts `mouse_init` (detection and settings) in the
 `INIT` segment; zero or undefined keeps it in `CODE`. This startup code can
 be overwritten by a buffer later
-(DIRTBIKE, where the driver otherwise stays resident). With the //c mouse, which
+(no program uses it at present; DIRTBIKE did before its mouse was removed). With the //c mouse, which
 enables interrupts, a DOS 3.3 program must mask them during
 RWTS (`RWTS_SEI`, `apple2/rwts.asm`; `DOS_SEI` for the commands of
 `apple2/dos.asm`).

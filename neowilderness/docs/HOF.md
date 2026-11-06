@@ -310,8 +310,7 @@ celui de l'intégration temporaire sans le module des étoiles.
   Trois autres volumes : **WOZ protégé en écriture** (`tools/po2woz.py` ;
   POM2 honore le drapeau INFO, ProDOS rend un vrai `$2B` ; score affiché,
   disque inchangé), en-tête invalide, fichier absent (`$46`).
-- `tests/test_hof_game.py` : sur `dist/NEOWILDERNESS.po` une fois intégré
-  (SKIP avant) — écran H vide, Sierra niveau 4 déplacé à trois cases du
+- `tests/test_hof_game.py` : sur `dist/NEOWILDERNESSXL.po` (six scénarios) — écran H vide, Sierra niveau 4 déplacé à trois cases du
   poste, QUIT/Y, écran = référence pour les valeurs relevées, nom, retour au
   menu, BEST et écran H relus, voyage libre sans accès au fichier. Passé
   sur l'intégration temporaire (score 1 425).

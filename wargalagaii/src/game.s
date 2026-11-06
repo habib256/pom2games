@@ -639,7 +639,7 @@ af_here:
 ; page 2 ($4000; up to its speaker player: not the title's part), the
 ; screen, then the rules on leaving (logic.s); Memory Station may lead to
 ; the shop. Then a fresh game screen.
-SHOP_AUX = $7000                 ; (WG2.AUX: packs, PT3 at $6000, the
+SHOP_AUX = $7000                 ; (WG2.AUX: PT3 at $2000, packs at $3000, the
 SHOP_LEN = __DUET_LOAD__ + __DUET_SIZE__ - $4000 ; overlay, storm and demo
 OVL_LEN  = __SHOPM_LAST__ - $4000 ; at $9000)
 LOW_AUX  = $9000

@@ -37,8 +37,8 @@ le pilote quand le manche passait d'un bout à l'autre).
   comme la démo) ; course contre le fantôme du record.
 - Autres figures (atterrissage sur une roue) ; multiplicateur de combo.
 - Drapeau visible dès le bord droit (x > 255 : une ligne verticale 16 bits).
-- Encore de la place : 3,5 bandes de la page texte ($0680-$07F7), ~220
-  octets en RAM principale.
+- Encore de la place : ~135 octets en `$6000-$91FF`, une vingtaine par
+  bande de la page texte (TXT5, TXT6).
 
 ## Lot 3 — contenu
 - Moto et pilote plus détaillés (jambes, guidon, fourche) ; animation de la
@@ -56,5 +56,5 @@ moto ~8 600.
 - Cadence régulière : VBL sur //e ; sur II+, synchronisation par le bus
   flottant : `dev/lib/apple2/vapor.asm` existe depuis le 2026-10-24 (SNAKE,
   marqueur sur la ligne HGR 191, testé sur a2run et POM2 NTSC/PAL/IIe).
-- Mémoire : ~3,9 Ko libres en `$6000-$95FF`, ~480 octets en `$1000-$1FFF`,
-  page zéro presque pleine (2 octets).
+- Mémoire : ~135 octets libres en `$6000-$91FF`, ~30 en `$1000-$1FFF`,
+  page zéro pleine (1 octet).

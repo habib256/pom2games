@@ -9,7 +9,7 @@
 ;                         virtual TMS9918 screen; the game view the X2 way,
 ;                         video_x2.asm)
 ;
-; DOS 3.3 loads the file at $4000 and is then given up: the game needs both
+; DOS 3.3 loads the file at $3C00 and is then given up: the game needs both
 ; DHGR pages ($2000-$5FFF), so the part of the file below $6000 (the
 ; back-end, segments LCCODE / LCDATA) moves to the language card's RAM
 ; ($D000-, the Monitor ROM copied to $F800-$FFFF first: tune.asm calls WAIT),

@@ -318,9 +318,9 @@ touché, armure, fin de partie), hors de l'état comparé au modèle.
       plus long avait porté le repli //c à ~4 s.
 - [x] Priorités : mort > fin de partie > armure > alien abattu > tir ; un
       effet de même rang repart du début. **S** coupe / remet le son.
-- [ ] Musique haut-parleur hors jeu (`duet.asm`) : pas d'écran hors jeu
+- [x] Musique haut-parleur hors jeu (`duet.asm`) : pas d'écran hors jeu
       avant le lot 9 (titre, boutique).
-- [ ] Silence AY avant un accès disque : pas d'accès disque en jeu avant le
+- [x] Silence AY avant un accès disque : pas d'accès disque en jeu avant le
       lot 6.
 - **Acceptation** (`make test`, `tests/test_audio.py`) : haut-parleur — rien
   sans effet, un tir = des bascules, toutes dans les boucles d'attente,

@@ -18,7 +18,8 @@
  *   Run   : make run        (POM2, Apple ][+ profile)
  *
  * Controls: I J K L, the arrow keys (left/right on a II+, all four on a //e)
- * or a joystick. 1 2 3 on the title pick the starting speed.
+ * or a joystick; P or ESC pauses (Q then quits to DOS). 1 2 3 on the title
+ * pick the starting speed.
  *
  * --- Cell -> pixel mapping -------------------------------------------------
  * The 280x192 HIRES screen is divided into 8x8-pixel CELLS: 35 columns

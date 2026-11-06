@@ -2,7 +2,9 @@
 
 This suite compares **fhpack**, **fdraw** and a prototype of **compiled
 sprites** with the existing `pom2games` code paths. The prototypes stay in the
-tests; no production library uses them.
+tests. Since then, the fhpack decoder ships as `dev/lib/apple2/lz4fh.asm`
+(with `dev/cc65/fhpack.mk`), and `lib/hgr`'s line (`hgr_line.asm`) and row
+clear (`hgr_clear_rows.asm`) borrow fdraw's techniques.
 
 ```sh
 make test-techniques

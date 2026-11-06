@@ -447,16 +447,16 @@ pas la place au jeu sous le DOS. DOS 3.3 charge le fichier en `$3C00` (le
 | `$0800-$0FFF` | `DGPAGE` : l'état du moteur texte pour la page 1 (`$0800` : `dg_shown` 768 o, `dg_drawn` 128 o, `dg_touch` 24 o) et la page 2 (`$0C00`) ; `QUIT_MARK` en `$0FFE` |
 | `$1000-$12F7` | `LOWBSS` : carte, visibilité, monstres, objets, sac, ombres de render_map et du HUD |
 | `$1400-$167F` | `X2LOW` : les masques des moitiés de 7 pixels (`x2_m`, 512 o), le tampon de composition d'une case (`x2_cbuf`, 128 o) |
-| `$1800-$1F0E` | `DHGRBSS` : l'écran TMS virtuel **à ses propres adresses** (`$1800` noms, `$1B00` sprites), le tampon de lignes du moteur texte (`$1C00-$1EFF`), drapeaux par page |
+| `$1800-$1F0F` | `DHGRBSS` : l'écran TMS virtuel **à ses propres adresses** (`$1800` noms, `$1B00` sprites), le tampon de lignes du moteur texte (`$1C00-$1EFF`), drapeaux par page |
 | `$2000-$3FFF` | page DHGR 1 (principale ; et l'auxiliaire) |
-| `$4000-$5FFF` | page DHGR 2 (idem) ; au chargement : `STARTUP` (`$3C00-$3CDB`) puis `LCCODE` + `LCDATA` (8,3 Ko), complétés jusqu'à `$6000` |
+| `$4000-$5FFF` | page DHGR 2 (idem) ; au chargement : `STARTUP` (`$3C00-$3CDB`) puis `LCCODE` + `LCDATA` (8,6 Ko), complétés jusqu'à `$6000` |
 | `$6000-$9469` | le fichier : `CODE` (le cœur, `plat_quit`, `apple2_reboot`) 9 120 o, `RODATA` 4 264 o (le cœur, `video_dhgr_data.inc`), `DGFIX` 34 o ; `$946A-$95FF` libres (406 o) |
 | `$9600-$99FF` | (le DOS) `X2IMG` : les 8 images de tuiles (1 Ko) |
 | `$9A00-$9E05` | `BSS` : clés des cases des deux pages, image voulue, groupes sales du moteur texte ; `$9E06-$BFFF` libres (8,7 Ko) |
-| `$D000-$F13D` | carte langage, RAM banque 2 et commune : le back-end (`LCCODE` 6,4 Ko, `LCDATA` 2,1 Ko) ; `$F13E-$F7FF` libres (1,7 Ko) |
+| `$D000-$F23A` | carte langage, RAM banque 2 et commune : le back-end (`LCCODE` 6,5 Ko, `LCDATA` 2,0 Ko) ; `$F23B-$F7FF` libres (1,4 Ko) |
 | `$F800-$FFFF` | carte langage : la copie de la ROM du moniteur |
 
-Fichier : 22 634 octets (89 secteurs, 486 octets de remplissage avant
+Fichier : 22 634 octets (89 secteurs, 233 octets de remplissage avant
 `$6000`). Mémoire auxiliaire : seulement ses moitiés des deux pages DHGR.
 
 **Sortie** (ESC au titre, ESC puis Y, Ctrl-RESET : `plat_quit` /
@@ -475,5 +475,5 @@ L'emplacement vient de `$B7E9` lu à l'entrée (`APPLE2_REBOOT_INIT`), pas d'un
 
 ### ROGUE (lanceur)
 
-`$6000-$691C` (1 767 o + BSS), 8 o de page zéro. Écrasé par le chargement de
+`$6000-$691A` (1 765 o + BSS), 8 o de page zéro. Écrasé par le chargement de
 `ROGUE.TMS` / `ROGUE.DHGR` : le `BRUN` du DOS ne revient jamais.

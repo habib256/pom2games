@@ -1051,20 +1051,20 @@ report gives limit, cost and margin.
 
 | Current workload | Cycles |
 |---|---:|
-| 16×16 HUD, value unchanged | 312 |
-| 16×16 HUD, one digit changed | 3,940 |
-| 16×16 HUD, five digits changed, maximum over seven phases | 15,888 |
-| 8×8 HUD, value unchanged | 312 |
-| 8×8 HUD, one digit changed | 2,282 |
-| 8×8 HUD, five digits changed, maximum over seven phases | 6,652 |
-| Compact game: two moving 7×8 sprites, three digits all changed, keyboard, positions, presentation | 15,100..15,367 |
-| Four isolated 21×16 sprites, only the first one moving, default engine | 30,305 |
-| Same scene, option `HGR_SPR_DAMAGE=1` | 14,100 |
+| 16×16 HUD, value unchanged | 286 |
+| 16×16 HUD, one digit changed | 3,711 |
+| 16×16 HUD, five digits changed, maximum over seven phases | 14,875 |
+| 8×8 HUD, value unchanged | 265 |
+| 8×8 HUD, one digit changed | 2,117 |
+| 8×8 HUD, five digits changed, maximum over seven phases | 6,045 |
+| Compact game: two moving 7×8 sprites, three digits all changed, keyboard, positions, presentation | 14,384..14,663 |
+| Four isolated 21×16 sprites, only the first one moving, default engine | 29,672 |
+| Same scene, option `HGR_SPR_DAMAGE=1` | 13,657 |
 | Stress: four 21×16 sprites all moving + counter + presentation | 37,914 |
 
 The compact game is measured at all seven alignments, in NTSC and PAL. The
 limits after the reservation are **28,060/34,560 cycles**; its worst phase
-still leaves 12,693/19,193 cycles beyond the reservation. Positions and values
+still leaves 13,397/19,897 cycles beyond the reservation. Positions and values
 use a period of three so that each page finds a modified state again. The HUD
 value does not just alternate with the page: its three digits really change
 in the measured case. The modulo shared by the movements and the score is
@@ -1077,11 +1077,11 @@ option stays disabled by default. Four large sprites all moving still cost
 reservation. The overloaded stress cases remain diagnostics.
 
 The native counter uses the cached digits for +1/+2; the 9999 → 10000
-transition costs 6,112 cycles in the 8×8 HUD. Its pre-shifted digits take
+transition costs 5,569 cycles in the 8×8 HUD. Its pre-shifted digits take
 1,386 bytes of RODATA, shared between fields. A HUD-only client avoids the
 mutable row/column LUTs and the general font; a client that also displays
-text pays for both banks. The compact game uses 6,584 loaded bytes,
-1,618 bytes of RAM and 47 zero-page bytes. Both HUD controllers reuse the conversion's digit
+text pays for both banks. The compact game uses 6,068 loaded bytes,
+1,607 bytes of RAM and 46 zero-page bytes. Both HUD controllers reuse the conversion's digit
 count and finish the origin division in eight bits: 24 fewer code bytes
 per format, with unchanged tables, RAM and zero page.
 
@@ -1089,8 +1089,8 @@ The compact HUD kernel now counts source offsets in X, saving 18 code
 bytes and two BSS counters. Separating glyph arguments, string state and
 the font-address helper into archive members removes another 26 code
 bytes and seven zero-page bytes from HUD8-only clients. Their measured
-binary is 3,283 bytes, with 345 RAM bytes and 35 zero-page bytes. Changing
-five digits is about 11 % faster; the unchanged-value path stays at 312
+binary is 3,251 bytes, with 340 RAM bytes and 35 zero-page bytes. Changing
+five digits is about 11 % faster; the unchanged-value path now takes 265
 cycles. This archive split alone saves five zero-page bytes in HUD16-only
 clients without changing their timing.
 
@@ -1098,10 +1098,10 @@ The 16×16 HUD kernel writes its fully covered second column directly,
 assembles the upper pixels with two rotations and expands its three
 single-use edge writers in place. It saves **42 code bytes and one BSS
 byte**, with unchanged zero page and measured stack peaks. Five changed
-digits take 15,032..15,888 cycles (about 17 % less); one changed digit
-takes 3,940 instead of 4,495. The unchanged-value path remains at 312.
-The isolated client uses 2,805 loaded bytes and 755 RAM bytes. The VBL-paced
-loop currently measures 34,044 cycles including its wait. The per-series
+digits now take 14,074..14,875 cycles; one changed digit takes 3,711
+(4,495 before this series). The unchanged-value path takes 286.
+The isolated client uses 2,769 loaded bytes and 748 RAM bytes. The VBL-paced
+loop currently measures 34,041 cycles including its wait. The per-series
 tradeoffs are recorded in [HISTORY.md](HISTORY.md).
 
 The optional tilemap backend restores eight 7×8 tiles then draws two masked
@@ -1176,6 +1176,6 @@ python3 dev/bench/run.py --dhgr --update
 ```
 
 This replaces the references for the measured cases. A normal run or `--check`
-does not modify them. The bundled SDK requires macOS ARM64; the a2run HGR
+does not modify them. The bundled SDK requires macOS arm64 or Linux x86_64; the a2run HGR
 cases remain portable. The evaluation of alternative techniques is separate,
 in [tests/techniques](../tests/techniques/README.md), via `make test-techniques`.

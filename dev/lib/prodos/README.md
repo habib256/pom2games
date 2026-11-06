@@ -222,10 +222,10 @@ zero-length reads save eight cycles and invalid ranges retain their timing.
 `test_prodos_file.py` also checks 200 successive calls with changing bounds.
 Its `--reference PATH --bench --out PATH` reports cover 18 ASM/C profiles.
 
-All three C entrypoints cost 367 loaded bytes (formerly 314), including
+All three C entrypoints cost 365 loaded bytes (formerly 314), including
 the parameters and bitmap scratch; no zero-page bytes are allocated or
 modified by the helpers. In isolation, assembly load/load_free/save cost
-97/244/171 bytes (formerly 85/215/130). `test_prodos_file.py`, part of
+97/242/171 bytes (formerly 85/215/130). `test_prodos_file.py`, part of
 `make test-tools`, executes the ASM and C binaries on a 65C02 with injected
 MLI results: error priority, actual counts, bitmap guards, Y/ZP and each
 independent `.ifref` route. A real ProDOS volume checks truncation to a

@@ -224,7 +224,7 @@ Build a2shot once with `make` in `../dev/tools/a2shot`.
     tools/pack_narrator.py     lossless five-bit text -> MAZETEXT at $1100
     src/sprites_trollkind.asm  goblin, orc (SCROLL-O-SPRITES)
     src/sprites_characters.asm dark mage (SCROLL-O-SPRITES)
-    src/maze3d.cfg             ld65 config: ZP $50-$FF, state at $1000, text at $1100, code at $6000
+    src/maze3d.cfg             ld65 config: ZP $50-$FF, maze grid at $1000, text at $1100, state helper at $1B93, code at $6000
     src/hello.bas              BLOAD record/preferences, BRUN MAZE3D
     src/save.inc              resident profile, checkpoint and preference code
     ../dev/lib/apple2/lz4fh.asm shared LZ4FH title decompressor
@@ -243,12 +243,12 @@ Build a2shot once with `make` in `../dev/tools/a2shot`.
 | `$1050-$109C`   | DFS stack during generation; packed checkpoint between turns                                    |
 | `$10A0-$10FF`   | monsters: 8 columns, 8 rows, 8 types, 8 HP               |
 | `$1100-$1FFF`   | `MAZETEXT` at $1100-$1ADF (packed narrator and UX); title buffer before play             |
-| `$1B93-$1E2F`  | `MAZESTATE`, resident save/resume helper                  |
+| `$1B93-$1E23`  | `MAZESTATE`, resident save/resume helper                  |
 | `$1F10-$1F17`  | `MAZEPREFS`, selected profile, sound and viewing depth     |
 | `$1F00-$1F07`   | `MAZESCORE`, the record file                             |
 | `$2000-$3FFF`   | HGR page 1                                               |
 | `$4000-$5FFF`   | HGR page 2                                               |
-| `$6000-...`     | `MAZE3D`, 13,016 bytes of code/data; BSS ends at $9505             |
+| `$6000-...`     | `MAZE3D`, 13,008 bytes of code/data; BSS ends at $94FD             |
 | `$9600-$BFFF`   | DOS 3.3                                                  |
 
 ### The record file
@@ -303,6 +303,9 @@ one pixel; nearby clusters are byte-aligned and drawn in depth order.
 | `lib/hgr/hgr_line.asm` | native 8-bit-X line kernel; game retains virtual coordinate mapping |
 | `lib/hgr/hgr_span.asm` | native byte/mask horizontal and vertical spans |
 | `lib/hgr/hgr_clear_rows.asm` | visible-row, HUD and fast viewport clears |
+| `lib/hgr/hgr_flip.asm` | draw page by rewriting `hgr_hi` |
+| `lib/apple2/joy.asm` | two axes and dead zone |
+| `lib/math/dec.asm` | `byte_to_dec` / `byte_div10` |
 | `lib/apple2/lz4fh.asm` | title decompression with game scratch aliases |
 | `tools/assets/pack_hgr_sprites.py` | shared build-time sprite packing |
 | `lib/apple2/hgr.asm`         | `hgr_init_clear`                                       |

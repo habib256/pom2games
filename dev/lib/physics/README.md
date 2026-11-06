@@ -73,7 +73,7 @@ included.
 | | `vl_heavy` | the heavy-point share (`VL_CON_HEAVY_*`) | ~90 c |
 | | `vl_quarter_abs` | A/X signed → `A = min(|d >> 6|, 180)` (`VL_CON_FAST`: inline in `vl_constrain`) | 36..47 c including JSR/RTS |
 | | `vl_square` | A = 0..180 → A/Y = A² from the quarter-square entry at 2A (`VL_CON_FAST`: from `vl_sq_lo`/`vl_sq_hi`) | 26..27 c including JSR/RTS (~20 c FAST) |
-| | `vl_push` / `vl_push_all` | (`VL_THRUST`) point X / every point but the pinned ones += the push vector `vl_tx`/`vl_ty` (a speed change) | 125 c / 397 c (3 points) |
+| `verlet.asm` | `vl_push` / `vl_push_all` | (`VL_THRUST`) point X / every point but the pinned ones += the push vector `vl_tx`/`vl_ty` (a speed change) | 125 c / 397 c (3 points) |
 | `verlet_rot.asm` | `vl_turn_pair` | turn the axis `VL_AXIS_A`→`VL_AXIS_B` (0→1): B += `vl_turn`·(−dy, dx) >> 8, A −= the same | ~650 c |
 | | `vl_thrust_axis` / `vl_thrust_perp` | (`VL_THRUST` = n) `vl_tx`/`vl_ty` = the axis (or its perpendicular (−dy, dx)) · `vl_turn` >> (8 + n): with a link of rest length L, L·`vl_turn`/2⁸⁺ⁿ px | 561 c / 620 c (n = 4) |
 | | `vl_shift_point` | point `VL_SHIFT_POINT` and its old position += `vl_turn`·axis >> 8 (a move, no speed) | ~580 c |

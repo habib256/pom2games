@@ -64,8 +64,8 @@
 Fait : la page 2 (`$4000-$5FFF`) est une fenêtre d'overlays (PLAY = salle
 et drones, FRONT = titre, aide, briefing, lecture de la sauvegarde), rangés
 en auxiliaire (`RSS.OVL`) et recopiés en 0,11 s au changement d'écran
-(docs/SPEC.md, « Mémoire »). Libres : principale ~1,7 Ko (contre ~100 o),
-PLAY ~490 o, FRONT ~5,6 Ko, L8 ~260 o ; `sprbuf.s` (inutilisé) supprimé.
+(docs/SPEC.md, « Mémoire »). Libres : principale 775 o, PLAY 225 o (avec
+DHGRSPRCODE), FRONT ~5,6 Ko, L8 ~260 o ; `sprbuf.s` (inutilisé) supprimé.
 
 Réserves encore inemployées, si un jour il en faut plus :
 - [ ] auxiliaire `$0800-$1FFF` (6 Ko) et `$905E-$9FFF` (~4 Ko) : un troisième

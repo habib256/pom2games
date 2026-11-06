@@ -34,7 +34,7 @@ uses, without calling these primitives or changing their banks.
 | Family | State effect and caller obligation |
 |---|---|
 | HGR C | Tables built on demand; drawing on the chosen page; no implicit VBL wait |
-| gfx lines | HGR: ASM kernel; DHGR: C fallback selected explicitly at link time; no dynamic allocation |
+| gfx lines | HGR: ASM kernel; DHGR: native generic Bresenham (`gfx_line.s`, `HGRC_GENERIC_VECTOR_SRCS`) selected explicitly at link time; no dynamic allocation |
 | HGR C ASM kernels | Prepare all tables with `hgr_build_tables` before direct access; Light3dball's native renderer follows this contract |
 | Included HGR ASM | `.ifref` requires the references before the include; scratch possibly aliased; kernel bounds must be respected |
 | DHGR | I state preserved; exit in main RAM; displayed page preserved unless explicitly presented |
@@ -134,7 +134,7 @@ signals a timeout and disables the scheduler until the next `init`.
 32767 ticks go by without calling `wait`. Drawing functions stay out of IRQs.
 
 `HGR_SPR_DAMAGE=1` is a compile-time option of the engine: it adds
-4×HGR_SPR_MAX+11 bytes of BSS for a conservative closure of the intersections
+4×HGR_SPR_MAX bytes of BSS for a conservative closure of the intersections
 of the old/new byte rectangles. The order (reverse restore, then
 direct draw) is preserved. The default still uses the simple prefix/suffix.
 
@@ -207,19 +207,19 @@ Options of this kind (measurements: hgrc bench, or the commit that introduced th
 | `HGR_LINE_DIV7` / `HGR_LINE_MOD7` | `hgr_line.asm` | Two reads from the program's 256 B tables instead of two 32 B tables and a correction; use it when the program already has these tables | dirtbike |
 | `HGR_FULL_WIDTH_TABLES` | `hgr_plot_tables.inc` | Columns 0..279 instead of 0..255: +48 B of tables; required by `hgr_plot16`/`hgr_line16` | logo |
 | `HGR_PLOT_TABLES_RAM` | `hgr_plot_tables.inc` | Tables in BSS + `hgr_plot_tables_init` (39 B): file −513 B for LOGO, same RAM, built once at startup | logo |
-| `hgr_div7_ram.asm` (include) | lib/hgr | `div7`/`mod7` in BSS, `hgr_div7_init` (28 B, ~6,000 cycles once): file −482 B, RAM +28 B | arkabreakout |
+| `hgr_div7_ram.asm` (include) | lib/hgr | `div7`/`mod7` in BSS, `hgr_div7_init` (27 B, ~6,000 cycles once): file −482 B, RAM +27 B | arkabreakout |
 | `hgr_scanline_ram.asm` (include) | lib/hgr | Line tables in RAM, `hgr_scanline_init` (~50 B): 384 B less in the file | dirtbike |
 | `HGR_TEXT8_HGR_ORDER` | `hgr_text8.asm` | Font in HGR order: no more `rev7_tab` (−256 B) nor reversal path | arkabreakout, dirtbike |
 | `HGR_TEXT8_NO_PUTS` | `hgr_text8.asm` | No `hgr_puts8` (less code) | maze3d |
 | `HG_STORE_ONLY` / `HG_STORE_UNCLIPPED` | `hgr_glyph8.asm` | Without the unaligned entry points / without STORE checks (shorter and faster; the caller guarantees `hg_col<40`, `hg_y<=184`) | chess / chess, micro-sokoban |
-| `HGR_SPR_DAMAGE` | hgrc sprite engine | +4×`HGR_SPR_MAX`+11 B BSS: closure of the intersection rectangles instead of the simple prefix/suffix | none (bench `hgr_isolated_damage`) |
+| `HGR_SPR_DAMAGE` | hgrc sprite engine | +4×`HGR_SPR_MAX` B BSS: closure of the intersection rectangles instead of the simple prefix/suffix | none (bench `hgr_isolated_damage`) |
 | `DHGR_SPR_PACK_TABLES` | hgrc DHGR compositor `dhgr_spr_asm.s` | Accepted, no effect since 2026-10-31: one 16-byte table is the default packing (faster than the former nine tables) | none (bench `dhgr_spr_move_tables` = `dhgr_spr_move`) |
 | `DHGR_SPR_CODE_SEGMENT` | hgrc DHGR compositor | Code and tables in segment `DHGRSPRCODE` (an overlay window) instead of CODE/RODATA; BSS stays resident | robotspacestation (update, write, painters, tiles in the PLAY overlay) |
 | `DHGR_SPR_RECTS_ONLY` | hgrc DHGR compositor `dhgr_cv_asm.s` | No CHUNKY/TILE shapes: `dhgr_cv_bitmap.s` not linked, −392 B | robotspacestation |
 | `DHGR_SPR_OVERLAY_INSIDE` | hgrc DHGR compositor `dhgr_spr_overlay.s` | The overlay is drawn only inside the area, `under` unused: the save-under `dhgr_spr_cursor.s` is not linked, −764 B | robotspacestation (its `pointer.s` draws the pointer's rows outside the room) |
 | `DHGR_SPR_MAX` (placement) | hgrc DHGR compositor | Slots 1..8 (default 8), 24 B BSS each; compile the program's C and the library alike. `DHGR_SPR_VBL` and `DHGR_SPR_DOUBLE` have their own rows below | — |
-| `DHGR_SPR_DOUBLE` (implemented 2026-10-31) | hgrc DHGR compositor `dhgr_spr_update.s`, `dhgr_spr_cursor.s`, `dhgr_spr_present.s` | Two pages: each update draws on the hidden page what changed since that page was drawn (its own damage + the damage the other page received meanwhile, a 22-rectangle list), `dhgr_spr_present()` flips at the next VBL edge (apple2vbl: //e `$C019`, //c mouse VBL interrupt, else `a2_frame_wait`, bounded); overlay saved per page (`under` 254 + 2×w×h). +198 B code, +106 B BSS, present 111 B; bench `dhgr_spr_double_move` 16,697 cycles (one-page move 15,939) | dev/examples/dhgr_action |
-| `DHGR_SPR_VBL` (implemented 2026-10-31) | hgrc DHGR compositor `dhgr_spr_update.s` | One page: an update whose damage is one piece that the write finishes ahead of the beam (`100 + k(95 + 165 groups) ≤ 4,550 + 65(y + k − 1)`, //c latency 1,200) is composed, then written right after the next VBL edge; else the plain order. +260 B code, apple2vbl linked; bench `dhgr_spr_vbl_move` 21,871 cycles from an edge (one refresh waited + the write) | none |
+| `DHGR_SPR_DOUBLE` (implemented 2026-10-31) | hgrc DHGR compositor `dhgr_spr_update.s`, `dhgr_spr_cursor.s`, `dhgr_spr_present.s` | Two pages: each update draws on the hidden page what changed since that page was drawn (its own damage + the damage the other page received meanwhile, a 22-rectangle list), `dhgr_spr_present()` flips at the next VBL edge (apple2vbl: //e `$C019`, //c mouse VBL interrupt, else `a2_frame_wait`, bounded); overlay saved per page (`under` 254 + 2×w×h). +198 B code, +106 B BSS, present 111 B; bench `dhgr_spr_double_move` 16,697 cycles (one-page move 15,910) | dev/examples/dhgr_action |
+| `DHGR_SPR_VBL` (implemented 2026-10-31) | hgrc DHGR compositor `dhgr_spr_update.s` | One page: an update whose damage is one piece that the write finishes ahead of the beam (`100 + k(95 + 165 groups) ≤ 4,550 + 65(y + k − 1)`, //c latency 1,200) is composed, then written right after the next VBL edge; else the plain order. +260 B code, apple2vbl linked; bench `dhgr_spr_vbl_move` 21,780 cycles from an edge (one refresh waited + the write) | none |
 | `MUL_ACC` | `math.inc`/`mul.asm` | `mul_acc0..2` accumulator: +3 B of ZP | dirtbike |
 | `VL_INTEGRATE_LEFTWALL` | lib/physics `verlet.asm` | `vl_integrate` stops points left of a wall (x = ox = wall): +32 B, +~15 cycles per point | dirtbike |
 | `VL_CEILING_CLAMP` | lib/physics `verlet.inc` | The ceiling of `VL_CEILING` / `vl_ceiling` (y = old y = it) | dirtbike |
@@ -244,7 +244,7 @@ Options of this kind (measurements: hgrc bench, or the commit that introduced th
 | `VL_CIRC_HEAVY` = n | lib/physics `verlet_circ.asm` | `vl_cheavy` (n B BSS): a heavy point against a light one takes half − half>>n of each share (the `VL_CON_HEAVY` rule) | dev/examples/catapult (the projectile) |
 | `VL_CIRC_FRICTION` = f | lib/physics `verlet_circ.asm` | `vl_contact_box`: the tangential speed loses vt>>f (`vl_damp`) | dev/examples/catapult |
 | `VL_CIRC_SLEEP` = v / `_TICKS` | lib/physics `verlet_circ.asm` (with `VL_PIN`) | `vl_circ_sleep`: a free point slow (\|vx\|, \|vy\| ≤ v) for 16 ticks gets `vl_pin` = $80 (asleep: skipped, pinned in a pair); a closing speed > v wakes it. `vl_still` (n B BSS), +~170 B | dev/examples/catapult |
-| `MUL_INIT_BOOT` / `MOUSE_INIT_BOOT` | `mul.asm` / `mouse.s` | Initialisation code in the `INIT` segment, reusable after startup | dirtbike / dirtbike |
+| `MUL_INIT_BOOT` / `MOUSE_INIT_BOOT` | `mul.asm` / `mouse.s` | Initialisation code in the `INIT` segment, reusable after startup | dirtbike / — |
 | `STICK_KEY_FAST` | `joy.asm` | `stick_key` samples with `read_stick_fast` (0.1-2.8 ms instead of 6 ms; its count scale: retune `JOY_LO`/`JOY_HI`) | none (dev/tests/test_stick_key.py) |
 | `HGR_PLOT_HIST_FAST` | `hgr_plot_hist.asm` | `pl_line` steps a byte column and a bit mask (x major: one history entry per byte), the same pixels (~50 cycles a pixel shallow, ~90 steep, ~115 near the diagonal, against ~170); `pl_erase` ~38 cycles an entry (~43); adds `pl_erase_to` (a stack of objects) and `pl_sprite` (preshifted, OR, history per byte). History: 255 entries (bytes, not pixels) a page. Code 919 B for the four routines (278 B plain), ZP +2 B (`pl_sp`) | dev/examples/catapult, rope, lander, halfpipe |
 | `PL_SPRITE_YMIN` = n | `hgr_plot_hist.asm` (FAST) | `pl_sprite` skips the rows above n (default 0: only rows ≥ 192 skipped), e.g. 16 under a two-line HUD; +4 B | dev/examples/catapult, lander, halfpipe |
@@ -255,7 +255,7 @@ Options of this kind (measurements: hgrc bench, or the commit that introduced th
 | `AUX_DETECT_RESTORE` | `apple2/auxdetect.asm` | `aux_detect` saves main `$2000`, aux `$2000` and aux `$0400` on the stack and puts them back: +31 B (95), +53 cycles (135 found), Y clobbered (1 found / 0 not); off: the bytes stay written (ROGUE's 64 B) | — (rogue/tests/test_rogue.py runs the default) |
 | `AUXMEM_FETCH_CHUNK` / `AUXMEM_FETCH_SCAN` | `apple2/auxmem.asm` | `aux_fetch_chunked`: chunk size (default 64 B, ~2,300 cycles masked each; bigger = fewer ~60-cycle AUXMOVE setups, longer masked windows) / `jsr _a2_vbl_scan` between chunks (+3 B, ~30 cycles a chunk) | wargalagaii (`SCAN`) |
 | `auxmem_fsrc` (defined first) | `apple2/auxmem.asm` | `aux_fetch_chunked` / `aux_store_chunked` on the caller's four variables (`auxmem_fsrc`, `auxmem_fdst`, `auxmem_flen`, `auxmem_fn`; zero page: shorter code) instead of 7 B of BSS; `aux_store_chunked` (main → aux) referenced: +8 B, else byte-identical | mbtracker (`AUXMEM_FETCH_CHUNK = 128`) |
-| `T80_PTR` | `apple2c/apple2t80.s` (`APPLE2C_T80_PTR_AFLAGS`) | The 80-column text routines draw under `apple2t80_ptr.s`'s pointer (kept for `t80_ptr_hide`, shown flipped), `t80_scroll` hides it meanwhile, `t80_init` takes it off: +51 B (396 instead of 345); off: nothing imported from the pointer | mbtracker |
+| `T80_PTR` | `apple2c/apple2t80.s` (`APPLE2C_T80_PTR_AFLAGS`) | The 80-column text routines draw under `apple2t80_ptr.s`'s pointer (kept for `t80_ptr_hide`, shown flipped), `t80_scroll` hides it meanwhile, `t80_init` takes it off: +49 B (397 instead of 348); off: nothing imported from the pointer | mbtracker |
 | `MB_IRQ_PRODOS` / `MB_IRQ_VECTOR` | `apple2/mb_irq.asm` | The interrupt through ProDOS `ALLOC_INTERRUPT` (1, default) or an own vector: `$03FE` behind the ROM's handler (A at `$45`; DOS 3.3, bare programs) or `$FFFE` with the language card's RAM in (raw entry, A/X/Y saved): +16 B (65C02) to +22 B (NMOS) | wargalagaii (ProDOS) |
 | `MB_IRQ_SCAN` | `apple2/mb_irq.asm` | `jsr _a2_vbl_scan` on the handler's entry and exit (a long tick hides no //e VBL edge): +6 B, ~60 cycles a tick | wargalagaii |
 | `MB_IRQ_FRAME` / `MB_IRQ_GATE` | `apple2/mb_irq.asm` | The tick's 14-byte frame flushed to chip 1 inline by the handler (~16 cycles a register unchanged, R13 when not `$FF`) instead of the tick writing through `mb_put` / a byte that pauses the tick (+5 B) | wargalagaii (PT3 frame, `music_on`) |

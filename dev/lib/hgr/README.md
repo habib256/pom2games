@@ -188,7 +188,7 @@ untouched), up to 255 pixels a page: past that, `pl_plot` draws nothing.
 Needs: `hgr_lo` / `hgr_hi` (page 1, `hgr_scanline.inc`), `hgr_div7` /
 `hgr_mod7` (`hgr_div7_ram.asm`, or 256-byte tables of those names), and
 `PL_HIST`: a page-aligned 1.5 KB (6 pages) set by the program. Zero page:
-19 B (`pl_x0`..`pl_cur`), BSS 2 B (`pl_n`, pixels per page: zero both
+21 B (`pl_x0`..`pl_cur`), BSS 2 B (`pl_n`, pixels per page: zero both
 before the first draw), RODATA 7 B (`pl_bits`). Code 278 B for the four
 routines (35 + 38 + 70 + 135). Clobbers A/X/Y, not reentrant.
 

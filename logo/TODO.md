@@ -5,7 +5,7 @@ from.
 
 ## Next up
 
-- **Screenshots.** `logo/` has none; `chromabreak/` and `arkabreakout/` keep
+- **Screenshots.** `logo/` has one (`screenshots/turtle.png`), not linked from the README; `chromabreak/` and `arkabreakout/` keep
   theirs in `screenshots/` and link them from the README. Capture the split
   screen after `DEMO`, `FS` with a figure, `EDIT` and a `DEM2` bubble with
   a2shot `shot:` (`--iie`, 560x384 PNG) and add them to `README.md`.
@@ -17,7 +17,7 @@ from.
   still reduce scanout tearing on the IIe; the II+ has no VBL flag.
 - **Dead code.** `src/logo.s` carries two `.if 0` blocks: the pre-pagination
   `help_msg_unused_remove` text and the retired TURTL / BOAT directional
-  sprite code. They are skipped by the assembler but weigh on the 186 KB
+  sprite code. They are skipped by the assembler but weigh on the 178 KB
   source.
 - **Apple II notes for the manual.** `doc/APPLE-1_LOGO-2.6-MANUAL.md` is the
   Apple-1 / TMS9918 manual: `BYE` returns to Wozmon, the screen is 256 x 192,

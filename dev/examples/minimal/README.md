@@ -56,9 +56,9 @@ pages. With the compiler used for this check:
 
 | Example | Binary | Linked main segments | ZP | Reserved C stack | Video used |
 |---|---:|---:|---:|---:|---:|
-| HGR single | 8,152 | 9,763 | 64 | 2,048 | 8,192 |
-| HGR double | 8,182 | 9,793 | 64 | 2,048 | 16,384 |
-| DHGR ProDOS | 5,295 | 5,618 | 35 | 256 | 32,768 main+aux |
+| HGR single | 6,585 | 8,180 | 55 | 2,048 | 8,192 |
+| HGR double | 6,615 | 8,210 | 55 | 2,048 | 16,384 |
+| DHGR ProDOS | 5,215 | 5,543 | 35 | 256 | 32,768 main+aux |
 
 The main segments include the resident binary, BSS and the CRT's saved state.
 The HGR file reserves the whole `$2000–$5FFF` window, even though single

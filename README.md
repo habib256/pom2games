@@ -48,7 +48,7 @@ assembly and C; DIRTBIKE and ChromaBreak are tested on a real //e.
 | ♟️ | [**CHESS**](chess/README.md) — play the computer, a friend, or watch | II+ 48 KB | [▶ Play](https://habib256.github.io/pom2/wasm/?preset=ii%2B&url=https://raw.githubusercontent.com/habib256/pom2games/main/dist/CHESS.dsk) |
 | 🎯 | [**PINBALL**](pinball/README.md) — Bill Budge's Pinball Construction Set, with mouse | II+ 48 KB or //c | [▶ Play](https://habib256.github.io/pom2/wasm/?preset=ii%2B&url=https://raw.githubusercontent.com/habib256/pom2games/main/dist/PINBALL.dsk) |
 | 🐢 | [**LOGO**](logo/README.md) — turtle graphics in 16 tints, 80 columns on a //e | //e or II+ | [▶ Play](https://habib256.github.io/pom2/wasm/?preset=iie&url=https://raw.githubusercontent.com/habib256/pom2games/main/dist/LOGO.dsk) |
-| 🐍 | [**SNAKE**](snake/README.md) — the classic, five levels, in 10.5 KB of C | II+ 48 KB | [▶ Play](https://habib256.github.io/pom2/wasm/?preset=ii%2B&url=https://raw.githubusercontent.com/habib256/pom2games/main/dist/SNAKE.dsk) |
+| 🐍 | [**SNAKE**](snake/README.md) — the classic, five levels, in 9.5 KB of C | II+ 48 KB | [▶ Play](https://habib256.github.io/pom2/wasm/?preset=ii%2B&url=https://raw.githubusercontent.com/habib256/pom2games/main/dist/SNAKE.dsk) |
 | 🎵 | [**MB TRACKER**](mbtracker/README.md) — a Mockingboard tracker: write the AYS songs the games play, 3 or 6 voices, keyboard and mouse, PT3 import | //e or //c 128 KB, Mockingboard | [▶ Play](https://habib256.github.io/pom2/wasm/?preset=iie&url=https://raw.githubusercontent.com/habib256/pom2games/main/dist/MBTRACKER.po) |
 
 <table><tr>
@@ -70,14 +70,16 @@ emulator. On **MiSTer**, use the `.woz` twins in [`dist/woz/`](dist/woz/).
 
 ## 🛠️ For developers
 
-Everything builds from source with [cc65](https://cc65.github.io/) and Python 3;
+Everything builds from source with [cc65](https://cc65.github.io/), Python 3 and a
+C/C++ compiler (`fhpack` for the LZ4FH titles, `a2run` for the tests);
 the shared libraries, the headless emulator `a2shot` and the test harness live
-in [`dev/`](dev/). Each game folder has its own `README.md` and `TODO.md`.
+in [`dev/`](dev/). Each game folder has its own `README.md`, most also a
+`TODO.md`.
 
-    make                 # every disk, into dist/
+    make                 # every disk into dist/, except NEOWILDERNESSXL (make -C neowilderness)
     make -C chess run    # build one game and run it in POM2
-    make test            # fast tests (make test-all: everything, about an hour)
-    make check           # rebuild everything, fail if dist/ does not match
+    make test            # fast tests (make test-all: both tiers, about an hour)
+    make check           # rebuild those disks, fail if dist/ does not match
 
 Builds are byte-for-byte reproducible on macOS and Linux; CI runs `make check`
 and `make test-all` on every push.

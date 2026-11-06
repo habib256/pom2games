@@ -34,8 +34,8 @@ collectée peut déclencher la giardiase. Les chutes et les autres contamination
 restent à raccorder. Les consommables médicaux décomptent leurs utilisations positives,
 affichées dans INVENTORY, avec le comportement natif des stocks épuisés.
 La pluie, le feu, les abris fabriqués, les soins complémentaires,
-la fabrication et les sauvegardes restent à développer. TOPO est une première
-carte textuelle du relief. La suite est ordonnée dans le [TODO](TODO.md), avec
+la fabrication et les sauvegardes restent à développer. TOPO affiche une carte
+graphique du relief ; MAP est la carte textuelle centrée sur le joueur. La suite est ordonnée dans le [TODO](TODO.md), avec
 les déplacements et la cadence originale des réactions en prochaine priorité.
 
 Les transitions texte/HGR préparent les menus derrière le paysage et
@@ -53,7 +53,8 @@ Depuis `wilderness/`, avec les outils cc65 et les outils partagés de `dev/` :
 ```sh
 make                 # construit build/WILDERNESS.dsk
 make run             # lance la disquette dans POM2
-make test            # tests dans l'émulateur a2shot
+make test            # tests rapides dans l'émulateur a2shot (environ une minute)
+make test-long       # tous les autres scénarios (environ 40 minutes)
 make fuzz            # comparaisons de rendu plus longues
 make SEED=7 LEVEL=8   # autre carte, difficulté 1 à 10
 ```
@@ -105,7 +106,7 @@ secteurs de données au lieu de 32 ; l'épave, l'ours et la cabane en économise
 deux chacun. Le placement des fichiers suivants reste conservé. Les transferts
 diminuent, mais la décompression absorbe presque tout le gain sur REST/SLEEP ;
 les temps ci-dessus comprennent ce coût. `test_overlay_codec.py` contrôle
-les fichiers DOS, les 20 chargements natifs et leur intégrité mémoire.
+les fichiers DOS, les 22 chargements natifs et leur intégrité mémoire.
 
 ## Commandes
 
@@ -425,5 +426,6 @@ catégorie `HUNG HERE` pour le sac suspendu et son contenu ; STATUS signale
 la présence dans un arbre et le sac suspendu. Le contenu suspendu reste à sa
 case, devient inaccessible et ne compte plus dans la charge portée. La gourde
 reste disponible si elle est portée à la main. Les vols de nourriture par les
-animaux restent à porter. Les preuves et les adaptations sont décrites dans
+animaux sont décrits dans [Progression, ravitaillement et
+arrivée](#progression-ravitaillement-et-arrivée). Les preuves et les adaptations sont décrites dans
 [trees.md](docs/logic/trees.md).

@@ -51,7 +51,7 @@ de sauvegardes produites par une ancienne version.
 | Arbres | CLIMB TREE/DOWN, HANG FOOD, sac suspendu ancré et récupération atomique | `test_tree.py`, `tools/re_tree_probe.py` |
 | Retours d'action | Refus précis, quantités accessibles/réelles, excédents et capacités, durée avec cause d'arrêt, résultats persistants sans confirmation intermédiaire | `test_feedback.py` |
 | Résumé et état | Heure/santé/besoins, alertes de transition, conditions prioritaires, stocks transportés et au sol | `test_interface.py`, `test_sim.py` |
-| Modules disque | Fenêtre BLOAD partagée et cache, préservation de la page zéro, du texte, de HGR et de l'état | `test_overlays.py` |
+| Modules | Transferts depuis la RAM auxiliaire (et lectures de NEOWILD.BLK) dans les fenêtres partagées, cache, préservation de la page zéro, du texte, de la page DHGR et de l'état | `test_overlays.py` |
 | Thermique | Couches sèches/mouillées, température corporelle, récupération et facteurs de santé | `test_thermal.py`, `test_wet.py` |
 | Vent et frissons | Ressenti signé, coût entier en kcal par pas, supplément des frissons | `test_wind_energy.py` |
 | Immersion | SWIM : entrée depuis la berge, effort original selon le poids total, immersion, sortie sur la rive opposée ; REST dans l'eau conserve l'immersion | `test_shore.py`, `test_wet.py`, `test_swim_energy.py` |
@@ -854,7 +854,7 @@ la marche ajoute 0,011 seconde. Le moteur démarre en 19,43 secondes et
 la première invite arrive en 40,91. Les essais de décalage de piste,
 de compression de petits modules et de déplacement des fichiers ont été
 écartés lorsqu'ils allongeaient ces actions.
-`test_overlay_codec.py` vérifie le format, les limites de page et les copies
+Dans la version HGR (test supprimé ici, voir plus haut), `test_overlay_codec.py` vérifie le format, les limites de page et les copies
 chevauchantes, les longueurs DOS et allocations, les 20 chargements natifs,
 le texte visible, les 256 octets de page zéro, les bornes des deux fenêtres
 et les 256 valeurs du cache de projection. Les tests de rendu comparent
@@ -950,8 +950,9 @@ Les courbes TOPO de l'original utilisent un autre format.
 
 ## Tests et outils
 
-Depuis `wilderness/`, `make test` exécute les fichiers `test_*.py` listés
-explicitement dans le Makefile avec a2shot. `make fuzz FUZZ_SEED=7` étend les
+Depuis `neowilderness/`, `make test` (alias de `test-xl`) exécute la suite XL
+listée dans le Makefile avec a2shot ; `make test-all-editions` lance les
+tests historiques et les bancs étoiles/hall of fame. `make fuzz FUZZ_SEED=7` étend les
 comparaisons aléatoires de terrain. `make test-original` compare les commandes
 aux deux exécutables et échoue encore sur leurs différences ; sa portée
 est précisée dans [ADVENTURE_TESTS.md](ADVENTURE_TESTS.md). Les tests utilisent aussi la carte

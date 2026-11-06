@@ -25,7 +25,8 @@
 ;     (maze3d.cfg)
 ;
 ; Controls: I / up = forward, K / down = backward, J / left = turn left,
-; L / right = turn right, M map, H help, A attack, F flee, ESC configuration.
+; L / right = turn right, M map, H help, P potion, A attack, F flee, G guard,
+; ESC configuration.
 ; =============================================
 ; Original header (POM1):
 ; =============================================

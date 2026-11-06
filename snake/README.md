@@ -4,14 +4,14 @@ The classic Snake, written in **C with cc65** for a **48 KB Apple II+** on the
 native 280×192 hi-res (HGR) screen. It is the Apple II port of POM1's
 `sketchs/gen2/game_snake_telemetry` sketch (GEN2Snake, VERHILLE Arnaud), and
 the reference C program of the shared [`../dev/lib`](../dev/README.md)
-libraries: a whole game in one 11,058-byte `BRUN` file.
+libraries: a whole game in one 9,755-byte `BRUN` file.
 
 | | |
 |---|---|
 | Machine | Apple II+ 48 KB or any later model, DOS 3.3 |
 | Disk | [`../dist/SNAKE.dsk`](../dist/) — boots straight into the game |
 | Source | [`src/snake.c`](src/snake.c), one file |
-| Binary | `SNAKE`, 11,058 bytes, `BRUN` at `$6000`; `HISCORE`, the record (2 bytes) |
+| Binary | `SNAKE`, 9,755 bytes, `BRUN` at `$6000`; `HISCORE`, the record (2 bytes) |
 | Libraries | [`../dev/lib/hgrc`](../dev/lib/hgrc/README.md) (HGR runtime), [`../dev/lib/apple2c`](../dev/lib/apple2c/README.md) (keyboard, speaker, joystick, DOS commands and exit) |
 
 ## How to play
@@ -146,20 +146,20 @@ only about half the pixels, so a hollow outline would dissolve into dots.
 ### What gets linked
 
 `make` compiles every hgrc, gfx and apple2c source into one `ar65` archive,
-`build/hgrc/hgrc.lib` (~240 KB), and `ld65` extracts only the members Snake
-references — `build/snake.map` lists them. 31 members come out of the archive:
+`build/hgrc/hgrc.lib` (~310 KB), and `ld65` extracts only the members Snake
+references — `build/snake.map` lists them. 35 members come out of the archive:
 
 | Family | Members |
 |---|---|
-| Core asm kernels | `hgr_init`, `hgr_mode_asm`, `hgr_clear_asm`, `hgr_rows_asm`, `hgr_byte_rect_asm`, `hgr_pixrect_asm` + `hgr_pixrect_params`, `hgr_cell_asm`, `hgr_colorize_asm`, `hgr_carrier` + `hgr_carrier_params`, `hgr_text16_asm` + `hgr_text_params` + `hgr_glyph_params` + `hgr_text_addr`, `hgr_utoa_asm` |
+| Core asm kernels | `hgr_state`, `hgr_build_rows`, `hgr_native_asm`, `hgr_columns`, `hgr_masks`, `hgr_phases`, `hgr_glyph_shift`, `hgr_mode_asm`, `hgr_clear_asm`, `hgr_byte_rect_asm`, `hgr_pixrect_asm` + `hgr_pixrect_params`, `hgr_cell_asm`, `hgr_colorize_asm`, `hgr_carrier` + `hgr_carrier_params`, `hgr_text16_asm` + `hgr_text_params` + `hgr_glyph_params` + `hgr_text_addr`, `hgr_utoa_asm` |
 | Rectangles / cells (C wrappers) | `hgr_rect`, `hgr_pixrect`, `hgr_cell`, `hgr_colorize` |
 | Text ×2 and numbers | `hgr_font`, `hgr_text`, `hgr_num_field` |
-| apple2c | `apple2io_asm` (keyboard, `a2_home`, `a2_dos`), `apple2game_asm` (speaker, joystick), `apple2dos_asm` (DOS commands), `apple2vapor_asm` (vapor lock) |
+| apple2c | `apple2io_asm` (keyboard, `a2_home`, `a2_dos`), `apple2game_asm` (speaker, joystick), `apple2dos_asm` + `apple2dosbin` (DOS commands), `apple2rand` (random numbers), `apple2stick` (joystick reading), `apple2vapor_asm` (vapor lock) |
 
-Left on the shelf: single pixels (`hgr_pixel`), 8×8 text, bitmap / pre-shifted
+Left on the shelf: single pixels (`hgr_pixel_asm`), 8×8 text, bitmap / pre-shifted
 sprites and the sprite engine, lines and circles (`gfx`), LORES and DHGR. The
 `gfx` directory is on the include path but nothing from it is linked. The
-other 39 members are cc65's own `none.lib` helpers (16-bit arithmetic,
+other 36 members are cc65's own `none.lib` helpers (16-bit arithmetic,
 stack ops, `zerobss`, `copydata`).
 
 ### Memory map
@@ -169,12 +169,12 @@ From [`../dev/cc65/apple2_hgr_c.cfg`](../dev/cc65/apple2_hgr_c.cfg) and
 
 | Range | Contents |
 |---|---|
-| `$0050-$009F` | C zero page: 80 bytes (the cfg allows `$50-$FF`; `$00-$4F` stays the Monitor's) |
+| `$0050-$0090` | C zero page: 65 bytes (the cfg allows `$50-$FF`; `$00-$4F` stays the Monitor's) |
 | `$0800-$0FFF` | `HELLO` (Applesoft), never touched |
 | `$1000-$19B7` | `LOWBSS`, 2,488 bytes: the snake ring buffers `sx[660]` / `sy[660]`, the `occupied[24][35]` grid and the game state (not zeroed at start — `new_game()` initialises them), then the DOS command buffer and its page-zero copy (`DOS_LOWBSS=1`) |
 | `$2000-$3FFF` | HGR page 1 (page 2 at `$4000-$5FFF` is reserved by the cfg, unused here); `$3FD0-$3FE7`, the start of line 191, holds the vapor-lock marker (`$80`, black) |
-| `$6000-$8B31` | the `BRUN` file: `STARTUP` 163 + `ONCE` 12 + `CODE` 9,580 + `RODATA` 1,252 + `DATA` 51 bytes |
-| `$8B32-$9146` | `BSS` 1,297 bytes, then `ZPSAVE` 260 bytes (the zero page and RESET vector saved by `crt0_apple2.s`); 953 bytes free before `$9500` |
+| `$6000-$861A` | the `BRUN` file: `STARTUP` 163 + `ONCE` 12 + `CODE` 8,275 + `RODATA` 1,254 + `DATA` 51 bytes |
+| `$861B-$8BFD` | `BSS` 1,247 bytes, then `ZPSAVE` 260 bytes (the zero page and RESET vector saved by `crt0_apple2.s`); 2,306 bytes free before `$9500` |
 | `$9500-$95FF` | C argument stack, 256 bytes (`-D __STACKSIZE__=0x0100`; the peak over a whole game is 37), growing down from `$9600` |
 | `$9600-$BFFF` | DOS 3.3 |
 

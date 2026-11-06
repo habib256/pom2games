@@ -59,7 +59,7 @@
 ; .ifref: include after the callers; the dos_cmd_* group (and its BSS) is
 ; assembled when one of them is referenced, disk_protected on its own.
 ; DOS_CMD_HEX_IFREF = 1: dos_cmd_hex only when it is referenced itself
-; (43 bytes; default 0 keeps it with the group, as older programs had it).
+; (48 bytes; default 0 keeps it with the group, as older programs had it).
 ;
 ; BSS: dos_cmd_buf, dos_cmd_ix, dos_cmd_overflow, dos_zp_prog (256).
 ; Caller responsibility: .include "apple2.inc" and "exit.asm".

@@ -5,7 +5,7 @@
 C program for the Apple II/II+ 48 KB under DOS 3.3, also usable on the IIe
 and IIc. It shows three masked balls over a grid, a frame counter,
 non-blocking keyboard input and the two HGR pages. Its archive only loads the
-families in use. Author: VERHILLE Arnaud; licence [GPL-3.0](../../../../LICENSE).
+families in use. Author: VERHILLE Arnaud; licence [GPL-3.0](../../../LICENSE).
 
 ```sh
 make -C dev/examples/hgr

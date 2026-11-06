@@ -26,7 +26,7 @@ restants ; le [CHANGELOG](../CHANGELOG.md) conserve l'historique des étapes.
 | Sprites | Épave, cabane, ours, couguar et crotale originaux, cap, transparence, pixels noirs et clipping | `test_sprites.py` |
 | Ciel | Soleil à azimut géographique et hauteur saisonnière, lune nocturne datée (extension 1985), phase stylisée, occlusion par relief/nuages et rotations | `test_sky.py` ; géométrie solaire décrite dans `logic/environment.md` |
 | Composition | Terrain et sprites par colonne, arrêt conservateur des rayons masqués | `test_scene_render.py` |
-| Cabane et TOPO | Entrée/sortie, protection thermique, carte textuelle et défilement | `test_sites.py`, `tools/re_site_probe.py` |
+| Cabane, TOPO et MAP | Entrée/sortie, protection thermique ; TOPO graphique, MAP textuelle et défilement | `test_sites.py`, `test_graphical_topo.py`, `tools/re_site_probe.py` |
 | Sites voisins | Position fixe, projection, tailles, clipping et occlusion par le relief proche | `test_projection.py`, `scene_ref.py` |
 | Faune | Six critères Sierra, tirages par pas, remplacement, interruption des actions et réglage NATURE ; réactions par espèce, seuils Sierra bruit/blessure/combat, vol et protections | `test_fauna.py`, `test_fauna_steps.py`, `tools/re_fauna_probe.py`, `tools/re_fauna_accept_probe.py`, `test_animal_reactions.py`, `tools/re_animal_reactions_probe.py` |
 | Aventure | Progression par distance, collecte à la berge et contamination, bilan de victoire/mort | `test_journey.py` |
@@ -181,12 +181,12 @@ ressenti extérieur, la température calculée reste signée sur 16 bits ;
 le port évite le retournement de signe de l'octet original au-dessus de 127.
 Les preuves sur l'original et les limites sont dans [sites.md](logic/sites.md).
 
-TOPO montre une fenêtre textuelle de 32 × 14 cellules, centrée sur le joueur
+MAP montre une fenêtre textuelle de 32 × 14 cellules, centrée sur le joueur
 à l'ouverture. Flèches ou WASD déplacent la fenêtre de 8 colonnes ou 4 lignes,
 sans dépasser la grille. `P`, `C`, `H`, `R` repèrent le joueur, l'épave, la
 cabane et les rangers ; `=` indique l'eau. Huit glyphes codent le niveau par
 tranches de 16. Entrée, Espace ou ESC restituent le mode mixte et la même
-page HGR. Ce premier écran n'est pas le tracé de courbes TOPO de l'original.
+page HGR. TOPO affiche désormais la feuille graphique (voir Séparation TOPO / MAP).
 Les Y du monde augmentent vers le nord : les lignes sont donc dessinées par
 Y décroissant, et défiler vers le haut augmente l'origine Y. Pendant WALK,
 le module TOPO est chargé une fois puis actualisé à chaque pas, sans attente
@@ -363,7 +363,7 @@ moteur original sont décrits séparément dans [ENGINE.md](logic/ENGINE.md).
 
 Après les transitions du 13 octobre 2026 : mesurer à nouveau
 `build/wild.map` avant toute extension. WILDGAME conserve 1 octet libre,
-WILDLO 6 (cache de projection compris), WILDERNESS 2, WILDTXT 2 et WILDSIM 1.
+WILDLO 6 (cache de projection compris), WILDERNESS 21, WILDTXT 2 et WILDSIM 1.
 Le résident reste presque plein. L’initialisation vidéo et du cache de
 projection est dans WILDADV ; LOOK est dans WILDLO. Les calculs de progression
 et GOAL% sont dans WILDADV, et STATUS le charge puis se restaure.
@@ -380,8 +380,9 @@ Les transitions de SITES vers `show_view` sont des sauts terminaux : elles
 ne reviennent pas à du code que le prochain BLOAD pourrait écraser.
 
 L'organisation privilégie le code qui évite des lectures de disquette.
-La table `row_n1` ne conserve que ses 86 valeurs visibles : les 170 entrées
-suivantes valaient toutes `$FF`, et le moteur les rejette avant l'accès.
+La table `row_n1` a disparu : ses 86 valeurs visibles sont calculées par
+`row_n0` + 48, et les 170 entrées suivantes (toutes `$FF`) sont rejetées
+avant l'accès.
 Cette place accueille LOOK et les raccourcis exacts WALK/REST/SWIM,
 TOPO/VIEW/STATUS/INVENTORY/HELP. Les autres formes, qualificatifs et mots
 inconnus passent toujours par WILDVOC. VIEW peut ainsi redessiner sans
@@ -751,7 +752,7 @@ originale convertie lorsque `build/orig_map.bin` existe localement.
 | `tools/re_fauna_accept_probe.py`, `test_animal_reactions.py`, `tools/re_animal_reactions_probe.py` | Exécuter conservation/remplacement et vérifier les drapeaux d'interruption originaux |
 | `tools/profile.py` | Mesurer les cycles par routine via `pcprof` |
 | `dev/tools/re6502/flux2dsk.py`, `tools/smalldos.py` | Décoder les images disque et lire les blocs/catalogues SMALLDOS |
-| `tools/applesoft.py`, `dev/tools/re6502/peek2bin.py` | Lister le BASIC tokenisé et convertir les dumps de l'émulateur |
+| `dev/tools/applesoft.py`, `dev/tools/re6502/peek2bin.py` | Lister le BASIC tokenisé et convertir les dumps de l'émulateur |
 | `tools/topo.py`, `tools/topo2map.py`, `tools/view3d.py` | Décoder TOPO, convertir une carte pour les tests, prototype flottant de la vue |
 | `tools/re_*.py`, `tools/messages.py` | Sondes et extractions de l'original ; consulter l'en-tête du script pour ses données d'entrée |
 

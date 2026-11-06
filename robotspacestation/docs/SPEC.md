@@ -326,10 +326,10 @@ Ctrl-Q = retour à ProDOS.
 
 ## La sauvegarde
 
-Un fichier `RSS.SAVE` de 2 133 octets (`RSS2` ; un ancien `RSS1` de 2 013
-octets, d'avant le drone B, est repris), image directe de `Persist`
-(`src/sim.h`, en mémoire basse `$1400`) ; `save_bytes()` du modèle produit
-la même. Contenu : `RSS1`, missions réussies, les 8 puces (comptes, portes
+Un fichier `RSS.SAVE` de 2 161 octets (`RSS3` ; les anciens `RSS2` de 2 133
+octets, sans records, et `RSS1` de 2 013 octets, d'avant le drone B, sont
+repris), image directe de `Persist` (`src/sim.h`, en mémoire basse `$1768`) ;
+`save_bytes()` du modèle produit la même. Contenu : `RSS3`, missions réussies, les 8 puces (comptes, portes
 en trois tableaux, sorties, plans modifiables), la planche du labo, celles
 des drones A et B. Écrite à chaque gravure et à chaque mission réussie ; lue au
 démarrage (fichier absent ou invalide : tout à zéro). Le disque ne doit pas
@@ -337,12 +337,12 @@ démarrage (fichier absent ou invalide : tout à zéro). Le disque ne doit pas
 
 ## Mémoire
 
-Le jeu ne dessine qu'en page 1 du DHGR. Carte (au 2026-10-31) :
+Le jeu ne dessine qu'en page 1 du DHGR. Carte (au 2026-11-06) :
 
 | Zone | Contenu | Libre |
 |---|---|---|
-| principale `$6000-$BE7F` | programme résident (`startup.s` l'y recopie), dont les appels et l'overlay du compositeur ; pile C de 128 octets ensuite | 448 o |
-| principale `$4000-$5FFF` (page 2) | **fenêtre des overlays** : PLAY (avec le code du compositeur, `DHGRSPRCODE`) ou FRONT | PLAY 162 o, FRONT ~5,6 Ko |
+| principale `$6000-$BE7F` | programme résident (`startup.s` l'y recopie), dont les appels et l'overlay du compositeur ; pile C de 128 octets ensuite | 775 o |
+| principale `$4000-$5FFF` (page 2) | **fenêtre des overlays** : PLAY (avec le code du compositeur, `DHGRSPRCODE`) ou FRONT | PLAY 225 o, FRONT ~5,6 Ko |
 | principale `$0C40-$0FFF` (L8) | résident : `hover.c`, symboles des portes (`symbol.s`) | ~260 o |
 | principale `$0800-$0C3F` | page zéro sauvée, planche du drone B (`swap.s`), formes du pointeur | — |
 | principale `$1000-$1FFF` | tampon ProDOS (aussi le canevas du compositeur pendant ses mises à jour), sauvegarde, tableaux de la planche | — |

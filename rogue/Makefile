@@ -20,10 +20,9 @@ CORE := $(wildcard src/core/*.inc src/core/*.asm) src/core/music.inc
 GFX  := $(wildcard src/gfx/*)
 TMS_SRCS := src/rogue_tms.s src/boot.inc src/ezvdp.inc src/video_tms.asm \
             $(CORE) $(GFX)
-APPLE2_RUN_FLAGS ?= --slot 4=ezcolor
+APPLE2_RUN_FLAGS := --slot 4=ezcolor
 TMS_LOAD  := 0x4000
-# ROGUE.DHGR: the DHGR builder's src/rogue_dhgr.s when it exists (cfg
-# src/rogue_dhgr.cfg, load address DHGR_LOAD), a stand-in until then.
+# ROGUE.DHGR: src/rogue_dhgr.s (cfg src/rogue_dhgr.cfg, load address DHGR_LOAD).
 DHGR_LOAD ?= 0x3C00
 DHGR_MAIN := src/rogue_dhgr.s
 DHGR_CFG  := $(if $(wildcard src/rogue_dhgr.cfg),src/rogue_dhgr.cfg,src/launcher.cfg)

@@ -62,8 +62,8 @@ The room is drawn by the flicker-free DHGR compositor (`dev/lib/hgrc`
 `dhgr_spr_*`): tiles, objects, drones, the technician and the pointer's
 rows in the room are composed off screen (in the idle ProDOS buffer) and
 every changed screen byte is written once with its final value — nothing
-is erased first. Its core runs in the PLAY overlay; memory left (2026-10-31,
-`build/game.map`): resident 448 bytes, PLAY 162, L8 262 (docs/SPEC.md).
+is erased first. Its core runs in the PLAY overlay; memory left (2026-11-06,
+`build/game.map`): resident 775 bytes, PLAY 225, L8 262 (docs/SPEC.md).
 A drone turn costs 4.1 / 4.2 / 6.3 frames on the //e in missions 1 / 4 / 7
 (5.0 / 8.0 / 11.4 before), 3.0 / 3.3 / 5.2 on the //c
 (`tests/speed.py`).
@@ -77,10 +77,12 @@ make run        # POM2, //e enhanced, AppleMouse in slot 4
 make run-iic    # POM2, //c
 make test       # model, then lab and missions on //e and //c with a2shot (~1 min)
                 # (with the compositor's write-once check over 120 updates)
-make test-long  # the whole campaign: every mission's solution in C == the model (~1 min)
+make test-long  # the whole campaign (each mission's solution in C == the model), then
+                # random boards and drones against the model, //e and //c
 ```
 
 Mouse or keyboard: arrows move the pointer, SPACE/RETURN clicks, ESC drops
-what you hold, M run/pause, P one step, 1-9 and 0 pick a mission, H the
+what you hold, M run/pause, P one step, G burn and O open a chip (in the lab), 1-9 and 0
+pick a mission (in the room), H the
 mission's briefing and hints (on the title: the help pages, also the HELP
 button), V fast, S sound on/off, Ctrl-Q quits.

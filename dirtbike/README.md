@@ -104,7 +104,7 @@ does not change. A braked wheelie sets down gently (the rear wheel brakes on
 the ground).
 
 **Title and demo** (`src/title.inc`, image `tools/title.py`). The game opens
-on a title page (file `TITLE`, LZ4FH, 1.8 KB), with the port credit ("APPLE
+on a title page (file `TITLE`, LZ4FH, 2.0 KB), with the port credit ("APPLE
 II PORT: VERHILLE ARNAUD", on a black band at the bottom) and "PRESS ANY KEY"
 blinking under the subtitle; a key or the button leads to the menu, H to the
 help page. The title music plays once: when it ends (~13 s), a demo starts:
@@ -130,8 +130,8 @@ which rereads memory at the end of the frame, showed the page being redrawn
 (the bike flickered; see `dev/tools/a2shot/LETTRE_POM2_AFFICHAGE_MANETTE.md`).
 
 **Main menu** (ESC in a race, `src/mainmenu.inc`): back to the race (0, only
-during an unfinished race), title page, help, input device (joystick, if it
-answered at boot, or keyboard only), hall of fame, quit to BASIC. Arrows
+during an unfinished race), title page, help, input device (joystick or paddles,
+if the game port answered at boot, or keyboard), hall of fame, quit to BASIC. Arrows
 (I / K) and RETURN, or the digits 0 to 5; ESC: back to the race, otherwise
 the title page. Resuming (`race_resume`) rereads the track, which `TITLE`
 overwrote, redraws both pages and restarts after a countdown, with the bike
@@ -293,8 +293,8 @@ the game keeps the ground height and the number of the "pattern" of the
 7-pixel window starting there, i.e. what an HGR byte shows when the camera
 puts that pixel at a byte boundary. A track has at most 165 patterns, whose
 partial bytes share a pool (783 bytes at most). Each track is a file
-`T01`..`T30`: a header and two LZ4FH streams (from 596 bytes to 2.3 KB,
-56 KB in all).
+`T01`..`T30`: a header, two LZ4FH streams and the demo ride (from 869 bytes to
+3.0 KB, 59 KB in all).
 
 **Loading** (`src/loader.inc`). Once started, the game keeps only DOS's
 RWTS disk driver (`$B700-$BFFF`). The chosen track is read sector by sector
@@ -328,23 +328,23 @@ BASIC nor DOS commands): `hgr_lo` / `hgr_hi`, computed at boot
 `$0400-$07FF`: text page 1, never displayed (the game does not return to
 DOS); its eight 120-byte bands (segments `TXT0`-`TXT7`) hold renderer tables,
 the HUD buffers and routines (the menu, the display of a track in the menu,
-`do_shift` and `mul_turn` from the physics: `TXTC4`, `TXTC5`, `TXTC7`, copied
+`do_shift` (`vl_shift_point`) and `vl_mul_turn` from the physics: `TXTC4`, `TXTC5`, `TXTC7`, copied
 at boot); the screen holes (`$x78-$x7F`, `$xF8-$xFF`, where RWTS and cards
 keep their state) are left alone. `$0800-$0FFF`: multiplication tables (where
 the HELLO program used to sit). `$1000-$1FFF`: line writers, renderer and
 pattern tables, demo inputs, hall of fame. `$6000-$91FF`: the game (code,
-data, BSS; ~50 bytes free). `$9200-$95FF`: the startup code (segment `INIT`:
+read-only data, data; ~135 bytes free). `$9200-$95FF`: the startup code (segment `INIT`:
 init, renderer, HGR line and multiplication tables, joystick detection,
 reading the hall of fame) and the images of the text-page routines, the end
 of the file, run once then overwritten by the track's pattern pool (`pool`)
-on the first load; ~200 bytes remain there.
+on the first load; ~120 bytes remain there.
 The `TITLE` file carries the title tune, the text pages (help,
 congratulations: `tools/pages.py`), the main menu (at `$9C00`) and the image
 (`tools/titlefile.py`): reread on demand, it costs no RAM.
 The game variables (BSS) are in a band of the text page (`TXT6`).
 `$9600-$B5FF`: the track (in place of DOS; the title and the hall of fame
 also pass through there). `$B700-$BFFF`: RWTS. The game's zero page
-(`$50-$FB`) is almost full.
+(`$50-$FE`) is almost full.
 
 ## Tools
 
@@ -371,6 +371,6 @@ also pass through there). `$B700-$BFFF`: RWTS. The game's zero page
 
 The `dev/lib` libraries used are `apple2` (HGR, keyboard, joystick, sound,
 tick music `tune.asm`, initials `initials.asm`, LZ4FH, RWTS), `hgr` (tables,
-8×8 text with `hgr_puts8_at`, lines, pages), `math`, `physics` (Verlet),
-`mouse` and `font`; `fhpack`
+8×8 text with `hgr_puts8_at`, lines, pages), `math`, `physics` (Verlet)
+and `font`; `fhpack`
 compresses the tracks and the title.

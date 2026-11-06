@@ -102,7 +102,7 @@ SWAP_RUN = $B000                ; MENUSWAP run address (src/wild.cfg SWAP)
 SWAP_ROW = $2350                ; HGR row 176: first hidden chunk
 SWAP_CHUNKS = 16                ; chunks of 48 bytes per bank
 .segment "MZP": zeropage
-; Temporaries of the drawing and the lists ($F0-$F8: outside the render
+; Temporaries of the drawing and the lists ($F0-$FC: outside the render
 ; scratch and the Applesoft floating point area, src/wild.cfg).
 mn_i:   .res 1
 mn_c:   .res 1

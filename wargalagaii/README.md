@@ -149,7 +149,7 @@ Coût des tables : petit alien 14×10, 3 octets × 10 lignes × 7 phases ×
 2 images d'animation = **420 octets** par dessin et par teinte ; 6 × 4 =
 10 Ko. Gros alien 21×16 : 4 × 16 × 7 × 2 = 896 octets, 2 × 4 = 7 Ko.
 Tout est rangé en mémoire aux ; seul le jeu du paquet courant (un petit,
-un gros, ~1,3 Ko) est copié en `$1300-$1FFF` à chaque téléportation, avec le
+un gros, ~1,3 Ko) est copié en `$1700-$1C0F` (`LOWBSS`) à chaque téléportation, avec le
 vaisseau, les tirs et les bonus (~1,5 Ko).
 
 ### Cadence
@@ -167,7 +167,7 @@ sous IRQ. Répartition visée (NTSC) :
 | Logique : formation, plongées, tirs, collisions, bonus | ~5 000 |
 | Vaisseau + ~10 tirs + ~6 objets qui tombent | ~3 000 |
 | Étoiles (~24, 1 octet chacune, effacer + poser) | ~1 500 |
-| HUD : un chiffre au plus par image (`hgr_hud8` : 7 850 pour 5 chiffres) | ~1 000 |
+| HUD : un chiffre au plus par image (`hgr_hud8` : 6 033 pour 5 chiffres) | ~1 000 |
 | Aliens : ~18 qui bougent à ~1 000 | ~17 500 |
 | **Total** | **~28 000** |
 
@@ -260,7 +260,7 @@ la RAM principale `$6000-$BDE4` garde **~1,9 Ko libres** (13 octets avant).
 
 | Zone | Usage |
 |---|---|
-| `$0050-$00CF` | page zéro du jeu et de cc65 ; depuis le 10-30 aussi les variables les plus lues (entrées, `aux_fetch`, bruitages, 24 octets de l'état : niveau, vies, vaisseau…) : un octet et un cycle de moins à chaque accès. Libres : `$BB-$CF` |
+| `$0050-$00CF` | page zéro du jeu et de cc65 ; depuis le 10-30 aussi les variables les plus lues (entrées, `aux_fetch`, bruitages, 24 octets de l'état : niveau, vies, vaisseau…) : un octet et un cycle de moins à chaque accès. Libres : `$B9-$CF` |
 | `$00D0-$00EF` | page zéro du lecteur PT3 (gardée entre deux ticks) ; `$F0-$FF` libres |
 | `$0200-$03CF` | zone `LOW2` : trajectoires de plongée (`FLIGHT`), Meteor Storm (`STORM2`), calibrage de la manette, copiés de `WG2.AUX` au démarrage ; `$03D0-$03FF` : vecteurs ProDOS |
 | `$0400-$07FF` | page texte 1, jamais affichée en jeu : les fiches de dessin de `render.s` (`TXT0-7`, 8 fenêtres de 120 octets entre les trous des cartes `$x78-$x7F`, `$xF8-$xFF`) ; `fail` efface l'écran texte avant d'écrire |
@@ -273,7 +273,7 @@ la RAM principale `$6000-$BDE4` garde **~1,9 Ko libres** (13 octets avant).
 | `$6000-$6280` | `timing.s` en premier : ses boucles d'attente ne changent pas d'adresse (une page franchie = un cycle de plus par tour ; `.assert`) |
 | `$6281-$BDE4` | code, données, BSS du jeu |
 | `$BDE5-$BEFF` | sauvegarde de la page zéro par le crt0 (dans la page de la pile C : pas de code C) ; `$BF00` page globale ProDOS |
-| aux `$2000-$2C55` | lecteur PT3 et morceau (face à la page HGR 1 : jamais d'adresse de code principal, un `until` de test ne s'arrête pas dans l'interruption) ; trampolines en aux `$1FE0` |
+| aux `$2000-$2B55` | lecteur PT3 et morceau (face à la page HGR 1 : jamais d'adresse de code principal, un `until` de test ne s'arrête pas dans l'interruption) ; trampolines en aux `$1FE0` |
 | aux `$3000-…` | dessins × teintes des paquets (copie par `AUXMOVE` entre deux niveaux) |
 | aux `$7000-$8FFF` | overlay : boutique, Memory Station, écran titre (copié en `$4000`) |
 | aux `$9000-$BAFF` | Meteor Storm et démo (`$9000`), données résidentes (`$9800`), fiches de niveau (`$9C00`), murs (`$A200`), boss (`$AA00`), rochers (`$B100`), textes des ramassages (`$B600`), `LOW2` (`$B900`) |
@@ -281,7 +281,7 @@ la RAM principale `$6000-$BDE4` garde **~1,9 Ko libres** (13 octets avant).
 Réserves encore libres (données seulement, par `AUXMOVE`) : aux `$0200-$1FDF`
 (~7,5 Ko), aux `$BB00-$BFFF` (1,25 Ko), la carte langage aux (16 Ko, `/RAM`
 étant réclamé ; il faudrait `ALTZP`, donc couper les interruptions pendant
-l'accès), et les fins de zones de `WG2.AUX` (~1 Ko après le lecteur PT3,
+l'accès), et les fins de zones de `WG2.AUX` (~1,2 Ko après le lecteur PT3,
 ~1,9 Ko après l'overlay).
 
 ## Disquette

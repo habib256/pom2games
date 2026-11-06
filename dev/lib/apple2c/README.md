@@ -18,8 +18,10 @@ mode. Output goes through COUT (`$FDED`) on the text page, input reads the keybo
 | `apple2aux.h` + `apple2aux.s` / `apple2auxfetch.s` | 128 KB aux memory, whole pages: `aux_store(pages, aux_page)` from `aux_store_src`, `aux_fetch_pages(pages, aux_page, main_page)`, on `dev/lib/apple2/auxmem.asm` (see its README) (ROBOT SPACE STATION) |
 | `apple2t80.h` + `apple2t80.s` / `apple2t80_ptr.s` | 80-column text written directly (//e 80-column card / //c, 65C02; see below) and a pointer cell on it (MB TRACKER) |
 | `apple2vblgate.h` + `apple2vblgate.s` | at most one go a //e refresh, `a2_vbl_gate()` (the mouse read once a frame), 19 B, for programs without `apple2vbl.s` (MB TRACKER, ROBOT SPACE STATION) |
+| `apple2cadence.s` | IRQ-driven two-refresh deadlines `a2_cadence_*` (`apple2frame.h`) |
+| `apple2rand.h` + `apple2rand.s`, `apple2stick.s`, `apple2dosbin.s` | opt-in objects, see "More opt-in objects" |
 | `apple2c.h` | umbrella header |
-| `apple2c.mk` | Makefile fragment: `APPLE2C_SRCS`, `APPLE2C_INCS`, `APPLE2C_GAME_SRCS`, `APPLE2C_DOS_SRCS`, `APPLE2C_VAPOR_SRCS`, `APPLE2C_FRAME_SRCS`, `APPLE2C_VBL_SRCS`, `APPLE2C_VBL_PAL_SRCS`, `APPLE2C_AUX_SRCS`, `APPLE2C_AUXFETCH_SRCS`, `APPLE2C_AUX_DEPS`, `APPLE2C_VBL_GATE_SRCS`, `APPLE2C_T80_SRCS`, `APPLE2C_T80_PTR_SRCS`, `APPLE2C_T80_PTR_AFLAGS`, `APPLE2C_AFLAGS` |
+| `apple2c.mk` | Makefile fragment: `APPLE2C_SRCS`, `APPLE2C_INCS`, `APPLE2C_GAME_SRCS`, `APPLE2C_DOS_SRCS`, `APPLE2C_VAPOR_SRCS`, `APPLE2C_FRAME_SRCS`, `APPLE2C_VBL_SRCS`, `APPLE2C_VBL_PAL_SRCS`, `APPLE2C_AUX_SRCS`, `APPLE2C_AUXFETCH_SRCS`, `APPLE2C_AUX_DEPS`, `APPLE2C_VBL_GATE_SRCS`, `APPLE2C_T80_SRCS`, `APPLE2C_T80_PTR_SRCS`, `APPLE2C_T80_PTR_AFLAGS`, `APPLE2C_CADENCE_SRCS`, `APPLE2C_RAND_SRCS`, `APPLE2C_RAND_DEPS`, `APPLE2C_STICK_SRCS`, `APPLE2C_DOSBIN_SRCS`, `APPLE2C_HEADERS`, `APPLE2C_AFLAGS` |
 | `apple2game.h` + `apple2game_asm.s` | speaker, joystick, buttons (optional) |
 | `apple2vapor.h` + `apple2vapor_asm.s` | vapor lock: frame sync through the floating bus on a II / II+ / //e (optional) |
 | `apple2dos.h` + `apple2dos_asm.s` | DOS 3.3 commands: BLOAD, BSAVE… (optional) |
@@ -208,7 +210,7 @@ checks these paths with controlled MLI/firmware replies on the 65C02.
 The module is 149 bytes of code and 6 of DATA: the mode tests use `lsr`
 (mode 2 alone has bit 1), `a2_vbl_init` relies on `a2_vbl_close` for mode 0
 and on `a2_frame_init` for X = 0, the handler keeps the carry of
-`mouse_serve_irq`, and the scan's blank test is an `asl`.
+`_mouse_serve_irq`, and the scan's blank test is an `asl`.
 
 Typical start: `a2_vbl_init() || (mouse_init(), a2_vbl_irq_init())`. The
 presentation stays in the game (when to flip, the stick read in the spare

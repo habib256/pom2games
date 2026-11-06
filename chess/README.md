@@ -93,11 +93,12 @@ including the DOS 3.3 system tracks. The Makefile includes
 |------------------|----------------------------------------------------------|
 | `make`           | assemble, link and write `../dist/CHESS.dsk`             |
 | `make run`       | boot the disk in POM2 (`/Applications/POM2.app`, or `make run POM2=path/to/POM2`) |
+| `make test`      | castling, promotion, draw rules, turned board, joystick and speaker in a2run (`tests/test_game.py`) |
 | `make clean`     | remove `build/` (the disk stays)                         |
 | `make distclean` | remove `build/` and the disk                             |
 
 The engine is assembled with `-D CHESS_SMART_EVAL` (positional tie-breaks).
-The link prints the binary size: `9,633 bytes at 0x6000`. On the disk,
+The link prints the binary size: `9,576 bytes at 0x6000`. On the disk,
 `HELLO` is one line, `10 PRINT CHR$(4);"BRUN CHESS"`.
 
 ## Tests and benchmarks
@@ -150,7 +151,7 @@ counts aside). Seconds are computed at 1 020 484 cycles per second.
 | `$1000-$13FF`   | BSS: renderer and game-loop scratch                        |
 | `$1400-$14FF`   | BOARDST: 0x88 board, game state, AI and search scratch     |
 | `$2000-$3FFF`   | HGR page 1                                                 |
-| `$6000-$95FF`   | CODE + ENGINE, the single 9 633-byte BRUN file             |
+| `$6000-$95FF`   | CODE + ENGINE, the single 9 576-byte BRUN file             |
 | `$9600-$BFFF`   | DOS 3.3                                                    |
 
 **Engine.** `chess_engine.asm` comes from POM1's `dev/lib/games/chess`: the

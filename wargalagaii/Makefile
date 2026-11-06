@@ -3,8 +3,9 @@
 #   make            -> ../dist/WARGALAGAII.po
 #   make run        -> POM2, //e enhanced (clock: VBL $C019)
 #   make run-iic    -> POM2, //c (clock: VBL interrupt of the mouse firmware)
-#   make test       -> fast tier: volume, boot, cadence, ship and shots
-#   make test-long  -> long tier: autopilot levels 1/25/100, worst levels
+#   make test       -> fast tier: difficulty, generator checks, volume, boot,
+#                      cadence, screen, audio, shop, sub-games, title, //c clock
+#   make test-long  -> make test, then autopilot levels 1/25/100, worst levels
 #
 # Game in 65C02 assembly (src/game.s + src/timing.s), linked behind cc65's
 # ProDOS crt0 with the ProDOS (/RAM claim) and mouse (//c clock) libraries.
@@ -73,7 +74,7 @@ $(BUILD)/apple2vbl.o: $(APPLE2C)/apple2vbl.s
 	@mkdir -p $(@D)
 	$(CA65) -g -D A2_VBL_SCAN_SEI=1 -o $@ $<
 
-# The PT3 player (dev/lib/apple2/pt3) and the song, linked for aux $6000.
+# The PT3 player (dev/lib/apple2/pt3) and the song, linked for aux $2000.
 $(BUILD)/song.pt3: tools/pt3.py tools/sound.py src/music.s
 	@mkdir -p $(@D)
 	cd tools && $(PYTHON) pt3.py $(abspath $@)

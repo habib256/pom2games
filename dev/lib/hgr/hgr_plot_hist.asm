@@ -17,7 +17,7 @@
 ; Needs hgr_lo / hgr_hi (page 1, hgr_scanline.inc) and hgr_div7 / hgr_mod7
 ; (hgr_div7_ram.asm, or any 256 B tables of the same names).
 ; PL_HIST = a page-aligned 1.5 KB (6 pages of 256 B), defined by the caller.
-; Zero page: 19 B (pl_x0 .. pl_cur), reserved at the first include; BSS 2 B
+; Zero page: 21 B (pl_x0 .. pl_cur), reserved at the first include; BSS 2 B
 ; (pl_n); RODATA 7 B (pl_bits, with pl_plot). Code 278 B for all four
 ; (pl_page 35, pl_erase 38, pl_plot 70, pl_line 135).
 ; Clobbers A, X, Y; not reentrant (no IRQ use).

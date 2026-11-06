@@ -33,14 +33,15 @@ screen handling and exit were rewritten for the Apple II.
 - **Procedures**: `TO NAME :p1 :p2 ... END`, up to 2 parameters, 10
   procedures of 224 bytes, 16 nested frames, free tail recursion.
 - **Dynamic turtle**: `SETSHAPE "NAME` replaces the triangle with a 16 x 16
-  shape (`BIRD1`, `BIRD2`, `HEART` and 12 emotes: `NORMAL` `HAPPY` `SUPER`
-  `SAD` `UPSET` `ANGRY` `GRUMPY` `PERV` `SICK` `SLEEP` `PIRATE` `SHADES`);
+  shape (`BIRD1`, `BIRD2` and 12 emotes: `NORMAL` `HAPPY` `SUPER`
+  `SAD` `UPSET` `ANGRY` `GRUMPY` `PERV` `SICK` `SLEEP` `PIRATE` `SHADES`) or
+  the 8 x 8 `HEART`;
   `SETSHAPE "ARROW` goes back to the triangle.
 - **Bitmap text**: `LABEL "TEXT` at the turtle, `SAY "TEXT` in a speech
   bubble, `LIST [NAME]` to dump a procedure on the screen, `EDIT NAME` for the
   full-screen procedure editor (`HELP 9` lists its keys).
 - **Built-in help and demos**: `HELP` (9 topic pages), `DEMO` (turtle
-  slideshow: STAR, ROSETTE, FLOWER, SPIRAL, BIRDFLY, ...) and `DEM2` (the
+  slideshow of 13 scenes: SUN, ROSETTE, FLOWER, SPIRAL91, STAR7, BIRDFLY, ...) and `DEM2` (the
   narrated story of the GEN2 card, told with the emotes and `SAY` bubbles).
 
 ## Quick start
@@ -119,8 +120,8 @@ Machines:
     $0800-$0FFF  HELLO program, kept by DOS
     $1000-$1E55  PROCBSS: control stack, variable and procedure tables
     $2000-$3FFF  HGR page 1: the turtle screen
-    $4000-$8E27  CODE: the BRUN file (20,008 bytes, 19.5 KB), then
-                 LINEBUF ($8E28-$8E91) and BSS ($8E92-$9248)
+    $4000-$8B6F  CODE: the BRUN file (19,312 bytes, 18.9 KB), then
+                 LINEBUF ($8B70-$8BD9) and BSS ($8BDA-$91C0)
     $9600-$BFFF  DOS 3.3
 
 ### Why HGR page 2 is unused
@@ -227,6 +228,10 @@ the reference; glyphs clip at the right and bottom without wrapping.
   language reference, tutorials and limits. It describes the Apple-1 / TMS9918
   version: on the Apple II `BYE` returns to DOS, the screen is 280 x 192,
   `HELP` has 9 pages, and the `TS` / `SS` / `FS` / `COLUMNS` commands exist.
+  Also different here: 6 named variables, `SETSHAPE` shapes `BIRD1`
+  `BIRD2` `HEART` and the 12 emotes (no `TURTL` / `BOAT`), 13 `DEMO`
+  scenes (no `STAR` / `CIRCLES`), and the `EDIT` keys `U` `D` `E` `I` `X`
+  `Q`/`ESC` (`HELP 9`) instead of the Ctrl keys.
 - [Manuel APPLE-1 LOGO V2.6 (français)](doc/APPLE-1_LOGO-2.6-MANUEL.md).
 - [Upstream README](doc/UPSTREAM_README.md): the POM1 origin, builds and
   internals of the TMS9918 version.

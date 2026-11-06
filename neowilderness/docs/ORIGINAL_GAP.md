@@ -185,7 +185,7 @@ Chaque fiche donne : **Original** (preuve), **Port** (état), **Taille**
 l'original appelle la ROM flottante ; la ROM flottante reste disponible
 dans le port), **Où** (zone visée), **Dépend de**, **Référence** (risque
 pour `tests/test_reference_state.py`, qui compare l'état de simulation
-avec la version HGR figée sur `tests/scenario.py` : STATUS, rotations,
+avec la version HGR figée sur `tests/play_scenario.py` (`REFERENCE_SCRIPT`) : STATUS, rotations,
 WALK 1 H, SWIM 1 H, EAT CHEESE, DRINK WATER, USE SUNSCREEN, USE FIRSTAID
 KIT, TOPO, MAP, LOOK R, REST, WALK 30 MIN, SLEEP × 6, faune coupée par
 `nature_frequency` = 0 ; seules les variables présentes dans les deux

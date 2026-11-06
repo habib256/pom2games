@@ -20,7 +20,7 @@ détaillées par sous-système sont dans [logic/](logic/).
 Copiés depuis `~/Emu/AppleII/Robot Odyssey I v2.0 (woz-a-day collection)/`.
 Métadonnées WOZ : 64 Ko requis, II+ / //e / //c / IIgs, Applesauce 1.88.5.
 `tools/extract.py` les décode dans `build/` (`.dsk` ordre DOS, `.po` ordre
-des blocs, segments dans `build/files/<face>/BBB_AAAA.bin`).
+des blocs, segments dans `build/files/<face>/BBB_AAAA_<rôle>.bin`).
 
 ## Disques
 

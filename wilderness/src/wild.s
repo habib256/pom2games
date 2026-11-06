@@ -5,7 +5,7 @@
 ; The view engine of Electric Transit's Wilderness (1985), rebuilt from the
 ; analysis in docs/ANALYSE.md: a ray per screen column over a height map,
 ; occlusion by the steepest slope seen so far, striped ridges. The map is
-; the MAP file (tools/mkmap.py) BLOADed at $7000 by HELLO.
+; the map (tools/mkmap.py), unpacked at $7000 from the boot packages by WILDBOOT.
 ;
 ; tools/view_ref.py is the bit-exact Python reference of render below; the
 ; tests compare the two on many positions. The game itself (command line,

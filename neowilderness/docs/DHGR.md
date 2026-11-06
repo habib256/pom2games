@@ -60,7 +60,7 @@ construite à la volée et vérifie les 10 humeurs du disque octet par octet.
   Le pixel `x` occupe les bits `4(x mod 7)` à `+3` du groupe `x / 7` de 28 bits
   (4 octets : aux pair, main pair, aux impair, main impair). La couleur LORES
   `c` s’écrit `rot(c) = (c >> 1 | c << 3) & 15`, bit 0 à gauche, comme
-  `dev/lib/hgrc/dhgr_pattern.c` et la note technique IIe n° 3.
+  `dev/lib/hgrc/dhgr_pattern_asm.s` et la note technique IIe n° 3.
 - **Une colonne = au plus un octet par banque.** Les phases `x mod 7` = 0, 2,
   4, 6 tiennent dans un seul octet ; 1, 3, 5 chevauchent un octet aux et un
   octet main. Une colonne isolée exige donc une lecture-modification-écriture
@@ -381,7 +381,7 @@ l’assemblage ; tables de lignes de `dc_flush` par la macro `dhgr_row_tables`
 de `dev/lib/hgrc/dhgr_layout.inc`.
 
 Réutilisé de `dev/` : `dhgr_layout.inc` (adresses de lignes), le codage
-des couleurs de `dhgr_pattern.c` et la table TN #3 de `dev/tests/test_dhgr.py`
+des couleurs de `dhgr_pattern_asm.s` et la table TN #3 de `dev/tests/test_dhgr.py`
 (vérifiés par les tests), la petite police `dhgr_small_font.inc` (HUD de la
 référence), `hgr_tables.hgr_offset`, `a2test`/`a2shot`, et
 `dhgr_clear_asm.s`, lié dans le banc pour comparaison. Les primitives de

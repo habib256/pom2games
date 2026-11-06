@@ -1,10 +1,9 @@
 # Neowilderness — travail restant
 
 Port de Wilderness (Electric Transit, 1985) pour Apple IIe enhanced 128 Ko et
-IIc, ProDOS 8, paysage DHGR, en deux éditions : Neowilderness
-(`dist/NEOWILDERNESS.po`, 5,25 pouces, 140 Ko, la Sierra seule) et
-NeoWildernessXL (`dist/NEOWILDERNESSXL.po`, 3,5 pouces, 800 Ko, les six
-scénarios). Ce fichier ne garde que ce qui reste. Il suit les lots de jeu
+IIc, ProDOS 8, paysage DHGR : NeoWildernessXL (`dist/NEOWILDERNESSXL.po`,
+3,5 pouces, 800 Ko, les six scénarios ; l'édition 140 Ko
+`NEOWILDERNESS.po` est archivée depuis le 16 octobre 2026). Ce fichier ne garde que ce qui reste. Il suit les lots de jeu
 d'[ORIGINAL_GAP.md](docs/ORIGINAL_GAP.md) § 3 (numéros, tailles, nature
 « ajout » ou « fidélité »), puis trois sections hors lots : interface,
 image, qualité. Ce qui est fait est décrit dans [CHANGELOG.md](CHANGELOG.md).
@@ -25,9 +24,9 @@ sprites des abris sur XL : [CRAFT.md](docs/CRAFT.md), CHANGELOG.md). Le
 lot 4 est fait (14 octobre 2026, CHANGELOG.md, [FORAGE.md](docs/FORAGE.md)
 § 17), la grille rationalisée aussi (15 octobre 2026,
 [MENUS.md](docs/MENUS.md) § 4) ; le lot 6 en partie (sprites de site,
-15 octobre 2026). TEXT (2 octets), WILDLO (0), RESIDENT (5), LOWPAGE (0)
-et MENUSWAP (0) sont pleins, MENUCODE presque (4), WILDGAME 0, WILDERNESS
-0 : l'état d'un lot futur ira dans un module ou demandera une
+15 octobre 2026). TEXT, RESIDENT, LOWPAGE et MENUCODE sont pleins (0 octet),
+WILDGAME en a 1, MENUSWAP 8, WILDLO 20 et WILDERNESS 42 (build/wild.map,
+6 novembre 2026) : l'état d'un lot futur ira dans un module ou demandera une
 récupération ([MEMORY.md](docs/MEMORY.md) § 16 à 37) ; l'édition de
 140 Ko est pleine (280 / 280, les parties en 4 blocs depuis le
 16 octobre), son NEOWILD.DAT occupe 122 blocs et son stock
@@ -335,8 +334,8 @@ n'est plus lente que la mesure publiée de plus de 5 %.
 ## Hors lots : mémoire, qualité et livraison
 
 - [ ] Démarrage : réduire les 21 s jusqu'au menu et les 10 s du choix à la
-  première vue (chiffres du 13 octobre, Disk II) ; remesurer sur les deux
-  éditions, XL sur SmartPort.
+  première vue (chiffres du 13 octobre, Disk II) ; remesurer sur l'édition
+  XL, sur SmartPort.
 - [ ] **à vérifier** — banque 2 de la carte principale (`$D001-$D0FF`
   décodeur LZ, `$D100-$D3FF` relais B2, `$D400-$DFFF` lignes DHGR) sous
   d'autres versions de ProDOS et sur IIc (`test_prodos.py` avec un autre
@@ -346,19 +345,18 @@ n'est plus lente que la mesure publiée de plus de 5 %.
 - [ ] Suite de tests en niveaux : rapide (modèles Python et bancs, moins de
   deux minutes), complète (émulateur, ≈ 83 étapes), originale
   (`test-original`) ; ce que chaque test garantit.
-- [ ] Machines : IIc (a2shot n'émule que le IIe), machine réelle avec carte
-  DHGR et lecteur 3,5", `make run` des deux éditions dans POM2.
-- [ ] Git : commiter le travail du 14 octobre, ajouter les fichiers non
-  suivis, retirer `neowilderness/--help` (voir DOCS.fixes.md).
+- [ ] Machines : IIc (a2shot --iic, SmartPort 3,5" du slot 5), machine
+  réelle avec carte DHGR et lecteur 3,5", `make run` de l'édition XL dans
+  POM2.
 - [ ] Bogue latent possible : quand l'image du module ALERT dépasse $700
   octets, test_care (WARM PARKA) plantait dans le Moniteur (chemin MVI
   care_dry → have → t_update puis BRK), même avec la routine ajoutée
-  réduite à RTS : cause non trouvée ; ALERT est à $6C2 aujourd'hui.
+  réduite à RTS : cause non trouvée ; ALERT fait $788 aujourd'hui (au-delà de $700 : à revérifier).
 - [ ] Livraison : README, CHANGELOG, relevé mémoire final, crédits des
-  données originales, limites restantes ; les deux `.po`.
+  données originales, limites restantes ; le `.po` XL.
 
 **Terminé quand :** la suite rapide passe en moins de deux minutes, la
-suite complète est verte, les deux `.po` démarrent sur IIe et IIc, chaque
+suite complète est verte, le `.po` XL démarre sur IIe et IIc, chaque
 région démarre avec une marge auxiliaire documentée, le volume XL garde au
 moins dix blocs libres après les sauvegardes, et le dépôt contient
 l'historique des lots.
@@ -453,8 +451,8 @@ garde-fous de `test_prodos.py` ; tirage commun de l'épave (lot 1) ; LOOK
 STARS de l'original (lot 7) ; lot 4 (chasse, pêche, cueillette, repas) ;
 le 15 octobre : messages collés (« AREAIT IS TOO DARK »), triangle des
 arbres, feu animé (CHANGELOG.md, MEMORY.md § 17).
-Fait, à ajouter au CHANGELOG : réserves de
-la direction 3 (MEMORY.md § 12 ; CHANGELOG.additions.md).
+Fait : réserves de la direction 3
+(MEMORY.md § 12 ; CHANGELOG.md).
 
 Obsolète : politique disque « 140 Ko seulement » (800 Ko adoptée, deux
 éditions) ; suppression de la recopie de SIM (écartée, MEMORY.md § 12.6,

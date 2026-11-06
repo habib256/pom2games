@@ -22,7 +22,7 @@ Measured state today (2026-10-24):
   stick taken off it).
 - **Random**: 16-bit Galois LFSR, seed mixed from the title poll count and the
   start key; an automatic start replays the same sequence.
-- **Memory**: the program ends at `$9146`, 953 bytes below the 256-byte C
+- **Memory**: the program ends at `$8BFD`, 2,306 bytes below the 256-byte C
   stack (`$9500-$95FF`, peak 37 bytes); `LOWBSS` ends at `$19B7`.
 
 ## Done

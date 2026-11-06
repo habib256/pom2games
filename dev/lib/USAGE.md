@@ -1,9 +1,8 @@
 # Utilisation de dev/lib par les logiciels
 
-Audit des neuf jeux et applications, de la disquette DEMO, des trois exemples
-livrés dans `dist/`, des exemples minimaux et de la démo perspective/audio :
-**15 projets utilisent des
-ressources de `dev/lib`**. Les moteurs conservent aussi des routines locales.
+Audit (`make audit-libs`) des programmes construits à la racine (`DIRS` du
+`Makefile`) et des exemples minimaux : tous utilisent des
+ressources de `dev/lib`. Les moteurs conservent aussi des routines locales.
 La présence d'une bibliothèque ne signifie donc pas que tout leur rendu passe
 par elle, ni que toutes les familles d'une archive sont liées dans le binaire.
 
@@ -13,7 +12,7 @@ par elle, ni que toutes les familles d'une archive sont liées dans le binaire.
 | MICRO-SOKOBAN | `apple2` : HGR, clavier, joystick, son, sortie, RWTS ; `hgr` : tables, pages et glyphes natifs ; sous-ensemble de `font` généré par les outils communs |
 | CHESS | `apple2` : HGR, clavier, joystick (`stick_key`), son, délai, texte ; `hgr` : tables, glyphes natifs et bitmaps des pièces ; `font` |
 | MAZE3D | `apple2` : HGR, joystick, son, DOS (`dos_cmd_line`), sortie et LZ4FH ; `hgr` : pages, texte, sprites compactés, lignes, spans et effacement de lignes |
-| DIRTBIKE | `apple2` : HGR, clavier, manette rapide, son, musique par ticks (`tune.asm`), initiales (`ini_key`), LZ4FH, RWTS, sortie (`apple2_reboot` dans le menu, `APPLE2_SOFTEV`) ; `hgr` : tables, texte (`hgr_puts8_at`), lignes, pages par patch ; `math` : produits, sommes, raccourcis de direction ; `physics` : points de Verlet, contraintes, sol en carte de hauteurs (`verlet*.asm`) ; `mouse` ; `font` |
+| DIRTBIKE | `apple2` : HGR, clavier, manette rapide, son, musique par ticks (`tune.asm`), initiales (`ini_key`), LZ4FH, RWTS, sortie (`apple2_reboot` dans le menu, `APPLE2_SOFTEV`) ; `hgr` : tables, texte (`hgr_puts8_at`), lignes, pages par patch ; `math` : produits, sommes, raccourcis de direction ; `physics` : points de Verlet, contraintes, sol en carte de hauteurs (`verlet*.asm`) ; `font` |
 | CUTROPE | `apple2` : HGR, clavier, manette rapide (`read_stick_fast`, deux axes), son (`tone`), musique par ticks (`tune.asm`, une fois), cadence dans le blanc vertical (`vapor_pace`, `vapor_mark_both`), sortie (`apple2_exit`) ; `hgr` : tables, texte (`hgr_puts8_at`, chiffres et message diffés par page), lignes (décor), lignes et sprites à historique (`hgr_plot_hist.asm`, `HGR_PLOT_HIST_FAST`, `pl_erase_to` : une pile par page), pages ; `math` : produits (`mul_s16s8`) ; `physics` : points, épingles (`VL_PIN`), liens à gain fixe (`VL_CON_FIXED_K`, `VL_CON_SKIP_ZERO`, `VL_CON_FAST`), point lourd, plafond, sol en segments rechargé à chaque niveau (`verlet_seg.asm`, tables `vl_sg_*` en BSS) ; modèle `dev/tools/verlet` ; `font` |
 | ROGUE | `apple2` : carte E-Z Color (`ezcolor.asm` : `ez_detect`, emplacement de démarrage et 3 évités ; accès VDP du jeu propres, opérandes patchés), mémoire auxiliaire (`auxdetect.asm` : `aux_detect`, le lanceur choisit `ROGUE.DHGR` sur un //e 128 Ko ou un //c), son (`tone`), musique par ticks (`tune.asm`), DOS (`dos_cmd_line` : le lanceur enchaîne `ROGUE.TMS` / `ROGUE.DHGR`), sortie (ROGUE.DHGR : `apple2_reboot`, `APPLE2_REBOOT_INIT`, `APPLE2_SOFTEV`) ; outils `dev/tools/audio/tune.py`, `dev/tools/tms9918.py` (rendu VRAM des tests) ; le pilote Mode 1 de POM1 est recopié dans `rogue/src/video_tms.asm`, pas lié depuis `dev/lib/tms9918` |
 | SNAKE | `hgrc` : rendu HGR, cellules, texte, nombres ; `apple2c` : entrées ; police partagée |
@@ -24,7 +23,6 @@ par elle, ni que toutes les familles d'une archive sont liées dans le binaire.
 | ROBOT SPACE STATION | `hgrc` : DHGR et petit texte ; `gfx` : lignes ; `apple2c` : entrées, rythme d’images (`apple2frame`), une lecture de la souris par image (`apple2vblgate`), son et manette (`apple2game`), mémoire auxiliaire (`apple2aux` : `aux_store`, `aux_fetch_pages` des overlays) ; `prodos` : chargeur `.SYSTEM`, relocateur SYS (`sysreloc.inc`, `SYSRELOC_DOWN_FAST`), fichiers entiers et `prodos_load_aux` (`file_aux.s`) ; `mouse` |
 | MB TRACKER | `apple2` : Mockingboard (`mockingboard.asm`, `MB_FAST_WRITE=1`), musique sous interruption (`mb_irq.asm` : ProDOS, `MB_IRQ_GATE`), lecteur AYS (`aysong.asm`, `AYSONG_CPU65C02=1`), mémoire auxiliaire (`auxmem.asm` : `aux_store_chunked`, `aux_fetch_chunked`, `AUXMEM_FETCH_CHUNK=128`), le tout enveloppé pour le C dans `src/mbt_asm.s` ; `apple2c` : texte 80 colonnes et pointeur (`apple2t80`, `apple2t80_ptr`, `T80_PTR=1`), une lecture de la souris par image (`apple2vblgate`) ; `prodos` : chargeur `.SYSTEM`, `/RAM` (`prodos_video_claim`), MLI (`prodos_mli` : catalogue), catalogue et noms (`dir.c` : `prodos_dir_list`, `prodos_name_valid`, dans l'overlay OVL2), fichiers entiers (`file.s` : `prodos_load`, `prodos_load_free`, `prodos_save`) ; outil `dev/tools/audio/aysong.py` (DEMO.AYS, oracle des tests) ; lecteur à 6 voix (`AYSONG_VOICES=6`, `MB_IRQ_HUSH_BOTH=1`) ; `mouse` (`mouse.s` : carte AppleMouse du //e, souris du //c, après `mb_detect` ; X 0-159 par `MOUSE_X_HIGH=159`) ; `dev/tools/audio/pt3import.py` (WG.AYS, la musique de WARGALAGA II) |
 | LOGO | `apple2` : clavier, texte, HGR et sortie ; `hgr` : pixels, lignes, glyphes natifs, tables, effacement et composition des sprites ; `font` |
-| DEMO | démos C : `hgrc`, `gfx` et `apple2c` selon les routines appelées ; démos assembleur : `apple2`, `hgr` et `font` |
 | HELLO | parcours assembleur : `apple2` ; parcours C : `apple2c` |
 | Exemple HGR | `hgrc`, `gfx`, `apple2c` et leurs noyaux assembleur |
 | Exemple DHGR | `hgrc` DHGR, `gfx`, `apple2c` |

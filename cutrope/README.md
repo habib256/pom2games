@@ -196,18 +196,18 @@ with cheaper rope drawing (TODO).
 
 | Range | What |
 |---|---|
-| `$0050-$00C0` | zero page (113 B): lib/math, lib/physics, hgr_plot_hist, text, the game's |
+| `$0050-$00BF` | zero page (112 B): lib/math, lib/physics, hgr_plot_hist, text, the game's |
 | `$0800-$0FFF` | HELLO (DOS kept) |
 | `$1000-$17FF` | `mul_init`'s quarter squares (2 KB) |
 | `$1800-$1DFF` | `hgr_plot_hist` histories (1.5 KB, 255 entries a page) |
 | `$2000-$5FFF` | HGR pages 1 and 2 |
-| `$6000-$7AE4` | CODE 6,885 B: the game ~1,640, `phys.inc` ~1,120, `verlet_seg` 800, `verlet_con` 606, `verlet.asm` 533, `hgr_plot_hist` 947, text, lines, sound, tune, keys, stick, vapor, exit |
-| `$7AE5-$84A7` | RODATA 2,499 B: 4 level records 361, sprites 624 (candy, star, cursor, frog: 7 shifts each), jingles 38, messages, `vl_sq_lo/hi` 362, font 512, HGR row tables 384 |
-| `$84A8-$8ABA` | BSS 1,555 B: 23 points (230), pins, the link and segment tables, the game |
-| `$8ABB-$95FF` | free (2,885 B) |
+| `$6000-$7A9C` | CODE 6,813 B: the game ~1,640, `phys.inc` ~1,120, `verlet_seg` 800, `verlet_con` 589, `verlet.asm` 321, `hgr_plot_hist` 930, text, lines, sound, tune, keys, stick, vapor, exit |
+| `$7A9D-$845F` | RODATA 2,499 B: 4 level records 361, sprites 624 (candy, star, cursor, frog: 7 shifts each), jingles 38, messages, `vl_sq_lo/hi` 362, font 512, HGR row tables 384 |
+| `$8460-$8A72` | BSS 1,555 B: 23 points (230), pins, the link and segment tables, the game |
+| `$8A73-$95FF` | free (2,957 B) |
 | `$9600-$BFFF` | DOS 3.3 (ESC returns to it) |
 
-The file is 9,384 bytes (`CUTROPE`, BRUN at `$6000`).
+The file is 9,312 bytes (`CUTROPE`, BRUN at `$6000`).
 
 ## Tests
 

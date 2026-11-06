@@ -196,7 +196,6 @@ Tout monstre touché ce tour-ci est posé en couleur 8 (rouge).
     src/txtpage.inc           pages de texte Apple sans COUT (lanceur, TMS)
     src/rogue_tms.s, .cfg     binaire ROGUE.TMS ($4000)
     src/launcher.s, .cfg      binaire ROGUE ($6000) : choix TMS / DHGR / erreur
-    src/dhgr_stub.s           ROGUE.DHGR bouche-trou (tant que rogue_dhgr.s manque)
     src/video_dhgr.*          back-end DHGR : pages, moteur texte (builder DHGR)
     src/video_x2.*            back-end DHGR : la vue de jeu à la ROGUE X2
     src/rogue_dhgr.s          binaire ROGUE.DHGR       (builder DHGR)
@@ -224,13 +223,10 @@ Le boot du binaire initialise `snd_on` (1 = son) et `sfx_req` (0) avant
 ## 6. Makefile
 
 `rogue/Makefile` construit `ROGUE`, `ROGUE.TMS` et `ROGUE.DHGR` sur le même
-disque. Règle à compléter par le builder DHGR :
-
-    $(BUILD)/rogue_dhgr.bin: src/rogue_dhgr.s src/video_dhgr.* src/video_x2.* $(CORE) src/rogue_dhgr.cfg
-
-Tant que `src/rogue_dhgr.s` n'existe pas, le Makefile met à la place un
-binaire bouche-trou (`src/dhgr_stub.s`) qui affiche « VERSION DHGR PAS ENCORE
-CONSTRUITE » et rend le DOS : le lanceur et ses tests marchent sans attendre.
+disque. ROGUE.DHGR s'assemble depuis `src/rogue_dhgr.s` avec
+`src/video_dhgr.*`, `src/video_x2.*` (dont les données
+`src/video_dhgr_data.inc` et `src/video_x2_data.inc`, produites par
+`tools/tiles_dhgr.py` et `tools/x2_dhgr.py`), le cœur et `src/rogue_dhgr.cfg`.
 Adresse de chargement : libre (déclarée dans `DHGR_LOAD` du Makefile :
 `$3C00` = le début de `src/rogue_dhgr.cfg`) ; le lanceur fait `BRUN
 ROGUE.DHGR` (DOS 3.3, //e 128 Ko : la mémoire auxiliaire est à la disposition

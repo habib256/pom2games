@@ -157,7 +157,7 @@ DOS_IOB_SLOT = $B7E9    ; 48 KB DOS 3.3's IOB: slot * 16 of the last drive
 
 ; APPLE2_SOFTEV target: Ctrl-RESET jumps to target (SOFTEV low/high, and the
 ; power-up byte = high EOR $A5 so the Monitor warm-starts through it).
-; 11 bytes, clobbers A.
+; 15 bytes, clobbers A.
 .macro APPLE2_SOFTEV target
         LDA     #<(target)
         STA     SOFTEV

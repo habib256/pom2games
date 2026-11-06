@@ -25,6 +25,7 @@
 ;   I/J/K/L or arrows  move cursor    SPACE or RETURN  pick source / target
 ;   ESC      cancel selection   M  cycle mode     N  new game
 ;   U        undo last move     P  AI level: 1, 2 or 3 plies (L1 / L2 / L3)
+;   S        sound on / off     joystick: stick moves, buttons pick (stick_key)
 ; Modes (M cycles): HVH, WAI (white=you/black=AI), BAI, AVA (auto self-play).
 ;
 ; Apple II vs Apple-1 / GEN2:

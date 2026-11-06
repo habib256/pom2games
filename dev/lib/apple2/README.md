@@ -162,13 +162,20 @@ video; `exit.asm` restores the zero page to hand control back to DOS cleanly.
   Enter D=0. `test_lz4fh_native.py` covers every match length, overlapping
   copies, literal/input/output boundaries, full 8K pages, default and borrowed
   scratch, both CPUs and complete RAM/code/stack guards; `--negative` validates
-  three fault detectors and `--reference REV` compares historical sources.
+  five fault detectors and `--reference REV` compares historical sources.
   The subsequent pair-copy loop trades 16 bytes for speed: the current
   kernel is **203 bytes**, with unchanged scratch and stack. Dirtbike and
   Wargalaga titles decode about **8.5% / 11.6% faster**; a full 8K match
   workload saves 20,160 cycles. Five negative controls now include parity
   and carry handling. The 256-placement study finds a few shortest matches
   costing one extra cycle; real title cases all improve.
+- **`mockingboard.asm`** — `mb_detect`, `mb_init`, `mb_write`, `mb_silence`,
+  `mb_timer_start`, `mb_tick`, `mb_stop`; see
+  [Mockingboard](#mockingboard-two-ays-and-a-polled-timer).
+- **`rgb.asm`** — `rgb_col140`, `rgb_hgr`, `rgb_dhgr`; see
+  [RGB](#rgb-le-chat-mauve--video-7).
+- **`pt3/`** — PT3 decoder; see
+  [PT3 decoder](#pt3-decoder-pt3-wargalaga-ii-2026-10-23).
 - **`dos.asm`** — `dos_cmd_*`, `disk_protected`: DOS 3.3 commands (BLOAD,
   BSAVE…) from a BRUN program; assumes `exit.asm`. Additions are
   bounded to `DOS_CMD_MAX-1` characters; the two hexadecimal digits are
@@ -210,7 +217,7 @@ another module). A C object that aliases a routine to an import
 | `tone` | `sound.asm` | A = toggles (0 → 256), X = half-period (0 → 256); 12 + 5·X cycles per toggle, pitch 1.02 MHz / (2·(12 + 5·X)): ~2.4 kHz at `$28`, ~526 Hz at `$C0`, ~397 Hz at `$FF` | — | A, X, Y | — |
 | `read_stick` | `joy.asm` | — | `joy_x`, `joy_y` = 0 (left / up) … ~60 (centre) … ~120; ~6 ms; an open axis (timer never finishes) is centred at 60; C = 1 if both are (nothing plugged in) | A, X, Y | — |
 | `read_stick_fast` | `joy.asm` | — | `joy_x`, `joy_y` = counts of 35 cycles (33-34 once the other axis has finished), ~40 at centre; stops as soon as both timers have finished; C = 1 after 255 passes (nothing plugged in) | A, X, Y | — |
-| `read_stick_x` | `joy.asm` | — | `joy_x` alone = PREAD counts (11 cycles: 0..255, ~128 centred, ×35/11 ≈ 3.2 against `read_stick_fast`); returns when the X timer runs out (~11·count + 20 cycles); C = 1 and 255 after 255 counts (no stick, or past full scale); `joy_y` untouched; 19 B | A, X | — |
+| `read_stick_x` | `joy.asm` | — | `joy_x` alone = PREAD counts (11 cycles: 0..255, ~128 centred, ×35/11 ≈ 3.2 against `read_stick_fast`); returns when the X timer runs out (~11·count + 20 cycles); C = 1 and 255 after 255 counts (no stick, or past full scale); `joy_y` untouched; 24 B (22 with a zero-page `joy_x`) | A, X | — |
 | `vapor_mark` | `vapor.asm` | — | `VAPOR_BYTE` ($80) in the first 24 bytes of HGR line 191 (page `VAPOR_PAGE`, 1) | A, X | — |
 | `vapor_sync` | `vapor.asm` | marker on the shown page, HGR on | C = 0: the beam is on line 191 (VBL next); C = 1 within 65537 polls (~0.8 s): no floating bus or no marker | A, X, Y | — |
 | `vapor_count` | `vapor.asm` | same | A = low, X = high: one frame in 13-cycle polls (~1303 NTSC, ~1553 PAL at 1 MHz); C = 1, 0 on failure | A, X, Y | — |
@@ -218,7 +225,7 @@ another module). A C object that aliases a routine to an import
 | `vapor_pace_init` | `vapor.asm` | marker on the shown page, HGR on | `vapor_count` kept for `vapor_pace` (`vp_frame`, `vp_half`); C = 1: no floating bus (do not call `vapor_pace`) | A, X, Y | — |
 | `vapor_pace` | `vapor.asm` | A = N frames a tick, X / Y = the work since the last return in polls (cycles / 13, ± half a frame); `vapor_pace_init` done | C = 0: the beam on line 191, N frames after the last return (k frames when the work took k > N): flip now, same phase to a poll; C = 1: no sync | A, X, Y | — |
 | `stick_dir` | `joy.asm` | `joy_x`, `joy_y` | A = `JOY_NONE` (0, Z = 1) / `JOY_UP` / `JOY_DOWN` / `JOY_LEFT` / `JOY_RIGHT`; dead zone `JOY_LO`–`JOY_HI` (30–90, define before the include to change it); vertical wins | A | — |
-| `stick_key` | `joy.asm` | `STICK_KEYS` (optional 6-byte table: UP, DOWN, LEFT, RIGHT, B0, B1) | one-shot events: X = 1..4 (`stick_dir`), 5 = button 0, 6 = button 1, each on its own edge (a press; a change to a non-centre direction, so releasing a button under a held direction fires nothing); button 0 > button 1 > direction, the loser fires on the next call; A = `STICK_KEYS[X-1]` (A = X without a table), or A = 0 / Z = 1 when nothing new; no stick (C = 1 from the reader): no button read. State `stick_key_last` (1 B, zero it at start) + `stick_key_btn` (2 B, no init needed), BSS or caller's ZP. 50 B with the table + `read_stick` + `stick_dir`; `STICK_KEY_FAST` (`read_stick_fast`), `STICK_KEY_REPEAT = n` (held direction every n calls, +20 B, +1 B BSS): chess | A, X, Y | — |
+| `stick_key` | `joy.asm` | `STICK_KEYS` (optional 6-byte table: UP, DOWN, LEFT, RIGHT, B0, B1) | one-shot events: X = 1..4 (`stick_dir`), 5 = button 0, 6 = button 1, each on its own edge (a press; a change to a non-centre direction, so releasing a button under a held direction fires nothing); button 0 > button 1 > direction, the loser fires on the next call; A = `STICK_KEYS[X-1]` (A = X without a table), or A = 0 / Z = 1 when nothing new; no stick (C = 1 from the reader): no button read. State `stick_key_last` (1 B, zero it at start) + `stick_key_btn` (2 B, no init needed), BSS or caller's ZP. 50 B with the table + `read_stick` + `stick_dir`; `STICK_KEY_FAST` (`read_stick_fast`), `STICK_KEY_REPEAT = n` (held direction every n calls, +21 B, +1 B BSS). User: CHESS (`STICK_KEYS`, no repeat) | A, X, Y | — |
 | `joy_buttons` | `joy.asm` | — | A = buttons held (bit 0 = 0, bit 1 = 1, Z from A), X = newly pressed; state `joy_btn_last` (1 B); 25 B; reads the buttons even without a stick | A, X, Y | — |
 | `dos_cmd_new` | `dos.asm` | — | command buffer emptied | A | — |
 | `dos_cmd_add` | `dos.asm` | A = lo, Y = hi (ASCIIZ) | string appended | A, X, Y | — |
@@ -253,7 +260,7 @@ another module). A C object that aliases a routine to an import
 | `INIT` `SETVID` `SETKBD` | `$FB2F` `$FE93` `$FE89` | Monitor: text screen + full window, PR#0, IN#0 |
 | `AUXMOVE_ROM` | `$C311` | //e/c firmware AUXMOVE (not `AUXMOVE`: `auxmem.asm`'s macro) |
 | `DOS_IOB_SLOT` | `$B7E9` | 48 KB DOS 3.3 IOB: slot × 16 of the last drive (the boot drive until a disk command) |
-| `APPLE2_SOFTEV target` / `APPLE2_REBOOT_INIT` | macros | Ctrl-RESET → target (11 B) / latch the boot slot into `apple2_reboot` (18 B) |
+| `APPLE2_SOFTEV target` / `APPLE2_REBOOT_INIT` | macros | Ctrl-RESET → target (15 B) / latch the boot slot into `apple2_reboot` (18 B) |
 | `KC_LEFT` `KC_RIGHT` `KC_UP` `KC_DOWN` `KC_RET` `KC_ESC` `KC_SPACE` | 7 bits | codes returned by `kbd.asm` |
 
 The key codes have the `KC_` prefix on purpose: games often have their
@@ -618,11 +625,11 @@ at `ays_zp` (define it first to place them). BSS: `ays_regs` and `ays_out`
 19 B a voice (16 with the fast periods).
 
 Measured (`dev/tests/test_aysong.py`, a2run, `mb_write` to a card with
-`MB_FAST_WRITE`): code + tables 1,087 B (3 voices; 1,165 B for 6; 65C02 −4
+`MB_FAST_WRITE`): code + tables 1,082 B (3 voices; 1,160 B for 6; 65C02 −4
 B; fast periods +116 B). Cycles a tick, 3 voices (demo): mean ~1,320,
 ~950 without writes, ~90 a register written; the worst row ticks (a new
 pattern, three notes, ten writes) ~3,600 (fast periods: ~3,370); 6 voices:
-mean ~1,190, worst ~5,300. The first tick after `ays_init` / `mb_hush`
+mean ~985 (worst measured before the off-voice change: ~5,300). The first tick after `ays_init` / `mb_hush`
 writes all 13 registers (~1,200 cycles of writes).
 
 An off voice jumps directly to the zero-volume path, bypassing the retained
