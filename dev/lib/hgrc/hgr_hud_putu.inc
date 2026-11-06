@@ -3,6 +3,9 @@
 ; No drawing from IRQ. A/X return changed cells or $FF; field layout unchanged.
 .import popax, _hgr_get_draw_page, _hgr_utoa
 .macpack longbranch
+.if HUD_SMALL
+.importzp tmp1
+.endif
 .importzp ptr3, _hgr_u_lo, _hgr_u_hi, _hgr_u_ptr
 .importzp _hgr_g_col, _hgr_g_bit, _hgr_g_y
 .if HUD_SMALL
@@ -15,7 +18,9 @@ MAX_DIGITS = 14
 cell_run = _hgr_hud_cell_run
 .endif
 .bss
+.if !HUD_SMALL
 field: .res 2
+.endif
 value: .res 2
 number: .res 6
 width: .res 1
@@ -31,26 +36,40 @@ remaining: .res 2
 steps: .res 1
 copies: .res 1
 .code
+.if !HUD_SMALL
 field_ptr:
         lda field
         sta ptr3
         lda field+1
         sta ptr3+1
         rts
+.endif
 hud_putu:
         sta value
         stx value+1
         jsr popax
+        .if HUD_SMALL
+        sta tmp1                ; transient pointer low; IRQs preserve scratch
+        txa
+        ora tmp1
+        .else
         sta field
         stx field+1
         ora field+1
+        .endif
         bne nonnull
 bad:
         lda #$ff
         ldx #0
         rts
 nonnull:
+.if !HUD_SMALL
         jsr field_ptr
+.else
+        lda tmp1
+        sta ptr3
+        stx ptr3+1
+.endif
         ldy #3
         lda (ptr3),y
         beq bad

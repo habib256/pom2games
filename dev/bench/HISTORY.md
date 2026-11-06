@@ -4,6 +4,72 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Audit de la trente-septième session du 6 novembre 2026 — pointeur de champ HUD8
+
+Septième série, référence exacte `b538c23`. Gate **793 cas / 16 budgets** :
+**25 clients HUD8 plus petits et plus rapides**, chacun **−12 CODE/chargés
+et −2 RAM** ; les 768 autres dictionnaires restent identiques. ZP, tables,
+initialisation et pics des deux piles ne changent pas. **100 limites sont
+abaissées**, aucune relevée. Cache HUD8 **286 → 265 cycles**, chiffre
+**2 134 → 2 117**, cinq chiffres phase 0 **6 050 → 6 033**, retenue
+**5 583 → 5 569** ; maximum sur les sept phases **6 060 → 6 045**.
+
+Après la série précédente, HUD8 ne rechargeait son pointeur de champ qu'à
+l'entrée. Il conserve désormais ce pointeur dans `ptr3` et supprime les
+deux octets BSS `field` ainsi que leur helper. Après `popax`, le bas reste
+brièvement dans `tmp1`, le haut dans X ; `TXA/ORA tmp1` teste NULL, puis
+le pointeur rejoint `ptr3`. Il n'y a aucun appel synchrone dans cette
+fenêtre. NULL conserve l'ancien `ptr3` et A/X/Y/P, les rejets de largeur et
+débordement conservent leurs branches. Le contrat cc65 existant autorise
+le clobber de `tmp1` et impose aux IRQ de préserver leur scratch emprunté.
+HUD16 garde son état et son helper ; sa version liée seule est identique.
+
+La preuve finale compare **356 544 appels par source** : 16 matrices de
+22 284 appels, incluant 1 004 vérifications explicites des largeurs HUD8
+invalides. Deux formats/options de tables/placements de code/CPU/modes IRQ,
+quatre champs : RAM basse `$1200`, ZP caller-owned `$A0` hors scratch,
+zone HGR disjointe `$2110`, RAM de pile C avec franchissement `$B1F8`.
+**40 230 912 stores pixels et 1 581 440 stores cache** restent ordonnés et
+exacts ; 714 112 emprunts/restaurations `ptr3` du grand format sont observés.
+Le premier délai T1 varie pour interrompre la courte fenêtre de `tmp1` :
+**3 008 entrées IRQ y sont réellement observées**, avec les quatre champs
+couverts dans chaque matrice. Les cinq mutations sont rejetées, notamment
+l'absence de restauration de `tmp1` lors de la première de ces IRQ, qui
+donne immédiatement un mauvais résultat public.
+
+Les P sont entièrement comparés sans IRQ. Avec IRQ, seul le pseudo-bit B
+du SDK est exclu : un retour NULL devenu plus court peut éviter une IRQ
+que l'ancienne version subissait, avec `$32/$22` comme seule différence.
+Tous les flags matériels, registres, données, stores, piles et gardes restent
+contrôlés. La relecture indépendante confirme les durées de vie et l'ABI.
+
+Les deux minimaux passent de **6 597 → 6 585 / 6 627 → 6 615 octets**,
+BSS **1 337 → 1 335**, autres segments inchangés. HGR **8 049** et DHGR
+**5 215** restent identiques octet pour octet. Deux cents frames par
+exemple/CPU gardent exactement leurs images. Travail complet hors attente
+VBL : single **1 496 035 → 1 492 408 cycles**, les 200 frames accélèrent ;
+double II+ **2 000 304 → 1 997 748**, IIe **2 001 304 → 1 998 748**, 198
+frames accélèrent et deux coûtent trois cycles de plus. Le present double
+coûte +12 cycles par appel, compensés par le HUD ; aucune hausse de FPS
+revendiquée. Les 1 000 cadences NTSC et 1 000 PAL restent exactes.
+
+Coûts synthétiques du lien mixte, sans IRQ : défaut `$6000`, 10 864 `putu`
+plus lents sur 19 152, maximum +199 cycles et +0,59211 % ; défaut `$60F1`,
+5 016 plus lents, maximum +19 et +1,74312 % ; folded `$6000`, 5 176 plus
+lents, maximum +36 et +1,74793 % ; folded `$60F1`, aucun plus lent. Les
+pires pourcentages concernent les courts rejets/débordements HUD16 déplacés.
+Ces coûts sont conservés sans padding. La variante directe AX→ptr3 avant
+le test NULL aurait gagné davantage mais changeait son état sur NULL ;
+la variante inline gardant `field` économisait moins et dégradait le bilan
+réel double buffer. Elles ne sont pas retenues.
+
+`make all test-woz` reproduit tous les disques distribués et les 18 WOZ,
+sans changement d'image ; les minimaux publics passent. La suite HGR
+intermédiaire, lancée avant la mise à jour du test, rencontre son ancien
+marqueur de mutation supprimé ; elle n'est pas comptée comme validation
+finale. Le contrôleur et ses cinq contrôles négatifs passent ensemble dans
+leur version figée, puis les suites HGR/DHGR complètes sont relancées.
+
 ## Audit de la trente-sixième session du 6 novembre 2026 — pointeurs conservés et volume actif
 
 Sixième série, référence exacte `f6eaf9c`. Gate **793 cas / 16 budgets** :

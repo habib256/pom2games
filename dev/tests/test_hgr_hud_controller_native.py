@@ -3,11 +3,18 @@
 
 Both HUD sizes run all widths, seven phases, both pages and bottom edges,
 cache hits, decimal increments/carries, overflow, invalidation and NULL calls.
+Caller-owned fields occupy low RAM, reserved ZP, HGR RAM disjoint from drawing,
+and C-stack RAM; every invalid compact width byte is checked. Only the old
+private two-byte field slot is normalized when it is removed.
 Each return from a helper that preserves ptr3 is checked. The 16x16 cell
 must borrow ptr3 and its caller must restore it. A real VIA IRQ saves,
 borrows and restores all cc65 pointer/tmp scratch; exact saved-frame evidence
 filters instructions deferred by the SDK's IRQ-plus-first-PHA step.
 Separate/folded column tables and two code placements expose layout costs.
+A first T1 interval 36..129 cycles followed by a 499-cycle latch exercises
+the compact entry pointer in tmp1; each field location must be interrupted
+inside that live range. P is exact without IRQs; under IRQs only the SDK
+software B shadow is excluded, with all hardware flags still checked.
 """
 import argparse
 from concurrent.futures import ThreadPoolExecutor
@@ -44,7 +51,7 @@ CONFIG = '''MEMORY {{
  STATE:start=$9000,size=$2000,type=rw;
 }}
 SEGMENTS {{
- ZEROPAGE:load=ZP,type=zp;
+ ZEROPAGE:load=ZP,type=zp,define=yes;
  CODE:load=RAM,type=ro;
  RODATA:load=RAM,type=ro;
  DATA:load=RAM,type=rw;
@@ -65,12 +72,21 @@ def library(folder, include, folded, overrides=None):
                  '--asm-include-dir', HGRC, '--asm-include-dir', DEV / 'lib/apple2']
         if folded and name in ('hgr_columns.s', 'hgr_masks.s', 'hgr_phases.s'):
             flags += ['--asm-define', 'HGRC_X7_FOLDED=1']
-        if name in overrides:
+        text = overrides.get(name)
+        if text is None and name in ('hgr_hud_putu.s', 'hgr_hud8_putu.s'):
+            text = (HGRC / name).read_text().replace('.include "hgr_hud_putu.inc"', include)
+        if name == 'hgr_hud8_putu.s':
+            # Zero-byte audit aliases; no extra production exports or bytes.
+            saved = '        sta tmp1                ; transient pointer low; IRQs preserve scratch\n        txa'
+            if saved in text:
+                text = text.replace(saved, saved.replace('\n        txa', '\nhud8_audit_low_live:\n        txa'))
+                text = text.replace('        lda tmp1\n        sta ptr3',
+                                    '        lda tmp1\nhud8_audit_low_done:\n        sta ptr3')
+                text += '\n.export hud8_audit_low_live,hud8_audit_low_done\n'
+            text += '\n.export hud8_audit_value := value\n.ifdef field\n.export hud8_audit_field := field\n.endif\n'
+        if text is not None:
             source = folder / name
-            source.write_text(overrides[name])
-        elif name in ('hgr_hud_putu.s', 'hgr_hud8_putu.s'):
-            source = folder / name
-            source.write_text((HGRC / name).read_text().replace('.include "hgr_hud_putu.inc"', include))
+            source.write_text(text)
         compile_source(source, obj, flags)
         objects.append(obj)
     archive = folder / 'hgrc.lib'
@@ -111,6 +127,10 @@ def parse_result(output):
     stores = re.search(r'ORDERED source stores: pixels=(\d+) cache=(\d+); IRQ deferrals=(\d+)/(\d+)', output)
     result.update(dict(zip(('pixel_stores', 'cache_stores', 'before_irq_deferrals',
                            'after_irq_deferrals'), map(int, stores.groups()))))
+    live = re.search(r'ENTRY live-low IRQs=(\d+)', output)
+    result['entry_live_low_irqs'] = int(live[1]) if live else 0
+    result['entry_irqs_by_field'] = {address: int(count) for address, count in
+        re.findall(r'ENTRY field=\$([0-9A-F]+) IRQs=(\d+)', output)}
     result['worst_calls'] = [line for line in output.splitlines() if line.startswith('WORST ')]
     return result
 
@@ -121,13 +141,13 @@ def negative_controls(work, executable, old, source, stub, rom):
 .if !HUD_SMALL
         jsr field_ptr           ; the 16x16 cell borrows ptr3 for masks/row
 .endif'''
-    entry_old = 'nonnull:\n        jsr field_ptr'
+    entry_old = '        stx ptr3+1'
     assert large_old in text and entry_old in text
     mutations = (
         ('missing_large_restore', 'hgr_hud_putu.s', text.replace(large_old,
             '        jsr cell_run\n        ; deliberate missing large restore', 1)),
-        ('missing_entry_restore', 'hgr_hud_putu.s', text.replace(entry_old,
-            'nonnull:\n        ; deliberate missing entry setup', 1)),
+        ('wrong_compact_pointer_high', 'hgr_hud8_putu.s', text.replace(entry_old,
+            '        sta ptr3+1', 1)),
     )
     results = []
     for name, member, include in mutations:
@@ -165,6 +185,21 @@ def negative_controls(work, executable, old, source, stub, rom):
     assert result.returncode and match and int(match[1]) > 0, result.stderr
     print('HUD controller negative:', name, 'rejected after', match[1], 'real IRQs', flush=True)
     results.append(dict(name=name, rejected=True, actual_irqs=int(match[1])))
+    name = 'irq_drops_live_tmp1_restore'
+    bad_low = work / 'bad_low.cpp'
+    bad_source = '#define HGRC_TEST_BAD_LOW 1\n' + PROBE.read_text()
+    bad_source = bad_source.replace('for (bool small:{false,true})', 'for (bool small:{true})')
+    bad_low.write_text(bad_source)
+    bad_executable = work / 'bad_low'
+    run(['make', '-s', '-C', DEV / 'tools/a2shot', 'probe',
+         'SRC=' + str(bad_low), 'OUT=' + str(bad_executable)])
+    result = subprocess.run(list(map(str, command(bad_executable, old, after, rom, 0x6000, 0, 1))),
+                            capture_output=True, text=True, timeout=60)
+    fault = re.search(r'ENTRY TMP1 IRQ fault injected at actual IRQ entry (\d+)', result.stderr)
+    assert result.returncode and fault and int(fault[1]) > 0, result.stderr
+    assert 's.accumulator==expected' in result.stderr, result.stderr
+    print('HUD controller negative:', name, 'rejected inside observed live range', flush=True)
+    results.append(dict(name=name, rejected=True, observed_entry_irq=int(fault[1])))
     return results
 
 
@@ -227,9 +262,12 @@ def main():
         report['native_environment'] = dict(cpus=['NMOS6502', 'CMOS65C02'], iie_memory=True,
             timing='NTSC', decimal_flag=0, code_bases=[0x6000, 0x60F1],
             column_tables=['separate', 'HGRC_X7_FOLDED'], rom_sha256=hashlib.sha256(image).hexdigest(),
-            irq='real VIA T1; saved/restored A/X/Y and ptr1..4/tmp1..4; precise entry-frame deferrals')
+            irq='real VIA T1, first count36..129 then latch499; saved/restored A/X/Y and ptr1..4/tmp1..4; entry-frame evidence',
+            status='full P without IRQ; under IRQ all bits except SDK software B shadow',
+            bss='only the removed private HUD8 field slot normalized; all remaining state compared',
+            fields=[0x1200, 0xA0, 0x2110, 0xB1F8])
     paths = [KERNEL, PROBE, Path(__file__).resolve(), *[HGRC / name for name in MEMBERS],
-             DEV / 'lib/math/dec.asm', DEV / 'lib/font/bbfont_glyphs.inc',
+             DEV / 'lib/math/dec.asm', DEV / 'lib/font/bbfont_glyphs.inc', DEV / 'lib/font/bbfont_c.inc',
              DEV / 'tools/a2shot/probe.hpp', DEV / 'tools/a2shot/sdk/include/pom2/core.hpp',
              DEV / 'tools/a2shot/sdk.mk']
     paths += list(DEV.glob('tools/a2shot/sdk/lib/*/libpom2_core.a'))

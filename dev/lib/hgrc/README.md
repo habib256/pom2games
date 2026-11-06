@@ -1401,20 +1401,33 @@ The shared HUD controller also retains `ptr3` across the page getter,
 decimal conversion and row-table builder. The 8×8 cell preserves it too;
 the 16×16 cell still requires restoration. Removing those redundant calls
 saves **nine loaded bytes for HUD8, six for HUD16**, with unchanged RAM,
-ZP and stacks. Current HUD8 single-digit/cache-hit costs are **2,134/286
-cycles**; changing five phase-0 digits takes **6,050**. Its separate object
+ZP and stacks. HUD8 now also keeps its field pointer in `ptr3` throughout
+the call, eliminating a two-byte private BSS slot and its one-use helper:
+**another 12 loaded bytes and two BSS bytes saved**. After `popax`, `tmp1`
+briefly holds the pointer low byte until the NULL check; no synchronous
+call occurs in that interval, and NULL leaves `ptr3` unchanged. The existing
+scratch/IRQ contract applies. Current single-digit/cache-hit costs are
+**2,117/265 cycles**; five phase-0 digits take **6,033**. Its separate object
 lets only the format in use be linked. Across seven phases the maximum is
-**6,060 cycles**, against **14,875** for the 16×16 format. Prepare both pages
+**6,045 cycles**, against **14,875** for the 16×16 format. Prepare both pages
 before animating.
 
-`test_hgr_hud_controller_native.py --negative` checks 85,120 calls per
+`test_hgr_hud_controller_native.py --negative` checks 356,544 calls per
 source across both formats, two table options, two placements, both CPUs
-and real IRQs that save, borrow and restore scratch. It verifies ordered
-pixel/cache stores, helper pointer lifetimes, fields, ABI, stacks and guards;
-four mutations are rejected. The real examples and all global bench cases
-improve or stay equal. A combined-format synthetic layout at $60F1 with
-separate tables has 16×16 placement costs up to **148 cycles / 0.416%**
-without IRQs (399 cycles / 1.022% including IRQs), despite lower total work.
+and four field locations, with real IRQs that save, borrow and restore
+scratch. It verifies ordered pixel/cache stores, helper pointer lifetimes,
+invalid widths, fields, ABI, stacks and guards; five mutations are rejected.
+Targeted IRQ timing observes 3,008 interruptions while `tmp1` is live.
+P is compared completely without IRQs; under IRQs only the SDK's synthetic
+B bit is excluded, since differing IRQ counts can change it on a NULL call.
+All hardware flags remain checked.
+
+The latest entry change lowers total work in both real minimal examples;
+two of 200 double-buffer frames cost three extra cycles. HGR/DHGR demos
+remain byte-identical. Mixed-format synthetic links can move HUD16 even
+though its body is unchanged: the latest change alone costs up to 199 cycles
+in a large call, or 1.748% in short rejected/overflow cases at adverse
+placements. All 25 affected global bench clients shrink and accelerate.
 
 The minimal example uses this format. With IIe double buffering, it spreads drawing
 and HUD over two VBL intervals; each step fits in one refresh.

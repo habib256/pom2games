@@ -1,5 +1,13 @@
 # Current cc65 measurements
 
+The thirty-seventh-session gate passes **793 cases and 16 frame budgets**:
+**25 HUD8 clients save 12 CODE/loaded bytes and two RAM bytes and accelerate**;
+768 metric dictionaries stay identical. ZP and both stacks are unchanged.
+**100 limits are lowered**, none raised. The field pointer stays in existing
+scratch; NULL preserves its former pointer state. Real-frame and mixed-link
+placement costs, 356,544 paired calls and five negative controls are recorded
+in [the thirty-seventh-session audit](HISTORY.md#audit-de-la-trente-septième-session-du-6-novembre-2026--pointeur-de-champ-hud8).
+
 The thirty-sixth-session gate passes **793 cases and 16 frame budgets**:
 **55 clients shrink and accelerate**, with 738 identical metric dictionaries.
 Twenty-five HUD8 clients save nine loaded bytes, thirty HUD16 clients save six;

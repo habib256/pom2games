@@ -1,4 +1,4 @@
-// GPL-3.0. Private HUD pointer-lifetime audit; independent pixels/cache and
+// GPL-3.0. Native HUD pointer-lifetime audit; independent pixels/cache and
 // paired ordered stores/BSS/register results. The IRQ saves, borrows, restores
 // all cc65 pointer/tmp scratch, with actual VIA T1 entry-frame verification.
 #include "probe.hpp"
@@ -10,6 +10,9 @@
 #include <vector>
 #ifndef HGRC_TEST_BAD_IRQ
 #define HGRC_TEST_BAD_IRQ 0
+#endif
+#ifndef HGRC_TEST_BAD_LOW
+#define HGRC_TEST_BAD_LOW 0
 #endif
 using namespace pom2;
 using Event=std::pair<unsigned,unsigned>;
@@ -26,9 +29,10 @@ struct Instance {
     Core core;
     std::map<std::string,unsigned>L;
     std::vector<unsigned char>image,font;
-    unsigned base,bss,bss_size,ready,serial=0,calls=0,irqs=0,deferrals=0,large_borrows=0,pixel_writes=0,cache_writes=0;
+    unsigned base,bss,bss_size,ready,audit_field,serial=0,calls=0,irqs=0,deferrals=0,large_borrows=0,pixel_writes=0,cache_writes=0,entry_irqs=0;
     unsigned long long cycles=0;
     std::map<unsigned,unsigned> preserves;
+    std::map<unsigned,unsigned> entry_fields;
     std::vector<unsigned char>handler;
     unsigned a(const char*n) {
         return L.at(std::string(".")+n);
@@ -56,6 +60,8 @@ struct Instance {
         for (unsigned i=0;i<ram.size();++i)ram[i]=(i*37+(i>>8)*11)&255;
         for (auto bank:{RamBank::Main,RamBank::Aux})assert(core.writeRam(bank,0,ram.data(),ram.size()));
         assert(core.writeRam(RamBank::Main,base,image.data(),image.size()));
+        audit_field=L.count(".hud8_audit_field")?a("hud8_audit_field"):0;
+        assert(a("__ZEROPAGE_RUN__")+a("__ZEROPAGE_SIZE__")<=0xA0);
         bss=a("__BSS_RUN__");
         bss_size=a("__BSS_SIZE__");
         for (unsigned p=bss;p<bss+bss_size;++p)wr(p,0);
@@ -113,7 +119,7 @@ struct Instance {
             wr(a("_hgr_rowlo")+row,offset(row));
             wr(a("_hgr_rowhi")+row,(page*0x2000+offset(row))>>8);
         }
-        unsigned stack=0xb000+((serial&1)?255:0),argbytes=kind==0?5:2;
+        unsigned stack=0xb000+((serial&2)?255:0),argbytes=kind==0?5:2;
         put(a("sp"),stack);
         if (kind==0) {
             wr(stack,y);
@@ -134,8 +140,11 @@ struct Instance {
         wr(0xc404,0);
         if (irq) {
             wr(0xc40b,0x40);
-            wr(0xc404,0xf3);
-            wr(0xc405,1);
+            unsigned first=36+(serial%32)*3;
+            wr(0xc404,first);
+            wr(0xc405,0);
+            wr(0xc406,0xf3);
+            wr(0xc407,1);
             wr(0xc40e,0xc0);
         }
         std::array<unsigned char,0xc000>before,aux,wanted,after;
@@ -184,6 +193,7 @@ struct Instance {
                 }
             }
         }
+        unsigned null_ptr3=word(a("ptr3"));
         unsigned entry=kind==0?a(small?"_hgr_hud8_init":"_hgr_hud_init"):kind==1?a(small?"_hgr_hud8_putu":"_hgr_hud_putu"):a("_hgr_hud_invalidate");
         auto s=core.cpuState();
         s.programCounter=entry;
@@ -217,6 +227,16 @@ struct Instance {
                 assert((rd(0x100|((sp-1)&255))|(rd(0x100|sp)<<8))==pc);
                 assert(post.stackPointer==((sp-4)&255));
                 ++deferrals;
+                if(kind==1 && small && field && L.count(".hud8_audit_low_live") && pc>=a("hud8_audit_low_live") && pc<a("hud8_audit_low_done")) {
+                    ++entry_irqs;
+                    ++entry_fields[field];
+                    if(HGRC_TEST_BAD_LOW) {
+                        unsigned changed=0;
+                        for(unsigned p=0;p+2<handler.size();++p)if(handler[p]==0x68&&handler[p+1]==0x85&&handler[p+2]==a("tmp1")){wr(0x901+p,0xea);wr(0x902+p,0xea);++changed;}
+                        assert(changed==1);
+                        fprintf(stderr,"ENTRY TMP1 IRQ fault injected at actual IRQ entry %u\n",entry_irqs);
+                    }
+                }
                 continue;
             }
             if (called&&(preserves.count(called)||called==a("_hgr_hud_cell_run"))) {
@@ -241,11 +261,12 @@ struct Instance {
             assert(!(rd(0xc013)&128)&&!(rd(0xc014)&128));
         }
         s=core.cpuState();
+        if(kind==1&&!field)assert(word(a("ptr3"))==null_ptr3);
         assert(steps<100000&&frames.empty()&&s.stackPointer==255);
         assert((s.status&12)==(original_p&12));
         assert(word(a("sp"))==stack+argbytes);
         if (kind!=2)assert(s.accumulator==expected&&s.x==0);
-        if (kind==1&&field&&before[field+3]&&before[field+3]<=max)assert(word(ptr3)==field);
+        if (kind==1&&field)assert(word(ptr3)==field);
         assert(core.readRam(RamBank::Main,0,after.data(),after.size()));
         std::array<bool,256>scratch{
         };
@@ -266,9 +287,10 @@ struct Instance {
         std::vector<unsigned char>state(bss_size);
         assert(core.readRam(RamBank::Main,bss,state.data(),state.size()));
         for (auto event:stores) {
-            if (event.first>=0x2000&&event.first<0x6000)++pixel_writes;
-            else ++cache_writes;
+            if(field&&event.first>=field&&event.first<field+9+2*max)++cache_writes;
+            else ++pixel_writes;
         }
+        if (audit_field)state.erase(state.begin()+audit_field-bss,state.begin()+audit_field-bss+2);
         ++calls;
         cycles+=s.cycles-begin;
         return{
@@ -281,14 +303,18 @@ int main(int argc,char**argv) {
     unsigned base=std::stoul(argv[6]);
     bool cmos=std::stoi(argv[7]),irq=std::stoi(argv[8]);
     Instance old(argv[1],argv[2],argv[5],base,cmos),now(argv[3],argv[4],argv[5],base,cmos);
-    assert(old.bss_size==now.bss_size);
+    assert(old.bss_size-(old.audit_field?2:0)==now.bss_size-(now.audit_field?2:0));
     unsigned fast=0,equal=0,slow=0,slow_small=0,slow_large=0;
     long largest=0;
     double largest_relative=0;
     auto call=[&](unsigned kind,bool small,unsigned value,unsigned field,unsigned x,unsigned y,unsigned width,unsigned page) {
         unsigned old_width=field?old.rd(field+3):0,old_x=field?old.word(field):0,old_y=field?old.rd(field+2):0,old_valid=field?old.rd(field+4):0;
         auto b=old.run(kind,small,value,field,x,y,width,page,irq),a=now.run(kind,small,value,field,x,y,width,page,irq);
-        assert(a.a==b.a&&a.x==b.x&&a.y==b.y&&a.p==b.p&&a.stores==b.stores&&a.bss==b.bss);
+        if(!(a.a==b.a&&a.x==b.x&&a.y==b.y&&(((a.p^b.p)&(irq?0xef:0xff))==0)&&a.stores==b.stores&&a.bss==b.bss)){fprintf(stderr,"COMPARE kind=%u small=%u value=%u field=%04X serial=%u A/X/Y/P %u/%u/%u/%u -> %u/%u/%u/%u stores=%zu/%zu BSS=%zu/%zu\n",kind,small,value,field,old.serial,b.a,b.x,b.y,b.p,a.a,a.x,a.y,a.p,b.stores.size(),a.stores.size(),b.bss.size(),a.bss.size());for(unsigned i=0;i<std::min(a.bss.size(),b.bss.size());++i)if(a.bss[i]!=b.bss[i]){fprintf(stderr,"BSSdiff offset=%u before=%u after=%u\n",i,b.bss[i],a.bss[i]);break;}for(unsigned i=0;i<std::min(a.stores.size(),b.stores.size());++i)if(a.stores[i]!=b.stores[i]){fprintf(stderr,"STOREdiff i=%u before=%04X/%u after=%04X/%u\n",i,b.stores[i].first,b.stores[i].second,a.stores[i].first,a.stores[i].second);break;}}
+// B is a pushed PHP/IRQ marker, not a CPU latch. The SDK shadow may
+        // differ when faster NULL returns avoid an IRQ. Check every other
+        // status bit under live IRQs, and the entire P byte without IRQs.
+        assert(a.a==b.a&&a.x==b.x&&a.y==b.y&&(((a.p^b.p)&(irq?0xef:0xff))==0)&&a.stores==b.stores&&a.bss==b.bss);
         if (kind==1) {
             long d=long(a.cycles)-long(b.cycles);
             fast+=d<0;
@@ -305,19 +331,26 @@ int main(int argc,char**argv) {
             largest_relative=std::max(largest_relative,relative);
         }
     };
-    for (bool small:{false,true})for (unsigned width=1;width<=(small?5u:14u);++width)for (unsigned phase=0;phase<7;++phase)for (unsigned top:{0u,small?184u:176u}) {
+    for (unsigned field:{0x1200u,0xA0u,0x2110u,0xB1F8u})for (bool small:{false,true})for (unsigned width=1;width<=(small?5u:14u);++width)for (unsigned phase=0;phase<7;++phase)for (unsigned top:{0u,small?184u:176u}) {
         unsigned extent=small?8*width:18*(width-1)+16,maxx=280-extent,x=phase+7*((maxx-phase)/14);
         if (phase>maxx)continue;
-        call(0,small,0,0x1200,x,top,width,1);
+        call(0,small,0,field,x,top,width,1);
         unsigned n=0;
         for (unsigned value:{0,0,1,2,9,10,12,99,100,999,1000,65534,65535,0,54321,54322,54324}) {
             unsigned page=(n++%4)<2?1:2;
-            call(1,small,value,0x1200,0,0,0,page);
-            if (n==9)call(2,small,0,0x1200,0,0,0,page);
+            call(1,small,value,field,0,0,0,page);
+            if (n==9)call(2,small,0,field,0,0,0,page);
+        }
+        if(small&&width==5&&phase==0&&top==0) {
+            for(unsigned invalid=0;invalid<256;++invalid)if(invalid==0||invalid>5) {
+                old.wr(field+3,invalid);now.wr(field+3,invalid);
+                call(1,small,0,field,0,0,0,1);
+                old.wr(field+3,5);now.wr(field+3,5);
+            }
         }
         call(1,small,1,0,0,0,0,1);
     }
-    printf("SLOW small=%u large=%u maximum_relative=%.5f%%\n",slow_small,slow_large,largest_relative);
+    if(irq&&now.L.count(".hud8_audit_low_live")){assert(now.entry_irqs>100&&now.entry_fields.size()==4);for(auto [where,count]:now.entry_fields){assert(count>0);printf("ENTRY field=$%04X IRQs=%u\n",where,count);}}printf("ENTRY live-low IRQs=%u\n",now.entry_irqs);printf("SLOW small=%u large=%u maximum_relative=%.5f%%\n",slow_small,slow_large,largest_relative);
     assert(old.large_borrows&&now.large_borrows&&old.large_borrows==now.large_borrows);
     for (auto [target,count]:now.preserves) {
         assert(count>100);
