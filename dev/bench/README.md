@@ -1,5 +1,34 @@
 # Current cc65 measurements
 
+Second November 6 audit (through 11:00 Réunion), **seven optimization
+series**, source `87bdf89` versus `bc489d8`: **793 passing cases and 16
+frame budgets**. 217 timings improve, 570 stay equal and six have documented
+placement costs (at most 0.52%). 192 clients shrink; 59 native-text clients
+add four loaded bytes. 277 clients save 2..13 RAM bytes; ZP and both stack
+peaks stay unchanged throughout the gate. **872 distinct limits are lowered**,
+none raised. A clean source archive reproduces every measurement and tool/core
+identity exactly. Complete HGR/DHGR suites pass on the frozen final source;
+tools and affected games pass too. A clean rebuild reproduces every tracked
+disk and all 18 WOZ pairs. See [the consolidated audit](HISTORY.md#bilan-du-chantier-jusquà-11-h--6-novembre-2026).
+
+Selected current measurements, including C arguments/calls:
+
+| Case | Cycles | Loaded bytes | RAM bytes |
+| --- | ---: | ---: | ---: |
+| `dhgr_small_text` | 12,552 | 2,845 | 309 |
+| `dhgr_text` | 31,648 | 2,735 | 321 |
+| `dhgr_block` | 4,504 | 1,561 | 305 |
+| `dhgr_block_read` | 4,872 | 1,561 | 369 |
+| `dhgr_sprite_partial` | 8,434 | 2,187 | 436 |
+| `hgr_text8_spaces` | 3,100 | 1,792 | 1,247 |
+| `hgr_hud8_digit` | 2,117 | 3,251 | 340 |
+| `hgr_hud8_changed_phase0` | 6,033 | 3,251 | 340 |
+| `hgr_hud8_same` | 265 | 3,251 | 340 |
+
+The session summaries and implementation narratives below record intermediate
+measurements. The table and consolidated audit above describe the current
+source; `baseline.json` retains the tightened regression references.
+
 The thirty-seventh-session gate passes **793 cases and 16 frame budgets**:
 **25 HUD8 clients save 12 CODE/loaded bytes and two RAM bytes and accelerate**;
 768 metric dictionaries stay identical. ZP and both stacks are unchanged.

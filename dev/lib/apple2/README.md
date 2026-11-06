@@ -625,10 +625,10 @@ pattern, three notes, ten writes) ~3,600 (fast periods: ~3,370); 6 voices:
 mean ~1,190, worst ~5,300. The first tick after `ays_init` / `mb_hush`
 writes all 13 registers (~1,200 cycles of writes).
 
-An off voice now jumps directly to the zero-volume path, bypassing the
-retained volume offset. This changes one JMP operand and no allocation or
-address. The six-voice profile above falls from 1,190 to **985 mean cycles**;
-paired MBTracker gameplay ticks fall from 1,884 to **1,752** (−7%), maximum
+An off voice jumps directly to the zero-volume path, bypassing the retained
+volume offset. When introduced, this changed one JMP operand and no allocation
+or address. The six-voice profile above fell from 1,190 to **985 mean cycles**;
+paired MBTracker gameplay ticks fell from 1,884 to **1,752** (−7%), maximum
 2,829 → 2,724. `test_aysong_silent.py` checks 744 cases across both CPUs,
 period modes, three/six voices, retained offsets and IRQ masks, with exact
 register/shadow state, guards and fixed cycle ceilings.
@@ -638,9 +638,9 @@ base periods and seven shifted octaves. Assembly assertions enforce that
 bound; dropping the impossible carry tail saves **four code bytes** and
 three cycles per rounded cache miss. Fast-period code is unchanged.
 All 96 notes and cache hits/misses are tested against full 16-bit rounding
-on both CPUs. The deterministic cold MBTracker profiler measures 5,170
+on both CPUs. That pass's deterministic cold MBTracker profile measured 5,170
 cycles for its first tick, at most 2,716 afterwards, mean 1,717: 4..8 cycles
-saved per sampled call. It masks IRQs only during manual timing; separate
+saved per sampled call. The profiler masks IRQs only during manual timing; separate
 playback tests validate normal IRQ operation and ordered register writes.
 
 The active-volume path no longer retests the voice's on bit: off voices

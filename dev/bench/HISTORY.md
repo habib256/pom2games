@@ -4,6 +4,104 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Bilan du chantier jusqu'à 11 h — 6 novembre 2026
+
+Sept séries avec trois agents Sol 6.1, référence de départ **`bc489d8`**,
+source finale **`87bdf89`**. Ce bilan concerne uniquement le nouveau
+chantier après celui de 6 h 40 ; ses chiffres ne s'ajoutent pas aux dix-huit
+passes précédentes. Les deux versions ont **793 cas comparables et 16
+budgets absolus**, avec les mêmes outils, CPU, ROM, timings et workloads.
+
+| Série | Commit | Changements principaux |
+| --- | --- | --- |
+| 1 | `109ec93` | Scratch des spans DHGR, corrections Verlet, voix AYS muettes |
+| 2 | `bae4cb1` | Transferts DHGR séparés, conversion décimale, périodes AYS |
+| 3 | `995c934` | État DHGR par archive, rejet du sol, longueur LZ4FH |
+| 4 | `b3c1c86` | Glyphes HGR, copies LZ4FH par paires, options PT3/profondeur |
+| 5 | `f6eaf9c` | Adresses HUD8, alias d'opérande, timer/patch Mockingboard |
+| 6 | `b538c23` | Pointeurs HUD et second axe FAST, volume AYS actif |
+| 7 | `87bdf89` | Pointeur de champ HUD8 conservé dans le scratch existant |
+
+| Mesure du banc global | Inférieure | Identique | Supérieure |
+| --- | ---: | ---: | ---: |
+| Cycles | 217 | 570 | 6 |
+| CODE / octets chargés | 192 | 542 | 59 |
+| RAM | 277 | 516 | 0 |
+| ZP | 0 | 793 | 0 |
+| Pic pile C | 0 | 793 | 0 |
+| Pic pile matérielle | 0 | 793 | 0 |
+
+**400 dictionnaires complets restent identiques.** Les gains RAM sont de
+2..13 octets par client ; les 59 augmentations de code sont les quatre
+octets du noyau de texte HGR accéléré. **872 champs de référence distincts
+sont abaissés**, aucun relevé ; les tolérances et budgets absolus ne changent
+pas. Les profils natifs séparés apportent aussi des gains de ZP/code/audio
+qui ne figurent pas dans ce banc graphique ; leurs tailles ne s'additionnent
+pas entre clients.
+
+| Cas comparable | Cycles avant → après | Chargé avant → après | RAM avant → après |
+| --- | ---: | ---: | ---: |
+| Bloc DHGR 8×8 | 5 328 → 4 504 | 1 630 → 1 561 | 317 → 305 |
+| Lecture DHGR 8×8 | 5 664 → 4 872 | 1 630 → 1 561 | 381 → 369 |
+| Sprite DHGR partiel | 10 085 → 8 434 | 2 247 → 2 187 | 446 → 436 |
+| HUD8 cinq chiffres phase 0 | 6 495 → 6 033 | 3 275 → 3 251 | 342 → 340 |
+| HUD8 cache identique | 312 → 265 | 3 275 → 3 251 | 342 → 340 |
+| Texte HGR huit espaces | 4 140 → 3 100 | 1 788 → 1 792 | 1 247 → 1 247 |
+
+Les six surcoûts du banc viennent du placement après la première série et
+restent inchangés ensuite : `dhgr_fill_bits_last` **711 → 712** ; ellipse
+couleur petite **206 507 → 206 521** ; ellipses mono petite/pleine/large
+**204 073 → 204 223 / 659 295 → 660 219 / 684 056 → 685 100** ; outline
+mono **45 799 → 46 037**, plus grand coût relatif (**0,520 %**).
+Les cas synthétiques de liens mixtes HUD et les coûts de placement des
+vrais jeux sont conservés et détaillés dans chaque série, sans padding.
+
+LZ4FH passe de **190 à 203 octets**. Sur les vrais titres, douze appels
+appariés par source et par CPU, Dirtbike **2 206 448 → 2 005 340 cycles**
+(−9,11 %) et Wargalaga **1 922 564 → 1 694 756** (−11,85 %), avec sorties,
+RAM, code auto-modifié, registres, flags et pile identiques. PT3 table fixe
+économise **231 CODE**, soit 256 octets de marge dans la région musique
+alignée de Wargalaga ; son fichier AUX reste paddé à la même taille.
+Six jeux économisent un octet ZP par alias d'opérande ; quatre évitent
+ensuite la préparation du second axe FAST sans changer d'empreinte.
+
+Lecture indépendante des fichiers contenus dans les disques versionnés
+de départ et finaux (tailles des payloads, pas celles des images disques) :
+
+| Fichier distribué | Octets avant | Octets après |
+| --- | ---: | ---: |
+| CUTROPE | 9 321 | 9 312 |
+| DHGR | 8 379 | 8 372 |
+| HGR | 8 051 | 8 049 |
+| MBT.SYS | 19 678 | 19 646 |
+| RSS.SYS | 22 847 | 22 771 |
+| WG2.SYS | 21 630 | 21 607 |
+| LIGHT3DBALL | 10 753 | 10 757 |
+| MAZE3D | 12 995 | 13 008 |
+
+Dirtbike, Snake et le SYS Chroma conservent leur longueur ; plusieurs
+overlays gardent aussi leur longueur tout en changeant de contenu ou de
+marge interne. Les noms et ensembles de fichiers restent identiques.
+
+Une archive propre de `87bdf89`, sans aucun exécutable préconstruit,
+reconstruit les runners depuis le SDK versionné et reproduit exactement
+**les 793 dictionnaires, les 16 budgets et toutes les identités d'environnement**.
+La commande est `python3 dev/bench/run.py --dhgr --check --out rapport.json`.
+Les preuves natives et leurs contrôles négatifs sont intégrés aux cibles
+de test ; les comparaisons historiques et relectures indépendantes sont
+décrites dans les sept audits ci-dessous.
+
+Validation finale : **`make test-hgr` et `make test-dhgr` passent intégralement
+sur le code et les tests figés**, ainsi que les minimaux et les jeux concernés
+par les dernières séries. La suite outils et les contrôles du Makefile passent
+également. **`make check test-woz`** reconstruit tous les disques depuis zéro,
+les reproduit exactement et valide les **18 paires WOZ**. Aucun changement
+d'image n'est nécessaire après cette reconstruction. Les rapports courants,
+la copie propre et le comparatif initial/final utilisent les mêmes 793
+workloads et les mêmes 16 politiques de budget. `git diff --check` passe.
+Les dernières retouches de documentation distinguent les mesures actuelles
+des chiffres intermédiaires ; elles ne modifient ni les sources ni les seuils.
+
 ## Audit de la trente-septième session du 6 novembre 2026 — pointeur de champ HUD8
 
 Septième série, référence exacte `b538c23`. Gate **793 cas / 16 budgets** :
@@ -68,7 +166,8 @@ sans changement d'image ; les minimaux publics passent. La suite HGR
 intermédiaire, lancée avant la mise à jour du test, rencontre son ancien
 marqueur de mutation supprimé ; elle n'est pas comptée comme validation
 finale. Le contrôleur et ses cinq contrôles négatifs passent ensemble dans
-leur version figée, puis les suites HGR/DHGR complètes sont relancées.
+leur version figée, puis les suites HGR/DHGR complètes passent intégralement
+dans cet état. La reconstruction propre finale reproduit tous les disques.
 
 ## Audit de la trente-sixième session du 6 novembre 2026 — pointeurs conservés et volume actif
 
