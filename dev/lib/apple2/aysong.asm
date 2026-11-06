@@ -590,9 +590,7 @@ ays_tick:
         dey
         bne :-
         bcc @phi                 ; rounded: + the last bit out
-        inc ays_vpbl,x
-        bne @phi
-        adc #0                   ; (C = 1)
+        inc ays_vpbl,x            ; table assertion below excludes a wrap
 @phi:   sta ays_vpbh,x
 @cached:
         ldy ays_tp,x
@@ -714,6 +712,11 @@ ays_ptab:
 .else
 ays_periods:
 .repeat 12, N
+; The last shifted-out bit and the shifted low byte cannot all be ones.
+; Thus rounding above never carries into the high byte (octaves 1..7).
+.repeat 7, O
+        .assert ((.ident(.sprintf("AYS_P%d", N)) >> O) .bitand $1FF) <> $1FF, error, "AYS period rounding would carry into the high byte"
+.endrepeat
         .word .ident(.sprintf("AYS_P%d", N))
 .endrepeat
 .endif

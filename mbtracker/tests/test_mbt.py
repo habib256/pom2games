@@ -289,17 +289,39 @@ def check_rows(s, song, what, p=0):
 
 
 def tick_cost(s, n=150):
-    """mbt_tick (the interrupt's tick: mbt_asm.s + aysong.asm, 6 voices,
-    MB_FAST_WRITE) called n times from the main loop on a fresh snd_play of
-    the song encoded (the gate closed: the interrupt only counts): the
-    cycles of each call, any interrupt that hit it included."""
+    """Time the tick itself from a reproducible cold start, with IRQs masked.
+
+    snd_play and closing its IRQ gate must be atomic: otherwise an IRQ can
+    play the first frame before the first manual call and prime the shadows.
+    play_check tests real IRQ playback separately, with normal masks.
+    """
     s.idle()
-    s.step(f'call:{L["_snd_play"]:04X}:5')
-    s.step(f'poke:{L["snd_gate"]:04X}:00')
+    before = int(s.step('cpu').out.split(' P=')[1].split()[0], 16)
+    scratch = s.step('peek:0200:256').mem(0x0200, 256)
+    play, gate = L['_snd_play'], L['snd_gate']
+    # Borrow the unused Monitor input buffer only while the UI is stopped.
+    # Save P at $02F0, keep I set through initialization and all timed calls,
+    # then restore P through a second thunk before restoring the whole page.
+    start = bytes([0x08, 0x68, 0x8D, 0xF0, 0x02, 0x78, 0x20, play & 255, play >> 8,
+                   0x9C, gate & 255, gate >> 8, 0x60])
+    restore = bytes([0xAD, 0xF0, 0x02, 0x48, 0x28, 0x60])
+    for step in a2test.pokes(0x0200, start) + a2test.pokes(0x0220, restore):
+        s.step(step)
     cost = []
-    for _ in range(n):
-        out = s.step(f'call:{L["mbt_tick"]:04X}:5').out
-        cost.append(int(out.split('elapsed=')[1].split()[0]))
+    try:
+        s.step('call:0200:5')
+        assert s.b('ays_count') == 1 and s.peek('mb_shadow', 32) == bytes([255]) * 32, \
+            'cold frame must not have played during snd_play'
+        for _ in range(n):
+            out = s.step(f'call:{L["mbt_tick"]:04X}:5').out
+            cost.append(int(out.split('elapsed=')[1].split()[0]))
+    finally:
+        s.step('call:0220:5')
+        for step in a2test.pokes(0x0200, scratch):
+            s.step(step)
+    after = int(s.step('cpu').out.split(' P=')[1].split()[0], 16)
+    assert (before & 0xCF) == (after & 0xCF), (before, after)  # ignore synthesized B/U
+    assert s.step('peek:0200:256').mem(0x0200, 256) == scratch, 'Monitor input buffer restored'
     s.keys(' ')
     return cost
 

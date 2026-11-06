@@ -112,6 +112,8 @@ test-hgr:
 	$(PYTHON) dev/tests/test_dosbin.py
 	$(PYTHON) dev/tests/test_dos_append.py
 	$(PYTHON) dev/tests/test_math.py
+	$(PYTHON) dev/tests/test_math_decimal.py
+	$(PYTHON) dev/tests/test_math_decimal.py --iie
 	$(PYTHON) dev/tests/test_math_init.py
 	$(PYTHON) dev/tests/test_math_init.py --iie
 	$(PYTHON) dev/tests/test_rand16.py
@@ -283,6 +285,7 @@ test-dhgr:
 	$(MAKE) -C dev/examples/dhgr test
 	$(PYTHON) dev/tests/test_dhgr_extended.py
 	$(PYTHON) dev/tests/test_dhgr_blocks.py
+	$(PYTHON) dev/tests/test_dhgr_transfer_native.py --negative
 	$(PYTHON) dev/tests/test_dhgr_sprite_native.py
 	$(PYTHON) dev/tests/test_dhgr_cursor_rows.py
 	$(PYTHON) dev/tests/test_dhgr_pages.py

@@ -621,7 +621,7 @@ and the previous 432 remain identical.
 - `dhgr_read_block` / `dhgr_write_block`: coordinates in interleaved bytes
   0..79, auxiliary/main order; `stride >= width`. Off-screen parts
   are not transferred. The buffer belongs to the caller.
-  Reading/writing an 8×8-byte block takes 5,664/5,328 cycles including C
+  Reading/writing an 8×8-byte block takes 4,872/4,504 cycles including C
   arguments. Keeping the bank in A during pointer advances and removing
   a nested setup call saves 15 code bytes and two bytes at the measured
   hardware-stack peak, shared with the masked-sprite kernel. RAM and zero
@@ -630,6 +630,16 @@ and the previous 432 remain identical.
 - `dhgr_sprite`: x in **colour pixels**, banks precomputed for the seven
   bit shifts, mask 1 = keep the scenery. Each bank holds
   `stride * height` bytes. Saving then restoring a block gives save-under.
+  Transfer and masked kernels now use separate auxiliary/main loops and
+  separate archive members, with shared setup. Transfer-only clients save
+  **69 loaded bytes**, sprite-only clients **60**; a client using all three
+  kernels adds 57 bytes (the extended SDK fixture runs about 5.7% faster).
+  Partial/opaque sprites take **8,434/6,961 cycles**. RAM/ZP/stacks are unchanged.
+  `test_dhgr_transfer_native.py` checks all count/bank bytes, D/I states,
+  palette semantics, ordered reads/writes, aliases, both CPUs and real VIA
+  IRQs; `--negative` tests ten fault detectors, `--reference REV` pairs sources.
+  Eight raw one-byte masked cases with bank >=2 cost one extra cycle;
+  the public profiles all improve or keep their timing.
 - `dhgr_puts`: opaque white/black text, 8×8 glyphs in **colour pixels**,
   four DHGR bits per font dot, to avoid an artifact tint.
   `"APPLE II"` takes **31,648 cycles** at x=0, including C arguments

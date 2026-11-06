@@ -4,6 +4,76 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Audit de la trente-deuxième session du 6 novembre 2026 — transferts DHGR, décimal et périodes
+
+Deuxième série du chantier jusqu'à 11 h, référence exacte `109ec93`.
+Le gate passe **793 cas et 16 budgets** : **112 durées diminuent, 681 restent
+égales**, aucune n'augmente ; **46 clients sont plus petits**, aucun plus
+grand. RAM, ZP et les deux piles sont identiques dans les 793 cas.
+**666 dictionnaires complets sont identiques** et **202 limites sont
+abaissées**, sans aucun relèvement.
+
+Les transferts DHGR alternent directement leurs boucles auxiliaire/principale.
+Le sprite masqué utilise `raw_mask | $80` pour conserver les bits de fond
+et le bit de palette, avec un chemin séparé pour les octets opaques.
+La préparation commune, les transferts et le sprite sont trois membres
+d'archive : un client transfert seul perd **69 octets CODE/chargés**, un
+client sprite seul **60**. Lecture/écriture 8×8 : **5 664 → 4 872** et
+**5 328 → 4 504 cycles** ; sprite partiel **10 085 → 8 434**, opaque
+**7 974 → 6 961**. Le client SDK étendu existant, qui utilise les trois
+primitives, gagne environ **5,7 %** sur ses 17 appels (22 205 → 20 938/20 939)
+pour **57 octets supplémentaires** ; ses 48 checkpoints passent sur les
+deux backends. Ce coût combiné est distinct des clients isolés du gate.
+
+Le nouveau test natif compare **3 346 appels par source/noyau/CPU/mode IRQ** :
+401 656 lectures et autant d'écritures pour chaque transfert ; 1 195 471
+lectures et 398 486 écritures pour les sprites masqués. Les 12 combinaisons
+passent : NMOS/65C02, sans/avec vraies IRQ VIA, trois noyaux. Il conserve
+le comportement brut count=0 (256 octets), banque >=2, tous les masques,
+D/I, alias source/écran et croisements de page, avec traces ordonnées,
+gardes de toute la RAM, paramètres, code, trampoline et pile. Huit appels
+masqués bruts coûtent **un cycle de plus** (count=1, banques 17+32k) ; les
+3 338 autres accélèrent. Les timings avec IRQ ne servent pas à comparer le
+noyau seul. Dix mutations fautives sont rejetées. Les tests publics 640
+transferts et 1 024 sprites natifs passent aussi ; l'archive vérifie désormais
+71 clients minimaux et l'exclusion réciproque des membres inutilisés.
+
+Le convertisseur décimal garde le chiffre courant dans Y et l'indice de
+sortie dans `dec_d`. Le noyau reste **69 octets**, ou 79 avec alias absolus,
+sans autre changement d'empreinte. Sur 42 profils HGR/HUD, 39 accélèrent et
+trois restent égaux : 9999 gagne 81 cycles, 65535 en gagne 54, zéro/neuf/dix
+gagnent neuf cycles, les extrêmes signés 51. **393 216 appels par source/CPU** couvrent
+tous les mots, trois buffers dont un traversant une page, alias ZP/absolus,
+chaînes/NUL/longueurs, A/X/Y, I/D, pointeur, opérande consommé, gardes et
+pile (deux octets). NZCV et le résidu `dec_d` restent scratch ; C change.
+Le modèle des 256 placements est validé par 1 416 paires natives sur chaque
+CPU : seuls 20 cas ZP et 30 absolus sur 16 777 216 couples coûtent jusqu'à
+trois cycles (valeurs 10000..10009). Aucun padding n'est ajouté. Les vrais
+Lander et Snake passent ; les frames Lander gagnent 6..39 cycles.
+
+Les périodes AYS immuables n'ont aucun arrondi qui déborde de l'octet bas.
+La suppression du traitement impossible retire **quatre octets CODE** du
+mode cached, sans modifier le mode fast. 84 assertions à l'assemblage
+protègent cette propriété ; une période fautive de 511 est rejetée. Les
+96 notes, cache miss/hit, trois/six voix, deux modes et deux CPU suivent
+le modèle, y compris l'ordre des écritures. La matrice AYS, les 744 cas de
+voix muettes et les tests IRQ réels passent sur les deux sources.
+
+Le profiler `tick_cost` de MBTracker avait une course : une IRQ pouvait
+jouer la première frame entre `snd_play` et la fermeture du gate, ou entrer
+dans un appel chronométré. Il initialise désormais atomiquement et masque
+les IRQ pendant les seuls appels manuels ; le test de lecture réelle garde
+les IRQ normales. Une petite routine temporaire sauvegarde/restaure P et
+l'intégralité du buffer Monitor $0200, avec assertions. Le budget **5 600
+reste inchangé**. Sur deux états froids identiques : premier tick **5 177
+→ 5 170**, maximum suivant **2 724 → 2 716**, moyenne **1 722 → 1 717** ;
+les 150 appels accélèrent de 4..8 cycles. Ces valeurs remplacent les
+comparaisons non reproductibles d'un premier tick déjà amorcé.
+
+`make all test-woz` passe, ainsi que MBTracker complet, Snake, Lander,
+HGR et DHGR exemples, Robot Space Station, le contrôle d'archive et les
+contrôles Makefile/options. Quatre disques et leurs WOZ sont reconstruits.
+
 ## Audit de la trente-et-unième session du 6 novembre 2026 — motifs, signes et voix muettes
 
 Première série du nouveau chantier jusqu'à 11 h Réunion, référence `bc489d8`.

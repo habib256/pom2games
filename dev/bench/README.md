@@ -1,5 +1,14 @@
 # Current cc65 measurements
 
+The thirty-second-session gate passes **793 cases and 16 frame budgets**:
+**112 timings improve, 681 are equal, none regress**; 46 linked clients
+shrink, none grow. RAM, ZP and both stack peaks are unchanged everywhere.
+**202 limits are lowered**, none raised. DHGR transfer-only clients save
+69 loaded bytes and masked-sprite clients save 60; native decimal conversion
+accelerates at unchanged size. AYS cached periods save four bytes. The
+combined DHGR API fixture trades 57 bytes for about 5.7% faster calls.
+See [the thirty-second-session audit](HISTORY.md#audit-de-la-trente-deuxième-session-du-6-novembre-2026--transferts-dhgr-décimal-et-périodes).
+
 The thirty-first-session gate passes **793 cases and 16 frame budgets**.
 91 DHGR clients save **seven code/loaded bytes and two RAM bytes**;
 57 timings improve, 28 stay equal and six have small placement costs.

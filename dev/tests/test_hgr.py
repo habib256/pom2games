@@ -290,11 +290,15 @@ def check_archive(work):
           'dhgr_clear_asm.o', 'dhgr_span_asm.o', 'dhgr_rows.o', 'dhgr_cells.o')),
         ('dhgr_block', 'unsigned char b[1]; dhgr_read_block(0u,0u,1u,1u,b,1u);', 'dhgr_block.o',
          ('dhgr_pixel_asm.o', 'dhgr_fill.o', 'dhgr_sprite.o', 'dhgr_small_asm.o', 'dhgr_cells.o',
-          'dhgr_address_asm.o', 'dhgr_write_block.o')),
+          'dhgr_address_asm.o', 'dhgr_write_block.o', 'dhgr_sprite_asm.o')),
         ('dhgr_sprite', 'dhgr_sprite(1u,0u,1u,1u,2u,bits,bits);', 'dhgr_sprite.o',
-         ('dhgr_address_asm.o', 'dhgr_block.o', 'dhgr_read_block.o', 'dhgr_write_block.o', 'dhgr_pixel_asm.o')),
+         ('dhgr_address_asm.o', 'dhgr_block.o', 'dhgr_read_block.o', 'dhgr_write_block.o', 'dhgr_pixel_asm.o', 'dhgr_block_asm.o')),
         ('dhgr_write_block', 'dhgr_write_block(0u,0u,1u,1u,bits,1u);', 'dhgr_block.o',
-         ('dhgr_address_asm.o', 'dhgr_read_block.o', 'dhgr_pixel_asm.o', 'dhgr_sprite.o')),
+         ('dhgr_address_asm.o', 'dhgr_read_block.o', 'dhgr_pixel_asm.o', 'dhgr_sprite.o', 'dhgr_sprite_asm.o')),
+        ('dhgr_transfer_setup', 'unsigned char b[1]; dhgr_read_block(0u,0u,1u,1u,b,1u);',
+         'dhgr_block_setup.o', ('dhgr_sprite_asm.o',)),
+        ('dhgr_sprite_setup', 'dhgr_sprite(1u,0u,1u,1u,2u,bits,bits);',
+         'dhgr_block_setup.o', ('dhgr_block_asm.o',)),
     ]
     for name, call, required, excluded in cases:
         source = work / ('link_' + name + '.c')

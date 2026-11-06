@@ -17,7 +17,7 @@ from test_dhgr_spr import STORE
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--source', type=Path, default=DEV/'lib/hgrc/dhgr_block_asm.s',
+    parser.add_argument('--source', type=Path, default=DEV/'lib/hgrc/dhgr_sprite_asm.s',
                         help='optional old or candidate assembly member')
     args = parser.parse_args()
     with tempfile.TemporaryDirectory(prefix='dhgr-sprite-native-') as directory:
@@ -89,7 +89,7 @@ _tint:
         original = test_hgr.compile_source
 
         def compile_member(source, obj, flags):
-            source = args.source if Path(source).name == 'dhgr_block_asm.s' else source
+            source = args.source if Path(source).name == 'dhgr_sprite_asm.s' else source
             return original(source, obj, flags)
 
         test_hgr.compile_source = compile_member

@@ -8,8 +8,9 @@
 ;                11 bytes alone; 18..193 cycles excluding JSR/page crossings.
 ;   u16_to_dec   dec_lo/dec_hi = 0..65535 -> ASCII digits at (dec_ptr), no
 ;                leading zeros ("0" for 0), then a NUL. Y = digit count
-;                (1..5). Consumes dec_lo/dec_hi; clobbers A, X, dec_t, dec_d.
-;                ~250..900 cycles.
+;                (1..5). Consumes dec_lo/dec_hi; clobbers A, X, dec_t, dec_d
+;                and NZCV. I/D are unchanged; enter D = 0.
+;                The current digit stays in Y, dec_d holds the output index.
 ;
 ; Repeated subtraction of the powers of ten: no division runtime, no table
 ; beyond the four powers. Both NMOS-safe, D = 0.
@@ -71,9 +72,9 @@ dec_d:   .res 1
 .segment "CODE"
 u16_to_dec:
         LDX     #3              ; descending indexes: 10000, 1000, 100, 10
-        LDY     #0              ; output index, nonzero once a digit is out
-@pw:    LDA     #'0'
-        STA     dec_d
+        LDA     #0
+        STA     dec_d           ; output index, nonzero once a digit is out
+@pw:    LDY     #'0'            ; current digit, held during subtraction
         SEC
 @sub:   LDA     dec_lo          ; value -= power while it fits
         SBC     dec_pw_lo,X
@@ -84,15 +85,16 @@ u16_to_dec:
         STA     dec_hi
         LDA     dec_t
         STA     dec_lo
-        INC     dec_d
+        INY                     ; register-held current digit
         BCS     @sub            ; C still set
-@digit: LDA     dec_d
-        CPY     #0
+@digit: TYA
+        LDY     dec_d           ; output index; the digit remains in A
         BNE     @emit
         CMP     #'0'
         BEQ     @skip           ; leading zero
 @emit:  STA     (dec_ptr),Y
         INY
+        STY     dec_d
 @skip:  DEX
         BPL     @pw
         LDA     dec_lo          ; units, always written

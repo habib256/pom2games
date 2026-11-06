@@ -209,6 +209,16 @@ zero suppression and NUL termination stay unchanged. The GFX signed wrapper
 also propagates the sign-test carry through the complement, saving two more
 bytes. `test_gfx_decimal.py` checks every signed and unsigned word, lengths and
 buffer guards on both 6502 and 65C02 (`--iie`).
+The current digit now stays in Y during subtraction; `dec_d` retains the
+output index. The kernel stays **69 bytes** (79 with absolute scalar aliases),
+with unchanged RAM/ZP/stacks. Real HGR/HUD profiles gain 9..81 cycles;
+9999 gains 81 and 65535 gains 54. A=0, X=$FF, Y=count and I/D are preserved
+as before; NZCV and `dec_d` are scratch, with D=0 on entry.
+`test_math_decimal.py` checks 393,216 native calls per CPU, all words with
+ZP/absolute aliases and three buffers, including page crossings, guards,
+consumed operand and two-byte kernel stack peak. Use `--iie`, `--reference
+DIR` and `--out PATH`. A few arbitrary code alignments cost up to three
+cycles for 10000..10009; the bench audit records the exhaustive layout study.
 
 Signed factors 1/2/4/8/16 now construct the sign extension directly. With
 default zero-page aliases they save 5/8/8/8/5 code bytes; absolute aliases

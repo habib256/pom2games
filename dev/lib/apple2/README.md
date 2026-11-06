@@ -594,8 +594,8 @@ at `ays_zp` (define it first to place them). BSS: `ays_regs` and `ays_out`
 19 B a voice (16 with the fast periods).
 
 Measured (`dev/tests/test_aysong.py`, a2run, `mb_write` to a card with
-`MB_FAST_WRITE`): code + tables 1,091 B (3 voices; 1,169 B for 6; 65C02 −4
-B; fast periods +112 B). Cycles a tick, 3 voices (demo): mean ~1,320,
+`MB_FAST_WRITE`): code + tables 1,087 B (3 voices; 1,165 B for 6; 65C02 −4
+B; fast periods +116 B). Cycles a tick, 3 voices (demo): mean ~1,320,
 ~950 without writes, ~90 a register written; the worst row ticks (a new
 pattern, three notes, ten writes) ~3,600 (fast periods: ~3,370); 6 voices:
 mean ~1,190, worst ~5,300. The first tick after `ays_init` / `mb_hush`
@@ -608,6 +608,16 @@ paired MBTracker gameplay ticks fall from 1,884 to **1,752** (−7%), maximum
 2,829 → 2,724. `test_aysong_silent.py` checks 744 cases across both CPUs,
 period modes, three/six voices, retained offsets and IRQ masks, with exact
 register/shadow state, guards and fixed cycle ceilings.
+
+Cached period rounding cannot carry out of its low byte for the twelve
+base periods and seven shifted octaves. Assembly assertions enforce that
+bound; dropping the impossible carry tail saves **four code bytes** and
+three cycles per rounded cache miss. Fast-period code is unchanged.
+All 96 notes and cache hits/misses are tested against full 16-bit rounding
+on both CPUs. The deterministic cold MBTracker profiler measures 5,170
+cycles for its first tick, at most 2,716 afterwards, mean 1,717: 4..8 cycles
+saved per sampled call. It masks IRQs only during manual timing; separate
+playback tests validate normal IRQ operation and ordered register writes.
 
 MB TRACKER builds it with `AYSONG_VOICES = 6`, `AYSONG_CPU65C02 = 1` and
 `mb_irq.asm`'s `MB_IRQ_HUSH_BOTH = 1`: its interrupt tick measured in the

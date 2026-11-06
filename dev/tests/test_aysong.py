@@ -207,7 +207,7 @@ def model(data, nticks, script, max_voices):
     return frames, writes
 
 
-def check(work, name, data, nticks, script=(), voices=3, options='', song_voices=3):
+def check(work, name, data, nticks, script=(), voices=3, options='', song_voices=3, iie=False):
     frame = 14 * (min(voices, song_voices) // 3)
     assert nticks * frame <= 0x4000
     sc = []
@@ -215,12 +215,13 @@ def check(work, name, data, nticks, script=(), voices=3, options='', song_voices
         sc += [when & 255, when >> 8, action, a, x]
     sc += [255, 255, 0, 0, 0]
     opts = f'AYSONG_VOICES = {voices}\nFRAME = {frame}\nNTICKS = {nticks}\n' + options
-    opts = opts.replace('FAST', 'AYSONG_FAST_PERIODS = 1')
+    opts = opts.replace(FAST, 'AYSONG_FAST_PERIODS = 1\n')
     binary, L = build(work, name, SRC.format(options=opts, frames=FRAMES, writes=WRITES, wend=WRITES_END,
                                              script=', '.join(map(str, sc)),
                                              song=', '.join(map(str, data))))
-    r = a2test.run(None, a2test.bin_steps(binary, start=L['start']) + [L.until('done', 600),
-                   f'peek:{FRAMES:04X}:{nticks * frame}', f'peek:{WRITES:04X}:{WRITES_END - WRITES}'])
+    disk = a2test.build_disk(work, name.upper(), binary) if iie else None
+    r = a2test.run(disk, a2test.bin_steps(binary, start=L['start']) + [L.until('done', 600),
+                   f'peek:{FRAMES:04X}:{nticks * frame}', f'peek:{WRITES:04X}:{WRITES_END - WRITES}'], iie=iie)
     got = r.mem(FRAMES, nticks * frame)
     wlog = r.mem(WRITES, WRITES_END - WRITES)
     frames, writes = model(data, nticks, script, voices)
@@ -350,6 +351,40 @@ def cycles(work, data, voices, ticks, extra=''):
     return [int(e) for e in re.findall(r'elapsed=(\d+)', r.out)]
 
 
+
+def check_periods(work):
+    """All 96 notes, each twice: cache misses and hits, plus the full table.
+
+    The Python player independently rounds the complete 16-bit period.
+    A compile-time negative control also checks that the shortened cached
+    path rejects a future base period whose rounding needs a high carry.
+    """
+    cpus = [0, 1] if a2test.have_a2shot('test_aysong periods (65C02)') else [0]
+    for voices in (3, 6):
+        song = Song([Pattern([[Cell(3 * (row // 2) + voice % 3, 1) for row in range(64)]
+                              for voice in range(voices)])],
+                    [Instrument([Tick(15)])], [0], voices=voices, rows=64, speed=1)
+        data = aysong.encode(song)
+        for c02 in cpus:
+            for fast in (0, 1):
+                options = ('.setcpu "65C02"\nAYSONG_CPU65C02 = 1\n' if c02 else '')
+                options += f'AYSONG_FAST_PERIODS = {fast}\n'
+                check(work, f'periods{voices}{c02}{fast}', data, 128, voices=voices,
+                      song_voices=voices, options=options, iie=bool(c02))
+                print(f'PASS all 96 AYS note periods, cache miss/hit and loop, {voices} voices, '
+                      f'{"65C02" if c02 else "NMOS"}, fast={fast}: frames and ordered writes as the model')
+    bad = work / 'period-carry'
+    bad.mkdir()
+    library = (ROOT / 'dev/lib/apple2/aysong.asm').read_text()
+    assert library.count('AYS_P0 = 3901') == 1
+    (bad / 'aysong.asm').write_text(library.replace('AYS_P0 = 3901', 'AYS_P0 = 511'))
+    source = bad / 'negative.s'
+    source.write_text('.macro AYSONG_WRITE\n.endmacro\n.code\njsr ays_tick\n.include "aysong.asm"\n')
+    result = subprocess.run(['ca65', '-I', str(bad), '-o', str(bad / 'negative.o'), str(source)],
+                            capture_output=True, text=True)
+    assert result.returncode and 'AYS period rounding would carry' in result.stderr, result.stderr
+    print('PASS cached period invariant: a base period of 511 is rejected before assembly can discard its carry')
+
 def main():
     demo = aysong.encode(aysong.demo())
     assert len(demo) <= 2048
@@ -427,6 +462,7 @@ def main():
               '6 -> 3 (voices 4-6 dropped), 33 patterns refused at 6; aysong.py SONG.AYS --voices 6 / 3')
         names = option_values(work)
         print('PASS options are values: ' + ', '.join(names) + ' at their default = undefined, byte for byte')
+        check_periods(work)
         sizes = code_size(work)
         print('PASS code size (+ data tables): ' + ', '.join(f'{v} voices{" 65C02" if c else ""}{" fast" if f else ""} {s} B'
                                                            for (v, c, f), s in sizes.items()))
