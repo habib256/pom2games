@@ -4,6 +4,53 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Audit de la vingt-septième session du 6 novembre 2026 — banques texte et profondeur du corridor
+
+Après `9b9afc2`, l'initialisation T80 parcourt les deux banques dans une
+boucle au lieu d'appeler deux fois son helper : **−3 octets CODE/chargés,
+−9 cycles, −2 octets de pile matérielle**, sans pile C. Les huit accès
+aux interrupteurs vidéo gardent leur ordre ; chaque cellule visible est
+écrite une seule fois, les trous restent intacts. Les modes, pointeur et
+curseur gardent leur contrat et I/D sont préservés. Le test durable passe
+**192 appels par source** : versions avec/sans pointeur, les seize états
+C/I/V/D, démarrage et deux états chauds de curseur/pointeur/banques, puis
+deux appels sans rechargement. Il protège RAM, tables et les deux piles,
+à l'adresse d'entrée réelle $6529 de MBTRACKER.
+
+Pour le corridor avec décalage un, la borne garantit X=0 ou 1 : CPX #1
+fournit directement le bit nécessaire à ROR, sans STX/LSR du temporaire.
+**−2 octets CODE et six cycles proches** avec temporaire ZP, −4 octets/huit
+cycles avec alias absolu. Les autres décalages gardent leurs instructions.
+Le binaire Light3DBall passe de **10 755 à 10 753 octets**, CODE
+9 750 → 9 748, RAM 2 437 et ZP 107 inchangés ; ressources identiques.
+Select **65..77 → 65..71 cycles**, projections X/Y identiques. Les
+**26 rendus isolés par CPU** gagnent chacun **36..75 cycles**, pages HGR
+et état public identiques ; les attentes vidéo sont remplacées par RTS
+également dans les deux captures pour ces seules mesures de travail.
+
+La suite historique passe les décalages 0..8, caméras personnalisées,
+centres extrêmes et configurations refusées sous ASan/UBSan. Huit profils
+SDK couvrent NMOS/65C02 et alias par défaut/ZP/absolus/mixtes : chacun
+**131 072 profondeurs**, toutes les combinaisons admissibles portée/coordonnée
+et **65 536 comparaisons D=1** (le contrat arithmétique reste D=0). État
+public, A/X/Y/P/SP, banques et gardes RAM/code/tables sont contrôlés ;
+aucune sélection ne ralentit. Le banc accepte désormais des captures
+`--before`/`--current` et expose les écarts mesurés après avoir vérifié
+les domaines publics des deux binaires ; il n'exige plus l'égalité des coûts.
+
+
+Les 22 profils texte conservent exactement leur durée ; les 1 593 cas de
+défilement passent, dont 21 gagnent un cycle par placement. Le gate global
+passe **793 cas et 16 budgets** : 22 clients texte économisent trois octets
+CODE/chargés, **toutes les durées sont identiques**, et les 771 autres
+dictionnaires ne changent pas. **44 limites abaissées**, aucune relevée.
+`make all test-woz`, Light3DBall, MBTRACKER, les options et le graphe
+Makefile passent ; les deux disques et leurs WOZ sont reconstruits.
+La suite complète `make test-hgr` passe également sur les noyaux intégrés
+jusqu'à la passe précédente, avec toutes les scènes, modèles et gardes.
+La suite complète `make test-tools`, incluant les nouveaux contrôles
+corridor/T80, passe sur cette version.
+
 ## Audit de la vingt-sixième session du 6 novembre 2026 — durées de vie et comparaisons
 
 Après `c17beec`, la restauration HGR garde le nombre de lignes du précontrôle

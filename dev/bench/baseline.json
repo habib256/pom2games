@@ -10629,12 +10629,12 @@
       "hardware_stack_available_bytes": 255
     },
     "t80_fill_row": {
-      "code_bytes": 825,
+      "code_bytes": 822,
       "init_code_bytes": 12,
       "rodata_bytes": 64,
       "ram_bytes": 301,
       "zp_bytes": 26,
-      "binary_bytes": 927,
+      "binary_bytes": 924,
       "cycles": 5562,
       "row_kernel_bytes": 0,
       "c_stack_peak_bytes": 1,
@@ -10643,12 +10643,12 @@
       "hardware_stack_available_bytes": 255
     },
     "t80_fill_inverse": {
-      "code_bytes": 825,
+      "code_bytes": 822,
       "init_code_bytes": 12,
       "rodata_bytes": 64,
       "ram_bytes": 301,
       "zp_bytes": 26,
-      "binary_bytes": 927,
+      "binary_bytes": 924,
       "cycles": 3402,
       "row_kernel_bytes": 0,
       "c_stack_peak_bytes": 1,
@@ -10657,12 +10657,12 @@
       "hardware_stack_available_bytes": 255
     },
     "t80_fill_raw": {
-      "code_bytes": 825,
+      "code_bytes": 822,
       "init_code_bytes": 12,
       "rodata_bytes": 64,
       "ram_bytes": 301,
       "zp_bytes": 26,
-      "binary_bytes": 927,
+      "binary_bytes": 924,
       "cycles": 5722,
       "row_kernel_bytes": 0,
       "c_stack_peak_bytes": 1,
@@ -10671,12 +10671,12 @@
       "hardware_stack_available_bytes": 255
     },
     "t80_fill_edge": {
-      "code_bytes": 825,
+      "code_bytes": 822,
       "init_code_bytes": 12,
       "rodata_bytes": 64,
       "ram_bytes": 301,
       "zp_bytes": 26,
-      "binary_bytes": 927,
+      "binary_bytes": 924,
       "cycles": 11107,
       "row_kernel_bytes": 0,
       "c_stack_peak_bytes": 1,
@@ -10685,12 +10685,12 @@
       "hardware_stack_available_bytes": 255
     },
     "t80_fill_empty": {
-      "code_bytes": 825,
+      "code_bytes": 822,
       "init_code_bytes": 12,
       "rodata_bytes": 64,
       "ram_bytes": 301,
       "zp_bytes": 26,
-      "binary_bytes": 927,
+      "binary_bytes": 924,
       "cycles": 124,
       "row_kernel_bytes": 0,
       "c_stack_peak_bytes": 1,
@@ -10699,12 +10699,12 @@
       "hardware_stack_available_bytes": 255
     },
     "t80_putc_normal": {
-      "code_bytes": 798,
+      "code_bytes": 795,
       "init_code_bytes": 12,
       "rodata_bytes": 64,
       "ram_bytes": 301,
       "zp_bytes": 26,
-      "binary_bytes": 900,
+      "binary_bytes": 897,
       "cycles": 101,
       "row_kernel_bytes": 0,
       "c_stack_peak_bytes": 0,
@@ -10713,12 +10713,12 @@
       "hardware_stack_available_bytes": 255
     },
     "t80_putc_inverse": {
-      "code_bytes": 798,
+      "code_bytes": 795,
       "init_code_bytes": 12,
       "rodata_bytes": 64,
       "ram_bytes": 301,
       "zp_bytes": 26,
-      "binary_bytes": 900,
+      "binary_bytes": 897,
       "cycles": 105,
       "row_kernel_bytes": 0,
       "c_stack_peak_bytes": 0,
@@ -10727,12 +10727,12 @@
       "hardware_stack_available_bytes": 255
     },
     "t80_putc_raw": {
-      "code_bytes": 798,
+      "code_bytes": 795,
       "init_code_bytes": 12,
       "rodata_bytes": 64,
       "ram_bytes": 301,
       "zp_bytes": 26,
-      "binary_bytes": 900,
+      "binary_bytes": 897,
       "cycles": 103,
       "row_kernel_bytes": 0,
       "c_stack_peak_bytes": 0,
@@ -10741,12 +10741,12 @@
       "hardware_stack_available_bytes": 255
     },
     "t80_putc_lower": {
-      "code_bytes": 798,
+      "code_bytes": 795,
       "init_code_bytes": 12,
       "rodata_bytes": 64,
       "ram_bytes": 301,
       "zp_bytes": 26,
-      "binary_bytes": 900,
+      "binary_bytes": 897,
       "cycles": 111,
       "row_kernel_bytes": 0,
       "c_stack_peak_bytes": 0,
@@ -10755,12 +10755,12 @@
       "hardware_stack_available_bytes": 255
     },
     "t80_putc_edge": {
-      "code_bytes": 798,
+      "code_bytes": 795,
       "init_code_bytes": 12,
       "rodata_bytes": 64,
       "ram_bytes": 301,
       "zp_bytes": 26,
-      "binary_bytes": 900,
+      "binary_bytes": 897,
       "cycles": 91,
       "row_kernel_bytes": 0,
       "c_stack_peak_bytes": 0,
@@ -10769,12 +10769,12 @@
       "hardware_stack_available_bytes": 255
     },
     "t80_putc_outside": {
-      "code_bytes": 798,
+      "code_bytes": 795,
       "init_code_bytes": 12,
       "rodata_bytes": 64,
       "ram_bytes": 301,
       "zp_bytes": 26,
-      "binary_bytes": 900,
+      "binary_bytes": 897,
       "cycles": 71,
       "row_kernel_bytes": 0,
       "c_stack_peak_bytes": 0,
@@ -10783,12 +10783,12 @@
       "hardware_stack_available_bytes": 255
     },
     "t80_fill_row_ptr": {
-      "code_bytes": 993,
+      "code_bytes": 990,
       "init_code_bytes": 12,
       "rodata_bytes": 64,
       "ram_bytes": 305,
       "zp_bytes": 26,
-      "binary_bytes": 1095,
+      "binary_bytes": 1092,
       "cycles": 6647,
       "row_kernel_bytes": 0,
       "c_stack_peak_bytes": 1,
@@ -10797,12 +10797,12 @@
       "hardware_stack_available_bytes": 255
     },
     "t80_fill_inverse_ptr": {
-      "code_bytes": 993,
+      "code_bytes": 990,
       "init_code_bytes": 12,
       "rodata_bytes": 64,
       "ram_bytes": 305,
       "zp_bytes": 26,
-      "binary_bytes": 1095,
+      "binary_bytes": 1092,
       "cycles": 3922,
       "row_kernel_bytes": 0,
       "c_stack_peak_bytes": 1,
@@ -10811,12 +10811,12 @@
       "hardware_stack_available_bytes": 255
     },
     "t80_fill_raw_ptr": {
-      "code_bytes": 993,
+      "code_bytes": 990,
       "init_code_bytes": 12,
       "rodata_bytes": 64,
       "ram_bytes": 305,
       "zp_bytes": 26,
-      "binary_bytes": 1095,
+      "binary_bytes": 1092,
       "cycles": 6815,
       "row_kernel_bytes": 0,
       "c_stack_peak_bytes": 1,
@@ -10825,12 +10825,12 @@
       "hardware_stack_available_bytes": 255
     },
     "t80_fill_edge_ptr": {
-      "code_bytes": 993,
+      "code_bytes": 990,
       "init_code_bytes": 12,
       "rodata_bytes": 64,
       "ram_bytes": 305,
       "zp_bytes": 26,
-      "binary_bytes": 1095,
+      "binary_bytes": 1092,
       "cycles": 11165,
       "row_kernel_bytes": 0,
       "c_stack_peak_bytes": 1,
@@ -10839,12 +10839,12 @@
       "hardware_stack_available_bytes": 255
     },
     "t80_fill_empty_ptr": {
-      "code_bytes": 993,
+      "code_bytes": 990,
       "init_code_bytes": 12,
       "rodata_bytes": 64,
       "ram_bytes": 305,
       "zp_bytes": 26,
-      "binary_bytes": 1095,
+      "binary_bytes": 1092,
       "cycles": 124,
       "row_kernel_bytes": 0,
       "c_stack_peak_bytes": 1,
@@ -10853,12 +10853,12 @@
       "hardware_stack_available_bytes": 255
     },
     "t80_putc_normal_ptr": {
-      "code_bytes": 966,
+      "code_bytes": 963,
       "init_code_bytes": 12,
       "rodata_bytes": 64,
       "ram_bytes": 305,
       "zp_bytes": 26,
-      "binary_bytes": 1068,
+      "binary_bytes": 1065,
       "cycles": 114,
       "row_kernel_bytes": 0,
       "c_stack_peak_bytes": 0,
@@ -10867,12 +10867,12 @@
       "hardware_stack_available_bytes": 255
     },
     "t80_putc_inverse_ptr": {
-      "code_bytes": 966,
+      "code_bytes": 963,
       "init_code_bytes": 12,
       "rodata_bytes": 64,
       "ram_bytes": 305,
       "zp_bytes": 26,
-      "binary_bytes": 1068,
+      "binary_bytes": 1065,
       "cycles": 118,
       "row_kernel_bytes": 0,
       "c_stack_peak_bytes": 0,
@@ -10881,12 +10881,12 @@
       "hardware_stack_available_bytes": 255
     },
     "t80_putc_raw_ptr": {
-      "code_bytes": 966,
+      "code_bytes": 963,
       "init_code_bytes": 12,
       "rodata_bytes": 64,
       "ram_bytes": 305,
       "zp_bytes": 26,
-      "binary_bytes": 1068,
+      "binary_bytes": 1065,
       "cycles": 116,
       "row_kernel_bytes": 0,
       "c_stack_peak_bytes": 0,
@@ -10895,12 +10895,12 @@
       "hardware_stack_available_bytes": 255
     },
     "t80_putc_lower_ptr": {
-      "code_bytes": 966,
+      "code_bytes": 963,
       "init_code_bytes": 12,
       "rodata_bytes": 64,
       "ram_bytes": 305,
       "zp_bytes": 26,
-      "binary_bytes": 1068,
+      "binary_bytes": 1065,
       "cycles": 124,
       "row_kernel_bytes": 0,
       "c_stack_peak_bytes": 0,
@@ -10909,12 +10909,12 @@
       "hardware_stack_available_bytes": 255
     },
     "t80_putc_edge_ptr": {
-      "code_bytes": 966,
+      "code_bytes": 963,
       "init_code_bytes": 12,
       "rodata_bytes": 64,
       "ram_bytes": 305,
       "zp_bytes": 26,
-      "binary_bytes": 1068,
+      "binary_bytes": 1065,
       "cycles": 149,
       "row_kernel_bytes": 0,
       "c_stack_peak_bytes": 0,
@@ -10923,12 +10923,12 @@
       "hardware_stack_available_bytes": 255
     },
     "t80_putc_outside_ptr": {
-      "code_bytes": 966,
+      "code_bytes": 963,
       "init_code_bytes": 12,
       "rodata_bytes": 64,
       "ram_bytes": 305,
       "zp_bytes": 26,
-      "binary_bytes": 1068,
+      "binary_bytes": 1065,
       "cycles": 71,
       "row_kernel_bytes": 0,
       "c_stack_peak_bytes": 0,

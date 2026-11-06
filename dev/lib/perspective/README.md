@@ -176,9 +176,23 @@ python3 dev/bench/corridor_projection.py
 make -C light3dball test
 ```
 
-The extraction keeps Light3DBall's binary and resources byte-for-byte
-identical. The costs measured at this placement are 65..77 cycles for
-select, 135..170 for X, 129..164 for Y, JSR/RTS included: a change of
-**0 %** compared with the local code. Page crossings in the tables
-and branches make the costs vary; these ranges are not a
-universal budget for other placements of the kernel.
+The initial extraction kept Light3DBall's binary and resources byte-for-byte
+identical. For the common depth shift of one, the validated high byte is
+0 or 1: `CPX #1` supplies its bit as carry directly, replacing a scratch
+store/shift. This saves **two code/loaded bytes and six cycles** for near
+depths with ZP scratch (four bytes/eight cycles with an absolute alias).
+Other depth shifts retain their instruction sequences. Scratch allocation,
+public state, Y, IRQ mask, decimal state and assets are unchanged.
+
+Actual Light3DBall select costs **65..71 instead of 65..77 cycles**;
+X and Y keep 135..170 and 129..164, JSR/RTS included. The linked game is
+10,753 instead of 10,755 bytes. All 26 isolated render cases per CPU save
+36..75 cycles with identical HGR pages and public game state. These runs
+bypass frame waits equally; table/branch placement still affects costs.
+`test_corridor.py --guarded` adds both CPUs and default, ZP, absolute and
+mixed aliases, complete RAM/code/table/bank guards and exact public state.
+Each of its eight profiles checks 131,072 depth calls, all admissible
+span/coordinate combinations and 65,536 D=1 equivalence calls (the public
+arithmetic contract remains D=0). `--reference REV_OR_PATH --out PATH`
+records comparisons. `corridor_projection.py --before DIR --current DIR
+--out PATH` checks two captured game builds and reports timing deltas.

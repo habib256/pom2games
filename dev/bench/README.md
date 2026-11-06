@@ -1,5 +1,13 @@
 # Current cc65 measurements
 
+The twenty-seventh-session gate passes **793 cases and 16 frame budgets**.
+All timings remain identical; 22 text clients save **three code/loaded
+bytes** and all 771 other dictionaries are unchanged. **44 limits are
+lowered**, none raised. Dedicated T80 initialization checks save nine
+cycles and two hardware-stack bytes; Light3DBall's common depth selection
+saves six near-depth cycles and two loaded bytes. See
+[the twenty-seventh-session audit](HISTORY.md#audit-de-la-vingt-septième-session-du-6-novembre-2026--banques-texte-et-profondeur-du-corridor).
+
 The twenty-sixth-session gate passes **793 cases and 16 frame budgets**.
 Nine tile clients save another **11 code/loaded bytes and two RAM bytes**;
 seven accelerate, two keep their timing, and all 784 other dictionaries

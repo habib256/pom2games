@@ -84,11 +84,11 @@ PC_PROJECT _a2_corridor_y, PC_SY, PC_TOP
 
 _a2_corridor_select:
 .if PC_DEPTH_SHIFT = 1
-    ; Preserve the original instruction sequence for the common case.
+    ; X is 0 or 1 here: comparison supplies its low bit as carry,
+    ; exactly as STX/LSR PC_BITS did, without touching the borrowed scratch.
     cpx #2
     bcs @far
-    stx PC_BITS
-    lsr PC_BITS
+    cpx #1
     ror a
     tax
     jmp @lookup

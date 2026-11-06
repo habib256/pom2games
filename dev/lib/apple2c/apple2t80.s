@@ -42,17 +42,13 @@ _t80_init:
         sta $C00F                ; ALTCHARSET
         bit $C051                ; TEXT
         bit $C052                ; full screen
-        bit $C054                ; PAGE1
         stz _t80_mode
 .if T80_PTR
         stz _t80_ptr_on
 .endif
-        jsr @clr                 ; main (odd columns), then aux
-        bit $C055
-        jsr @clr
-        bit $C054
-        rts
-@clr:   ldx #$77
+        ldy #0                   ; main (odd columns), then aux
+@bank:  lda $C054,y              ; PAGE1/PAGE2 before clearing that bank
+        ldx #$77
         lda #$A0
 :       sta $0400,x
         sta $0480,x
@@ -64,6 +60,10 @@ _t80_init:
         sta $0780,x
         dex
         bpl :-
+        iny
+        cpy #2
+        bcc @bank
+        bit $C054
         rts
 
 ; ptr1 = the row t80_y.

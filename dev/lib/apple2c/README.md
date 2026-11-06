@@ -287,3 +287,13 @@ The 22 text output/fill timings are unchanged. `test_t80_scroll.py` checks
 up/down/nonzero directions, 0/1-row no-ops, both banks and holes, pointer state,
 PAGE1 exit and both IRQ-mask states. `--reference PATH --bench --out PATH`
 records source/compiler/emulator identities and the full scroll/text matrix.
+
+Initialization walks the two text banks in a single loop, preserving the
+eight video-switch accesses and writing every visible cell exactly once.
+This saves **three code/loaded bytes, nine cycles and two hardware-stack
+bytes** in both plain and pointer builds. It uses no software stack and
+preserves I/D, screen holes, cursor coordinates and pointer coordinates;
+mode and pointer-on state are cleared as before. `test_t80_init.py` checks
+192 cold/warm/repeated calls across all C/I/V/D combinations, both banks,
+all RAM/table guards and guarded stacks, at the actual MBTRACKER entry
+placement. `--reference PATH --bench --out PATH` records source/tool identities.

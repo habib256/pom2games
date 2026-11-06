@@ -420,7 +420,7 @@ test-tools:
 	$(PYTHON) dev/tests/test_prodos_reader.py
 	$(PYTHON) dev/tests/test_a2shot_hdd.py
 	$(PYTHON) dev/tests/test_test_changed.py
-	$(PYTHON) dev/tests/test_corridor.py
+	$(PYTHON) dev/tests/test_corridor.py --guarded
 	$(PYTHON) dev/tests/test_audio.py
 	$(PYTHON) dev/tests/test_perspective.py
 	$(PYTHON) dev/tests/test_perspective_bounds.py
@@ -438,6 +438,7 @@ test-tools:
 	$(PYTHON) dev/tests/test_prodos_name.py --iie
 	$(PYTHON) dev/tests/test_kbd.py
 	$(PYTHON) dev/tests/test_t80_bounds.py
+	$(PYTHON) dev/tests/test_t80_init.py
 	$(PYTHON) dev/tests/test_t80_scroll.py
 	$(PYTHON) dev/tests/test_t80_flip.py
 	$(PYTHON) dev/tests/test_prodos_sysreloc.py
