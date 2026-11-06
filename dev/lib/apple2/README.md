@@ -601,6 +601,14 @@ pattern, three notes, ten writes) ~3,600 (fast periods: ~3,370); 6 voices:
 mean ~1,190, worst ~5,300. The first tick after `ays_init` / `mb_hush`
 writes all 13 registers (~1,200 cycles of writes).
 
+An off voice now jumps directly to the zero-volume path, bypassing the
+retained volume offset. This changes one JMP operand and no allocation or
+address. The six-voice profile above falls from 1,190 to **985 mean cycles**;
+paired MBTracker gameplay ticks fall from 1,884 to **1,752** (−7%), maximum
+2,829 → 2,724. `test_aysong_silent.py` checks 744 cases across both CPUs,
+period modes, three/six voices, retained offsets and IRQ masks, with exact
+register/shadow state, guards and fixed cycle ceilings.
+
 MB TRACKER builds it with `AYSONG_VOICES = 6`, `AYSONG_CPU65C02 = 1` and
 `mb_irq.asm`'s `MB_IRQ_HUSH_BOTH = 1`: its interrupt tick measured in the
 tracker (`mbtracker/tests/test_mbt.py`, a 6-voice song) costs 5,309 cycles

@@ -271,16 +271,16 @@ vl_sub_xv:
         LDA     vl_val+1
         BPL     @p
         DEY
-@p:     STY     vl_w2
-        SEC
+@p:     SEC
         LDA     vl_xf,X
         SBC     vl_val
         STA     vl_xf,X
         LDA     vl_xl,X
         SBC     vl_val+1
         STA     vl_xl,X
-        LDA     vl_xh,X
-        SBC     vl_w2
+        TYA                             ; subtract sign via its complement
+        EOR     #$FF
+        ADC     vl_xh,X
         STA     vl_xh,X
         RTS
 .endif
@@ -316,7 +316,7 @@ vl_sub_yv:
         LDA     vl_val+1
         BPL     @p
         DEY
-@p:     STY     vl_w2
+@p:
 .endif
         SEC
         LDA     vl_yf,X
@@ -326,8 +326,9 @@ vl_sub_yv:
         SBC     vl_val+1
         STA     vl_yh,X
 .ifdef VL_Y_HIGH
-        LDA     vl_yu,X
-        SBC     vl_w2
+        TYA                             ; Y still holds the sign extension
+        EOR     #$FF
+        ADC     vl_yu,X
         STA     vl_yu,X
 .endif
         RTS

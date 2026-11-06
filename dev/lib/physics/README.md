@@ -178,6 +178,17 @@ legacy count zero and large counts, plus public constraints. Use `--iie`,
 `--bench --out PATH` and `--reference DIR` for the paired measurements.
 Full fixed-gain/model hashes remain identical for every K and switch set.
 
+Corrections retain the sign in Y instead of staging it in `vl_w2`; the
+24-bit subtraction adds its complement. The bounded squared sum also uses
+an immediate zero for its top byte before subtracting the rest length.
+Focused generic/FAST profiles save another **9/11 loaded bytes and 8..15
+cycles**, without state, ZP or stack growth. `test_verlet_corrections.py`
+checks 1,966,080 direct corrections and 1,310,440 sum/gain/MINLEN cases per
+CPU/source, including absolute aliases, flag results and dirty scratch.
+Use `--iie`, `--reference DIR` and `--out PATH` for paired checks. Real-game
+placement costs (Lander zone-change maximum +420 cycles, Catapult flying
+maximum +4) remain within budgets and are recorded in the bench audit.
+
 **Pins** (`VL_PIN`): `vl_pin,X` non-zero (the program sets the table; BSS
 is not cleared) pins point X: `vl_integrate` and `vl_push_all` leave it
 alone, a link with one pinned end moves the other end by the whole

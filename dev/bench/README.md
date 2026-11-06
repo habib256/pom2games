@@ -1,6 +1,14 @@
 # Current cc65 measurements
 
-Final November 6 audit: **18 optimization passes**, **793 passing cases
+The thirty-first-session gate passes **793 cases and 16 frame budgets**.
+91 DHGR clients save **seven code/loaded bytes and two RAM bytes**;
+57 timings improve, 28 stay equal and six have small placement costs.
+The other 702 metric dictionaries are identical. **327 limits are lowered**,
+none raised. Separate native and real-game checks validate smaller Verlet
+corrections and a silent-voice audio shortcut (MBTracker tick mean −7%).
+See [the thirty-first-session audit](HISTORY.md#audit-de-la-trente-et-unième-session-du-6-novembre-2026--motifs-signes-et-voix-muettes).
+
+First November 6 audit (through 6:40 Réunion): **18 optimization passes**, **793 passing cases
 and 16 frame budgets**, complete HGR/DHGR/tools suites, and a clean build
 reproducing every tracked disk and all 18 WOZ pairs. Across the 707
 original comparable cases, 210 timings improve, 477 are equal and 20

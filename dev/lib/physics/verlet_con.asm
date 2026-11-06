@@ -90,8 +90,7 @@ _VERLET_CON_ASM_LOADED_ = 1
         LDA     mul_p2
         BPL     :+
         DEY
-:       STY     vl_w2
-        LDX     vl_ca
+:       LDX     vl_ca
         CLC
         LDA     vl_xf,X
         ADC     mul_p1
@@ -99,8 +98,8 @@ _VERLET_CON_ASM_LOADED_ = 1
         LDA     vl_xl,X
         ADC     mul_p2
         STA     vl_xl,X
-        LDA     vl_xh,X
-        ADC     vl_w2
+        TYA                             ; keep the sign in Y, without staging
+        ADC     vl_xh,X
         STA     vl_xh,X
         LDX     vl_cb
         SEC
@@ -110,8 +109,9 @@ _VERLET_CON_ASM_LOADED_ = 1
         LDA     vl_xl,X
         SBC     mul_p2
         STA     vl_xl,X
-        LDA     vl_xh,X
-        SBC     vl_w2
+        TYA                             ; SBC sign = ADC complemented sign
+        EOR     #$FF
+        ADC     vl_xh,X
         STA     vl_xh,X
 .endmacro
 ; the same on y (16 bits; VL_Y_HIGH: 24)
@@ -121,7 +121,7 @@ _VERLET_CON_ASM_LOADED_ = 1
         LDA     mul_p2
         BPL     :+
         DEY
-:       STY     vl_w2
+:
 .endif
         LDX     vl_ca
         CLC
@@ -132,8 +132,8 @@ _VERLET_CON_ASM_LOADED_ = 1
         ADC     mul_p2
         STA     vl_yh,X
 .ifdef VL_Y_HIGH
-        LDA     vl_yu,X
-        ADC     vl_w2
+        TYA
+        ADC     vl_yu,X
         STA     vl_yu,X
 .endif
         LDX     vl_cb
@@ -145,8 +145,9 @@ _VERLET_CON_ASM_LOADED_ = 1
         SBC     mul_p2
         STA     vl_yh,X
 .ifdef VL_Y_HIGH
-        LDA     vl_yu,X
-        SBC     vl_w2
+        TYA
+        EOR     #$FF
+        ADC     vl_yu,X
         STA     vl_yu,X
 .endif
 .endmacro
@@ -212,8 +213,6 @@ vl_constrain:
         LDA     vl_sq_hi,X
         ADC     vl_sq_hi,Y
         STA     vl_w1
-        LDA     #0                      ; (<= 2 * 180^2 < 2^16: no carry)
-        STA     vl_w2
 .ifdef VL_CON_VARIANTS
         LDX     vl_cidx                 ; w -= L^2 (24 bits) below
 .else
@@ -244,14 +243,10 @@ vl_constrain:
         TYA
         ADC     vl_pen+1
         STA     vl_w1
-        LDA     #0                      ; 2 * 180^2 = 64800: no carry
-        STA     vl_w2
 .endif                                  ; (VL_CON_FAST)
 .ifdef VL_CON_MINLEN_POINT
         LDA     vl_cb                   ; a link to that point: short?
         CMP     #VL_CON_MINLEN_POINT
-        BNE     @nsq
-        LDA     vl_w2
         BNE     @nsq
         LDA     vl_w0
         CMP     #<VL_CON_MINLEN
@@ -268,7 +263,7 @@ vl_constrain:
         LDA     vl_w1
         SBC     vl_con_l2h,X
         STA     vl_w1
-        LDA     vl_w2
+        LDA     #0                      ; qx^2 + qy^2 <= 64800: no top byte
         SBC     #0
         STA     vl_w2
 .ifdef VL_CON_MIN_ONLY

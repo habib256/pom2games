@@ -1240,6 +1240,14 @@ the auxiliary-read trampoline preserves. This saves 15 loaded bytes and
 six RAM bytes in isolated span clients, without increasing zero page or
 stack use. The span kernel destroys all four cc65 scratch pointers.
 Tall-rectangle tests also check clipping, holes, display state and IRQ masks.
+The first pattern pair now reuses dead `tmp3/tmp4`; both bank preparations
+finish before either pattern is consumed. This saves another **seven loaded
+bytes and two RAM bytes**, with unchanged ZP/stack peaks: full-width span
+2,196 → 2,152 cycles, full fill 241,495 → 233,797. The last-bit microcase
+costs one cycle; linked GFX placement costs are listed in the bench audit.
+`test_dhgr_span_native.py` checks exact ordered stores, both CPUs, real VIA
+IRQs, banks, patterns, stack and code guards; `--negative` validates its
+four fault detectors. `--reference REV` supports paired source comparison.
 
 The host reference `hgr_inflate_x2` (`hgr_x2.c`) and the target version
 (`hgr_x2_target.s` + `hgr_inflate_x2_asm.s`) compute the enlarged strides

@@ -25,7 +25,10 @@ edge_bits: .res 2
 ; when empty, byte pairs from there, the odd last column or $FF, and the
 ; pattern bytes of the first column and of the next one.
 tail: .res 2
-pa: .res 2
+; Both prepare calls finish before rows consume these pattern bytes.
+; tmp3/tmp4 are otherwise dead after the last add_edge.
+pa = tmp3
+.assert tmp4 = tmp3 + 1, lderror, "cc65 tmp3/tmp4 must be consecutive"
 pb: .res 2
 .rodata
 ; Bit 0..9 (cell phase + x&3; 7..9 lie in the next byte) -> the bits from
@@ -219,10 +222,9 @@ _dhgr_span_asm:
 ; patterns of that bank (even column: bank, odd: bank+2); Y < A is empty.
 prepare:
         sta start,x
-        sta tmp3
         tya
         sec
-        sbc tmp3                ; columns - 1
+        sbc start,x             ; columns - 1
         bcc @empty
         lsr                     ; C = 1: an even count, no odd column
         bcs @even
@@ -233,11 +235,11 @@ prepare:
         sta pairs,x
         lda #$FF
 @tail:  sta tail,x
-        lda tmp3
+        lda start,x
         and #1
         asl
-        stx tmp4
-        ora tmp4                ; bank + 2 for an odd first column
+        stx ptr1+1
+        ora ptr1+1              ; bank + 2 for an odd first column
         tay
         lda _dhgr_pattern,y
         sta pa,x

@@ -4,6 +4,61 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Audit de la trente-et-unième session du 6 novembre 2026 — motifs, signes et voix muettes
+
+Première série du nouveau chantier jusqu'à 11 h Réunion, référence `bc489d8`.
+Trois agents Sol 6.1 préparent les preuves appariées ; intégration et mesures
+finales sur l'arbre partagé. Le gate passe **793 cas et 16 budgets** :
+**91 clients DHGR perdent sept octets CODE/chargés et deux octets RAM**,
+57 accélèrent, 28 gardent leur durée et six ont un coût de placement.
+Les **702 autres dictionnaires sont identiques** ; **327 champs de référence
+sont abaissés, aucun relevé**. ZP et piles ne changent pas.
+
+Le span conserve les deux motifs `pa` dans `tmp3/tmp4`, morts après la
+préparation des bords. Les deux préparations finissent avant leur lecture ;
+le premier indice reste dans `start,x`, le scratch de banque passe dans
+`ptr1+1`. Une assertion de lien garantit la contiguïté de `tmp3/tmp4`.
+Le span large passe de **2 196 à 2 152 cycles**, le rectangle de **11 691
+à 11 357**, le remplissage complet de **241 495 à 233 797**. Les coûts
+sont explicitement conservés : dernier bit 711 → 712 ; ellipses GFX mono
+petite/pleine/large +150/+924/+1 044, contour mono +238, petite ellipse
+couleur +14. Aucun padding ni relèvement de référence ne les masque.
+
+Les corrections Verlet gardent le signe dans Y et utilisent son complément
+pour la soustraction du troisième octet. La somme bornée `qx²+qy² <= 64800`
+permet de supprimer le stockage/test du troisième octet nul avant la
+soustraction du repos. Les 12 profils natifs gagnent **9 ou 11 octets** et
+**8 à 15 cycles**, sans autre mémoire. Dirtbike gagne neuf octets CODE et
+50..63 cycles par tick ; Rope/Halfpipe/Cutrope/Catapult perdent sept octets
+chargés. Lander perd dix octets CODE, avec un coût de placement conservé :
+maximum du changement de zone 121 632 → 122 052 ; Catapult en vol
+44 203 → 44 207, malgré une médiane inférieure. Tous les modèles, cadences
+et budgets restent satisfaits.
+
+AYS saute directement au volume nul pour une voix éteinte, sans calculer
+son offset de volume retenu. Un seul opérande JMP change ; code, tables,
+RAM, ZP, piles et adresses sont identiques. Le profil six voix passe de
+1 190 à 985 cycles moyens ; le tick MBTracker mesuré passe de **1 884 à
+1 752** (−7 %), maximum 2 829 → 2 724. Le mixeur, les registres et l'ordre
+des écritures matérielles restent identiques.
+
+Validation dédiée : span **2 520 appels / 382 336 écritures ordonnées**
+par source, sur les deux CPU avec/sans vraies IRQ VIA, plus 1 728 cas
+publics et quatre contrôles négatifs. Sans IRQ, 1 476 appels accélèrent,
+1 044 sont égaux ; les totaux sous IRQ ne sont pas utilisés comme mesure
+pure du noyau car le nombre d'interruptions servies diffère. Physique :
+**1 966 080 mouvements/corrections et 1 310 440 sommes/gains/MINLEN** par
+source/CPU, alias ZP/absolus, drapeaux, registres, gardes et modèles
+indépendants ; deux mutations fautives sont rejetées. Audio : **744 cas**,
+31 offsets retenus, trois/six voix, deux modes de périodes et deux CPU,
+état empoisonné, gardes, ordre des écritures et IRQ ; matrice AYS et vrai
+MBTracker appariés. Les nouveaux tests entrent dans les cibles racine.
+
+`make all test-woz` passe (18 paires), ainsi que les tests normaux Cutrope,
+Dirtbike, Lander, Halfpipe, Rope, Catapult, MBTracker, Robot Space Station,
+DHGR action et démo DHGR. Les contrôles du Makefile et des 20 options
+booléennes passent. Cinq disques et leurs WOZ sont reconstruits.
+
 ## Bilan du chantier jusqu'à 6 h 40 — 6 novembre 2026
 
 **18 séries d'optimisations**, de `1ef8225` à `229369d`, et un correctif

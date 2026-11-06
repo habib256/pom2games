@@ -127,6 +127,8 @@ test-hgr:
 	$(PYTHON) dev/tests/test_verlet_sleep.py --iie
 	$(PYTHON) dev/tests/test_verlet_clamp.py
 	$(PYTHON) dev/tests/test_verlet_clamp.py --iie
+	$(PYTHON) dev/tests/test_verlet_corrections.py
+	$(PYTHON) dev/tests/test_verlet_corrections.py --iie
 	$(PYTHON) dev/tests/test_verlet_quarter_abs.py
 	$(PYTHON) dev/tests/test_verlet_quarter_abs.py --iie
 	$(PYTHON) dev/tests/test_verlet_helpers.py
@@ -162,6 +164,7 @@ test-hgr:
 	$(PYTHON) dev/tests/test_tune.py
 	$(PYTHON) dev/tests/test_bcd.py
 	$(PYTHON) dev/tests/test_aysong.py
+	$(PYTHON) dev/tests/test_aysong_silent.py
 	$(PYTHON) dev/tests/test_mb_irq.py
 	$(PYTHON) dev/tests/test_ezcolor.py
 	$(PYTHON) dev/tests/test_pt3_import.py
@@ -254,6 +257,7 @@ test-hgr-example:
 	$(PYTHON) dev/tests/test_hgr_example.py
 
 test-dhgr:
+	$(PYTHON) dev/tests/test_dhgr_span_native.py --negative
 	$(PYTHON) dev/tests/test_gfx_dhgr_color_entries.py
 	$(PYTHON) dev/tests/test_gfx_dhgr_color_entries.py --iie
 	$(PYTHON) dev/tests/test_gfx_dhgr_color_entries.py --reference

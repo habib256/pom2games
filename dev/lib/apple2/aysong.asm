@@ -437,7 +437,7 @@ ays_tick:
         ldy ays_von,x
         bmi @on
         sta ays_ib               ; off: volume 0, tone and noise off
-        jmp @vol
+        jmp @v0                 ; retained volume offset cannot unmute it
 @on:    ldy ays_vfx,x            ; its effect
         bne :+
         jmp @ins
