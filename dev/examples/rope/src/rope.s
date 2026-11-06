@@ -27,6 +27,7 @@ MUL_TABLES = $1000                      ; LOWBSS: 2 KB, page aligned
 PL_HIST    = $1800                      ; hgr_plot_hist.asm's histories: 1.5 KB
 HGR_PLOT_HIST_FAST = 1                  ; lines stepped by byte, pl_sprite
 MUL_ACC    = 1
+mul_y = mul_s1l                 ; operand is also the first table pointer low byte
 .include "math.inc"
 .include "ropeconst.inc"
 .include "physdefs.inc"

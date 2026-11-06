@@ -120,6 +120,7 @@ test-hgr:
 	$(PYTHON) dev/tests/test_rand16.py --iie
 	$(PYTHON) dev/tests/test_math_products.py
 	$(PYTHON) dev/tests/test_math_products.py --iie
+	$(PYTHON) dev/tests/test_math_pointer_alias.py
 	$(PYTHON) dev/tests/test_math_division.py
 	$(PYTHON) dev/tests/test_math_division.py --iie
 	$(PYTHON) dev/tests/test_verlet.py
@@ -170,6 +171,7 @@ test-hgr:
 	$(PYTHON) dev/tests/test_aysong.py
 	$(PYTHON) dev/tests/test_aysong_silent.py
 	$(PYTHON) dev/tests/test_mb_irq.py
+	$(PYTHON) dev/tests/test_mockingboard_native.py
 	$(PYTHON) dev/tests/test_ezcolor.py
 	$(PYTHON) dev/tests/test_pt3_import.py
 	$(PYTHON) dev/tests/test_pt3_fixed.py
@@ -211,6 +213,7 @@ test-hgr:
 	$(PYTHON) dev/tests/test_hgr_lines.py
 	$(PYTHON) dev/tests/test_hgr_hud_init.py
 	$(PYTHON) dev/tests/test_hgr_hud.py
+	$(PYTHON) dev/tests/test_hgr_hud8_native.py --negative
 	$(PYTHON) dev/tests/test_hgr_hud.py --compact
 	$(PYTHON) dev/tests/test_presentation_strategies.py
 	$(PYTHON) dev/tests/test_hgr.py

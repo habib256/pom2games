@@ -34,6 +34,7 @@ HGR_PLOT_HIST_FAST = 1                  ; lines stepped by byte, pl_sprite
 PL_SPRITE_YMIN = 16                     ; the view's first row
 SQRT_SEED  = $1E00                      ; isqrt16's seeds (256 B)
 MUL_ACC    = 1
+mul_y = mul_s1l                 ; operand is also the first table pointer low byte
 .include "math.inc"
 .include "catconst.inc"
 .include "physdefs.inc"

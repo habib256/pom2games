@@ -462,6 +462,17 @@ about 110, same contract. WARGALAGA II uses it (music and effects every
 frame); `dev/tests/test_rgb_mockingboard.py` runs its Mockingboard checks on
 both variants.
 
+The fast writer's slot patch uses six offsets shared by its symmetric
+halves. Timer setup retains its high reload byte in X and borrows the probe
+scratch for the low byte only under SEI. Together these save **23 loaded
+bytes and two BSS bytes** in fast clients. Timer setup is eight cycles faster
+(six for absolute scratch); init costs 66..72 more cycles. MBTracker's mean
+tick remains 1,717, with a one-cycle increase in the measured maximum.
+`test_mockingboard_native.py` checks every reload, both active/I states,
+IRQ scratch borrowing, all slot/link/flag combinations, exact VIA protocol,
+registers, guards and stack, including the native 65C02 VIA model. The module's
+existing non-reentrant contract and caller IRQ masks remain unchanged.
+
 `mb_init` selects the first chip. Operations before initialisation or
 after a detection that found no card are harmless. A register outside 0..15 is
 ignored. Return values are tested in A (`CMP #0`), without assuming the

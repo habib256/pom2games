@@ -34,6 +34,7 @@ PL_HIST    = $1800                      ; hgr_plot_hist.asm's histories: 1.5 KB
 HGR_PLOT_HIST_FAST = 1                  ; lines stepped by byte, pl_sprite
 PL_SPRITE_YMIN = 16                     ; the pipe's first row
 MUL_ACC    = 1
+mul_y = mul_s1l                 ; operand is also the first table pointer low byte
 .include "math.inc"
 .include "pipeconst.inc"
 .include "physdefs.inc"

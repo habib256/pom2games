@@ -1,5 +1,13 @@
 # Current cc65 measurements
 
+The thirty-fifth-session gate passes **793 cases and 16 frame budgets**:
+25 HUD clients save three CODE/loaded bytes; 24 timings improve and 769
+are equal. RAM, ZP and both stacks stay unchanged in the gate; **74 limits
+are lowered**, none raised. Dedicated clients additionally save one ZP
+byte and 2/4 code bytes through a proven multiply alias; the fast Mockingboard
+module saves 23 loaded bytes and two BSS bytes, with documented startup costs.
+See [the thirty-fifth-session audit](HISTORY.md#audit-de-la-trente-cinquième-session-du-6-novembre-2026--hud-opérande-partagé-et-timer).
+
 The thirty-fourth-session gate passes **793 cases and 16 frame budgets**:
 46 timings improve, 747 are equal. The 59 native-text clients add four
 CODE/loaded bytes; RAM, ZP and both stacks remain unchanged everywhere.

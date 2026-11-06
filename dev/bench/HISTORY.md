@@ -4,6 +4,87 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Audit de la trente-cinquième session du 6 novembre 2026 — HUD, opérande partagé et timer
+
+Cinquième série, référence exacte `b3c1c86`. Gate **793 cas / 16 budgets** :
+**25 clients perdent trois octets CODE/chargés**, 24 durées diminuent,
+769 restent égales ; **768 dictionnaires sont identiques**. RAM, ZP et
+les deux piles restent égales dans ce banc graphique. **74 limites sont
+abaissées**, aucune relevée. Les gains math et audio sont mesurés séparément.
+
+Le HUD8 biaise le pointeur de ligne par colonne−offset de police afin que
+Y indexe simultanément l'écran et la police pré-décalée. La géométrie
+clippée borne `rowlo+col <= $F7`, ce qui permet l'annulation du carry dans
+`(rowlo+col+1)−(offset+1)` ; le borrow est reporté dans l'octet haut.
+Le noyau passe de **121 à 118 octets**, sans autre mémoire ni nouveaux
+clobbers. Un chiffre : **2 255 → 2 211 cycles** ; cinq chiffres phase 0 :
+**6 444 → 6 232**, retenue décimale **5 976 → 5 764**. Les 22 281 cellules
+par source/CPU/mode IRQ sont toutes plus rapides de 34..48 cycles sans IRQ.
+Les quatre matrices comparent **712 992 lectures et 356 496 écritures**
+ordonnées, 1 644 octets de police modifiés par des OR antérieurs et 8 397
+lignes avec borrow, avec gardes main/aux/code/paramètres/pile. Huit mutations
+sont rejetées, dont une écriture doublée aux pixels identiques sous 25 IRQ.
+Les lectures supplémentaires de cycle de page restent en RAM ordinaire,
+y compris juste avant le framebuffer ; elles ne touchent aucun MMIO.
+
+Les deux vrais exemples minimaux perdent trois octets (6 609 → 6 606,
+6 639 → 6 636), sans autre segment modifié. Deux cents frames appariées
+restent identiques sur II+/IIe ; les sommes HUD passent de 433 458 à
+424 612 cycles et de 467 826 à 457 404. Les attentes de présentation IIe
+augmentent d'environ 49 cycles par frame parce que le dessin finit plus
+tôt ; la cadence reste inchangée. Les 1 000 frames NTSC et 1 000 PAL du
+test double buffer restent dans leurs fenêtres normales.
+
+`MUL_SET_POINTERS` omet uniquement son auto-écriture lorsque ca65 prouve
+`mul_y = mul_s1l`. Les relations distinctes ou inconnues gardent exactement
+l'ancien code ; `math.inc` conserve ses allocations par défaut. Six apps
+choisissent explicitement cet alias : **un octet ZP gagné chacune**, deux
+octets CODE (quatre pour Catapult), autres segments inchangés. Les fonctions
+conservent l'opérande ; init ne change que les hauts de pointeurs. Les
+changements de diviseur repréparent les quatre bas avant un produit cached.
+
+Le test natif couvre **13 191 432 appels appariés**, 22 profils sur chaque
+CPU : produits signés/non signés, coefficients et frontières, cache explicite,
+init/reinit, transitions de tous les diviseurs, A/X/Y/P, I/D, piles, écritures
+et gardes complètes. Les 16 profils distincts/inconnus sont identiques octet
+pour octet ; les deux modes INIT boot passent aussi. Trois mutations sont
+rejetées sur les deux CPU. Les six vrais jeux suivent modèles, entrées,
+cadence et budgets ; chaque binaire final reproduit le candidat privé.
+Dirtbike gagne **52..124 cycles sur ses 545 ticks réels** ; Rope gagne
+94,5/120 cycles médians en oscillation/au sol, Halfpipe 36,5. Coûts conservés :
+Catapult vol médian **10 128 → 10 131**, mais maximum **43 941 → 43 854** ;
+Lander a quelques frames jusqu'à +90 malgré des médianes/maxima inférieurs ;
+le stress Cutrope coûte +7 médian/+3 maximum, ses vrais niveaux accélèrent.
+
+Le timer Mockingboard conserve le reload haut dans X et réutilise le scratch
+de probe pour le bas, uniquement entre SEI et PLP. Deux octets BSS disparaissent.
+Le patch des douze opérandes AY parcourt les deux moitiés symétriques à l'aide
+de six offsets ; une assertion vérifie cette symétrie. Ensemble, mode fast :
+**−23 octets chargés, −2 BSS**. Démarrer le timer gagne huit cycles (six avec
+scratch absolu), tandis que l'initialisation coûte **66..72 cycles de plus**.
+Le code des écritures AY fréquentes ne change pas ; les coûts liés à son
+placement restent mesurés, sans padding.
+
+Les reconstitutions avant reproduisent exactement les images `b3c1c86`, avec
+l'ordre réel des bibliothèques. MBTracker : **19 674 → 19 651 octets chargés**,
+BSS **3 413 → 3 411** ; 150 ticks coûtent 0..+1 cycle, première frame 5 170
+et moyenne 1 717 inchangées, maximum **2 716 → 2 717**. Wargalaga main :
+**20 733 → 20 710**, SYS **21 630 → 21 607**, BSS **1 346 → 1 344**.
+Le test durable couvre **1 056 768 cas timer NMOS**, **262 144 reloads VIA
+natifs**, et **24 576 combinaisons de slots/drapeaux/placements** d'init.
+Les IRQ qui empruntent le scratch, les deux formes d'adressage, les états
+actifs/inactifs, registres/drapeaux/piles, snapshots et l'ordre VIA passent.
+Les trois mutations représentant perte du haut, scratch stocké avant SEI et
+mauvais offset de patch sont rejetées par une relecture indépendante.
+
+Validation du build combiné : `make all test-woz` (18 paires), six jeux
+physiques, MBTracker et Wargalaga complets, exemples minimaux, contrôles
+Makefile/options. Quatre disques et leurs WOZ sont reconstruits. Les trois
+agents ont aussi relu les autres domaines sans défaut trouvé, avec nouveaux
+replays indépendants des noyaux/IRQ et contrôles négatifs. Deux mentions
+anciennes de 645 ticks Dirtbike sont corrigées à **545**, somme du SCRIPT
+inchangé depuis son extraction ; les mesures et états ne changent pas.
+
 ## Audit de la trente-quatrième session du 6 novembre 2026 — texte, copies par paires et options spécialisées
 
 Quatrième série, référence `995c934`. Le gate passe **793 cas / 16 budgets** :
@@ -425,7 +506,7 @@ absence totale de code non référencé. Résultats numériques et gardes
 correspondent au modèle et aux anciennes empreintes.
 
 Les six clients passent modèles, disques, entrées et budgets. Dirtbike :
-**645 phys_tick réels**, mêmes états et **44 cycles gagnés à chaque appel**,
+**545 phys_tick réels**, mêmes états et **44 cycles gagnés à chaque appel**,
 médiane 12 037 → 11 993, pire 17 260 → 17 216. Rope : oscillation
 33 280 → 33 167 médiane, 34 307 → 34 190 pire ; sol 38 966,5 → 38 762,5
 et 45 315 → 45 127. Lander améliore toutes les médianes/pires par phase.

@@ -64,6 +64,19 @@ LOWBSS, or the unused HGR page.
 | | `bcd_put` | the X-byte BCD at A/Y as 2X ASCII digits, top first, each sent to the program's `BCD_PUT_OUT` (keeps X: `hgr_putc8`, `COUT`); `BCD_PUT_LEAD = c`: leading zeros → c, or left out with 0 (units always shown, +27 B). 33 B. From DIRTBIKE (tricks.inc, hof.inc), which is its natural user | |
 | `random.asm` | `rand8` | 16-bit Galois LFSR (taps `$B400`) on `prng_lo/hi`; non-zero seed | ~20 c |
 
+A client can declare `mul_y = mul_s1l` before including `math.inc` to use
+the operand and first table-pointer low byte as one scratch slot. This saves
+**one ZP byte**; `MUL_SET_POINTERS` omits a proven self-store, saving **two
+code bytes and three cycles per expansion**. Distinct or unresolved aliases
+keep the original instructions, and the default 15/18-byte allocation is
+unchanged. Products preserve the operand, reinitialization preserves pointer
+lows, and changing the divisor requires pointer preparation before cached
+products as before. Dirtbike, Cutrope, Lander, Rope, Halfpipe and Catapult
+opt in; their exact game costs, including placement penalties, are in the
+bench audit. `test_math_pointer_alias.py` checks 13,191,432 paired calls over
+both CPUs, cached/signed/unsigned/division/init transitions, flags, aliases,
+stack and full memory guards (`--reference REV_OR_PATH --out PATH`).
+
 ### The tricks
 
 * **Quarter squares**: a·b = ⌊(a+b)²/4⌋ − ⌊(a−b)²/4⌋. The low bytes of the

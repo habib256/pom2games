@@ -1389,9 +1389,17 @@ The compact path `hgr_hud8_init/putu/invalidate` uses a 19-byte
 `hgr_hud8_field_t` structure, width 1..5, 8×8 cells, pitch 8.
 The whole box must fit on screen: y≤184, x+8×width≤280.
 The same cache, return-value, opaque background and overflow rules apply.
+The row pointer is biased by column minus font offset, so one Y indexes
+both screen and preshifted glyph. The bounded carry/borrow calculation saves
+**three code bytes** (121 → 118), without RAM/ZP/stack growth or new clobbers.
+A changed digit takes 2,211 instead of 2,255 cycles; five phase-0 digits take
+6,232 instead of 6,444. `test_hgr_hud8_native.py` checks 22,281 cells per
+CPU/IRQ mode, exact ordered reads/writes, font/framebuffer aliases, page
+borrows, full guards and eight negative controls. The extra page-cross
+read on borrowed pointers stays in ordinary RAM, never MMIO.
 Its separate object lets only the format in use be linked. Changing all
-five digits costs at most 6,663 cycles over the benchmark's seven phases,
-against 15,819 for the 16×16 format. Prepare both pages before animating.
+five digits costs at most 6,251 cycles over the benchmark's seven phases,
+against 14,962 for the 16×16 format. Prepare both pages before animating.
 
 The minimal example uses this format. With IIe double buffering, it spreads drawing
 and HUD over two VBL intervals; each step fits in one refresh.

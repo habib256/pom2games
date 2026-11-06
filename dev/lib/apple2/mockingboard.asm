@@ -16,6 +16,7 @@
 ; mb_write/timer/tick/stop before initialisation are safe no-ops (A=0).
 ; Non-reentrant; initialise mb_chip before writes. mb_init defaults it to 0.
 ; mb_ptr (2 ZP bytes) and mb_probe_old (1) can be individually aliased.
+; Probe and timer setup share mb_probe_old; both live ranges mask IRQs.
 ; Option MB_FAST_WRITE = 1 (before the include): mb_write stores to absolute
 ; $Cn00/$Cn01 ($Cn80/$Cn81) operands that mb_init patches for the slot,
 ; instead of re-deriving mb_ptr and storing through it: ~55 cycles a write
@@ -42,7 +43,6 @@ mb_timer_active: .byte 0
 .bss
 mb_old_acr: .res 1
 mb_old_ier: .res 1
-mb_period: .res 2
 .code
 mb_detect:
         php
@@ -186,10 +186,19 @@ mb_fast_second:
 mb_fast_patch:
         lda mb_slot
         ora #$C0
-.repeat MB_FAST_SITES, I
-        sta .ident(.sprintf("mb_fast%d", I)) + 2
-.endrepeat
+        .assert MB_FAST_SITES .mod 2 = 0, error, "AY writer patch sites must have two halves"
+        ldx #MB_FAST_SITES / 2 - 1
+@patch: ldy mb_fast_offsets,x
+        sta mb_fast0+2,y
+        sta .ident(.sprintf("mb_fast%d", MB_FAST_SITES / 2))+2,y
+        dex
+        bpl @patch
         rts
+mb_fast_offsets:
+.repeat MB_FAST_SITES / 2, I
+        .assert .ident(.sprintf("mb_fast%d", I + MB_FAST_SITES / 2)) - .ident(.sprintf("mb_fast%d", MB_FAST_SITES / 2)) = .ident(.sprintf("mb_fast%d", I)) - mb_fast0, error, "AY writer halves need identical patch offsets"
+        .byte .ident(.sprintf("mb_fast%d", I)) - mb_fast0
+.endrepeat
 .else
 mb_write:
         cpx #16
@@ -253,10 +262,9 @@ mb_quiet_chip:
 mb_timer_start:
         ldy mb_slot
         beq mb_noop
-        sta mb_period
-        stx mb_period+1
         php
         sei
+        sta mb_probe_old         ; live only under SEI, as in mb_t1_probe
         jsr mb_via1
         lda mb_timer_active
         bne @configure
@@ -275,10 +283,10 @@ mb_timer_start:
         lda #$40                ; mask T1 only; retain other VIA IRQ enables
         sta (mb_ptr),y
         ldy #4
-        lda mb_period
+        lda mb_probe_old
         sta (mb_ptr),y
         iny
-        lda mb_period+1
+        txa                      ; mb_via1/configuration preserve the reload high byte
         sta (mb_ptr),y
         lda #1
         sta mb_timer_active

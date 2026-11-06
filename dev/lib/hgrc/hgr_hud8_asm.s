@@ -44,25 +44,23 @@ selected_base:
         adc _hgr_g_y
         tay
         lda hgr_fixed_rowlo,y
+        sec                     ; (rowlo+col+1) - (source_offset+1)
+        adc _hgr_g_col           ; clipped rowlo+col <= $F7: C=0
+        sbc tmp1
         sta ptr1
         lda hgr_fixed_rowhi,y
         ora base
+        sbc #0
         sta ptr1+1
-        ldy _hgr_g_col
+        ldy tmp1
         lda (ptr1),y
         and keep0
-        ldy tmp1
         ora (_hgr_g_glyph),y
-        ldy _hgr_g_col
         sta (ptr1),y
         iny
         lda (ptr1),y
         and keep1
-        ldy tmp1
-        iny
         ora (_hgr_g_glyph),y
-        ldy _hgr_g_col
-        iny
         sta (ptr1),y
         inx
         inx

@@ -23,6 +23,7 @@
 MUL_TABLES = $0800              ; HELLO area (dirtbike.cfg)
 MUL_ACC    = 1
 MUL_INIT_BOOT = 1               ; mul_init in INIT (dirtbike.cfg)
+mul_y = mul_s1l                 ; operand is also the first table pointer low byte
 .include "math.inc"
 .include "hgr_pages.inc"
 .include "physconst.inc"

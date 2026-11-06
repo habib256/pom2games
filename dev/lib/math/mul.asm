@@ -53,8 +53,16 @@ _MUL_ASM_LOADED_ = 1
 .endmacro
 
 .macro MUL_SET_POINTERS
+; A proven mul_y = mul_s1l alias already supplies this pointer low byte.
+; Keep the store for unknown relationships, including separate relocations.
         LDA     mul_y
-        STA     mul_s1l
+        .if .const(mul_y - mul_s1l)
+                .if mul_y - mul_s1l <> 0
+                        STA     mul_s1l
+                .endif
+        .else
+                STA     mul_s1l
+        .endif
         STA     mul_s1h
         EOR     #$FF
         STA     mul_s2l

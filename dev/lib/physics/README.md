@@ -126,7 +126,7 @@ code. `--reference DIR` selects saved `verlet.inc` and `verlet.asm`;
 `--bench --out PATH` adds isolated builds/models/budgets for all six clients
 and records source/tool/core identities. `--iie` selects the 65C02.
 
-Real-client gains include Dirtbike's 645 modeled physics ticks each
+Real-client gains include Dirtbike's 545 modeled physics ticks each
 **44 cycles faster**, Rope swing median **33,280 → 33,167**, and floor
 median **38,966.5 → 38,762.5**. Placement costs remain: Halfpipe worst
 **28,267 → 28,297**, frozen CUTROPE median/worst **3,712/24,426 →
