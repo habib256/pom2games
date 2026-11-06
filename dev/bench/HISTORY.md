@@ -4,6 +4,92 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Audit de la trente-sixième session du 6 novembre 2026 — pointeurs conservés et volume actif
+
+Sixième série, référence exacte `f6eaf9c`. Gate **793 cas / 16 budgets** :
+**55 clients plus petits et plus rapides**, 738 dictionnaires identiques.
+25 clients HUD8 perdent neuf octets CODE/chargés, 30 HUD16 en perdent six.
+RAM, ZP, RODATA et les deux piles restent identiques. **164 limites sont
+abaissées**, aucune relevée ; les gains math et audio sont mesurés séparément.
+
+Le contrôleur HUD conserve `ptr3` après le getter de page, la conversion
+décimale et la construction des lignes. La cellule 8×8 le conserve aussi ;
+la restauration après cellule 16×16 reste indispensable. Trois appels
+redondants disparaissent du petit format, deux du grand. HUD8 : cache
+identique **312 → 286 cycles**, un chiffre **2 211 → 2 134**, cinq chiffres
+phase 0 **6 232 → 6 050**. HUD16 phase 0 : **14 556 → 14 463**. Les maxima
+des sept phases deviennent **6 060 / 14 875 cycles**.
+
+Le test durable compare **85 120 appels par source**, deux formats, deux
+options de tables, deux placements, deux CPU et deux modes IRQ. Il contrôle
+10 057 728 stores pixels et 395 360 stores cache ordonnés, 178 528 emprunts
+réels de `ptr3` par la cellule16 suivis de restauration, état, ABI, piles,
+code et gardes. Les IRQ réelles sauvegardent, empruntent et restaurent
+`ptr1..4/tmp1..4` ; quatre mutations sont rejetées. Coût conservé : seul
+le client combiné à `$60F1`, tables séparées, ralentit 1 302 appels 16×16
+sur 4 788 `putu`. Maximum **+148 cycles**, maximum relatif **+0,416 %** sans
+IRQ ; avec IRQ, +399 cycles / +1,022 %. Sa somme diminue quand même de
+36 946 470 à 36 862 474 cycles sans IRQ. La variante HUD8 seule provoque
+davantage de coûts de placement et n'est pas retenue ; aucun padding ajouté.
+
+Les vrais clients ne présentent pas ces surcoûts : HGR **8 055 → 8 049
+octets**, minimal single **6 606 → 6 597**, double **6 636 → 6 627**, autres
+segments inchangés. DHGR minimal reste identique. Cent frames HGR et
+deux cents frames de chaque minimal gardent leurs images sur II+/IIe.
+HUD HGR, 102 appels : **434 048 → 428 402 cycles** ; minimal single/double :
+**424 612 → 408 182 / 457 404 → 439 899**. Render/present/texte initial HGR
+ne ralentissent pas. L'attente VBL peut augmenter quand le travail finit
+plus tôt ; les cadences 1 000 NTSC + 1 000 PAL restent identiques.
+
+Le second axe d'une contrainte FAST utilise une entrée interne après la
+préparation des pointeurs du produit signé. Le choix au lien ne change
+qu'un octet de cible JSR, sans instruction, option, allocation ni déplacement
+ajouté. Le garde vérifie les quatre lows et l'opérande contre les stores du
+produit, `mul_x`, tous les indices des coordonnées et le scratch heavy ;
+il conserve l'ancien chemin pour les overlaps, les tableaux ZP, le wrap,
+l'opérande en pile/non-RAM ou aliasé aux pointeurs complémentaires. Avec
+produit unsigned partagé, l'entrée préparée est l'entrée ordinaire.
+
+**92 profils alias/lien**, dont 87 binaires de repli/non-FAST/partagés
+strictement identiques ; 20 profils CPU préparés, **7 863 416 appels
+appariés** ; 44 profils ordinaires, 13 191 432 appels et 22 binaires
+inchangés. Sept mutations sont rejetées. Gain inline : 14 cycles avec
+opérande coalescé, 17 avec slots ZP séparés, 18 avec opérande absolu ;
+partage : zéro. Une relecture indépendante ajoute quinze profils aux
+frontières exactes. Le garde est placé dans `.ifref vl_constrain` : trois
+clients `vl_square` seuls restent compilables et identiques, y compris avec
+FAST+HEAVY global sans état de contraintes.
+
+Les six jeux réels passent modèles/entrées/cadence/budgets. Rope, Lander,
+Halfpipe et Cutrope changent chacun un seul octet ; Dirtbike et Catapult
+restent identiques. Aucune mesure chaude n'augmente. Médiane Rope swing
+**32 970,5 → 32 788,5**, sol **38 389,5 → 38 263,5** ; Halfpipe
+**16 720,5 → 16 667,5** ; Lander moteur **16 470,5 → 16 428,5**.
+Cutrope gagne 42/70/84 cycles médians dans ses trois niveaux.
+
+AYS supprime le test on/off à l'entrée du volume actif : les voix off
+rejoignent déjà directement le volume nul, et la seule écriture du bit on
+dans cette fenêtre impose `$80`. **Cinq octets CODE/chargés disparaissent**,
+RAM/ZP/piles inchangées. 780 288 ticks natifs appariés, 454 656 arrivées au
+garde, oracle volume/mixer indépendant, états/flags/gardes et trois mutants
+passent. Les 16 configurations de modèle, écritures AY ordonnées et IRQ
+réelles restent conformes. MBTracker **19 651 → 19 646 octets** ; 150 ticks :
+premier **5 170 → 5 158**, maximum **2 717 → 2 711**, moyenne
+**1 717,980 → 1 716,607**. 49 ticks gagnent, sept restent égaux et 94 ticks
+silencieux coûtent un cycle de placement. Les fixtures artificielles ont
+des deltas −12..+12 malgré les six cycles retirés par voix active.
+
+Le build combiné et ses 18 paires WOZ passent ; MBTracker, les deux formats
+minimaux, HGR et les quatre jeux physiques modifiés passent. Les trois
+disques CUTROPE/HGR/MBTRACKER et leurs WOZ sont reconstruits. Avant cette
+série, les suites HGR/DHGR/outils complètes et la reconstruction propre
+passaient ; les 793 dictionnaires, budgets et identités d'environnement
+étaient reproduits exactement depuis une archive du seul code versionné.
+Cette vérification a révélé l'oubli du bootstrap IIe dans `run.py --dhgr` :
+le banc construit désormais aussi `a2shot`. Trois cas DHGR passent depuis
+une autre archive sans aucun exécutable préconstruit. Les suites graphiques
+complètes sont relancées sur le code combiné de cette série.
+
 ## Audit de la trente-cinquième session du 6 novembre 2026 — HUD, opérande partagé et timer
 
 Cinquième série, référence exacte `b3c1c86`. Gate **793 cas / 16 budgets** :

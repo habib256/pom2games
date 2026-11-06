@@ -643,10 +643,21 @@ cycles for its first tick, at most 2,716 afterwards, mean 1,717: 4..8 cycles
 saved per sampled call. It masks IRQs only during manual timing; separate
 playback tests validate normal IRQ operation and ordered register writes.
 
+The active-volume path no longer retests the voice's on bit: off voices
+already bypass it, and instrument initialization preserves bit 7. This
+removes **five code/loaded bytes** with unchanged RAM, ZP and stack peaks.
+`test_aysong_volume.py` checks 780,288 paired ticks across both CPUs and all
+voice/period configurations, observes every arrival at the removed guard,
+and rejects three mutations using an independent volume/mixer oracle.
+MBTracker's 150-tick sample changes from 5,170 to **5,158** cycles cold,
+2,717 to **2,711** maximum afterwards, and 1,717.980 to **1,716.607** mean.
+Of those ticks, 49 improve, seven stay equal and 94 silent ticks cost one
+placement cycle. Synthetic layouts can cost up to 12 cycles per tick;
+the local saving is six cycles per active voice, before placement effects.
+
 MB TRACKER builds it with `AYSONG_VOICES = 6`, `AYSONG_CPU65C02 = 1` and
-`mb_irq.asm`'s `MB_IRQ_HUSH_BOTH = 1`: its interrupt tick measured in the
-tracker (`mbtracker/tests/test_mbt.py`, a 6-voice song) costs 5,309 cycles
-on the first tick (both chips written), then at most ~3,400, mean ~1,900.
+`mb_irq.asm`'s `MB_IRQ_HUSH_BOTH = 1`; `mbtracker/tests/test_mbt.py` measures
+the six-voice song above and separately checks real interrupt playback.
 PT3 modules convert to AYS with `dev/tools/audio/pt3import.py` (what maps,
 what is reported lost: its docstring; `dev/tests/test_pt3_import.py` checks
 `pt3play.py`, its Python PT3 player, against `pt3/` under a2run).

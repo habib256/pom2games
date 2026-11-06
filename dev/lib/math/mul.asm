@@ -71,8 +71,11 @@ _MUL_ASM_LOADED_ = 1
 
 ; mul_x * mul_y, unsigned: the high byte's product first (into p1/p2), so
 ; that the low byte's leaves its high half in A for the sum
-.macro MUL_U16U8
+.macro MUL_U16U8 ready
         MUL_SET_POINTERS
+        .if .paramcount
+ready:
+        .endif
         LDY     mul_x+1
         SEC
         LDA     (mul_s1l),Y
@@ -187,14 +190,18 @@ mul_dir:
         RTS
 .endif
 
+; Private prepared entry for FAST constraints: same product/register/flag ABI,
+; four pointer lows prepared for unchanged mul_y. Shared unsigned linkage
+; aliases it to the ordinary entry so no code is duplicated.
 ; signed: the unsigned product of the two patterns, then the two's
 ; complement corrections (y < 0: p -= x << 8; x < 0: p -= y << 16)
-.ifref mul_s16s8
+.if .referenced(mul_s16s8) .or .referenced(mul_s16s8_ready)
 mul_s16s8:
 .ifref mul_u16u8
+mul_s16s8_ready = mul_s16s8             ; shared linkage keeps the normal setup
         JSR     mul_u16u8               ; both used: one copy of the product
 .else
-        MUL_U16U8                       ; inline: no JSR/RTS (-12 cycles)
+        MUL_U16U8 mul_s16s8_ready        ; cached entry skips pointer setup
 .endif
         LDA     mul_y
         BPL     @ypos

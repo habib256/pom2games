@@ -77,6 +77,15 @@ bench audit. `test_math_pointer_alias.py` checks 13,191,432 paired calls over
 both CPUs, cached/signed/unsigned/division/init transitions, flags, aliases,
 stack and full memory guards (`--reference REV_OR_PATH --out PATH`).
 
+FAST Verlet constraints can reuse the prepared signed-product pointers for
+their second axis. The private `mul_s16s8_ready` label adds no instructions
+or storage: it follows pointer setup in an inline signed product, or aliases
+the ordinary entry when the unsigned implementation is shared. It requires
+all four pointer lows to match the unchanged operand. The constraint selects
+it only after link-time alias checks; ordinary calls keep their existing ABI.
+This saves **14 cycles** with `mul_y = mul_s1l`, **17** with separate ZP
+slots, and zero with shared linkage, without changing code size or stacks.
+
 ### The tricks
 
 * **Quarter squares**: a·b = ⌊(a+b)²/4⌋ − ⌊(a−b)²/4⌋. The low bytes of the

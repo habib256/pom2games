@@ -616,9 +616,7 @@ ays_tick:
         bcc :+
         lda #15
 :       tay
-@vmute: lda ays_von,x
-        bpl @v0
-        lda ays_bits,x
+@vmute: lda ays_bits,x
         and ays_mutem
         beq @v1
 @v0:    ldy #0

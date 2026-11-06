@@ -54,6 +54,7 @@ _VERLET_CON_ASM_LOADED_ = 1
 
 .segment "CODE"
 
+
 .ifdef VL_CON_FAST
 ; A = min(|floor((hi:lo) / 64)|, 180) (vl_quarter_abs inline): with h = hi
 ; signed, t = lo >> 6, floor(d / 64) = 4 h + t; |.| > 180 when h >= 45 or
@@ -169,6 +170,41 @@ vl_con_pass:
 .endif
 
 .ifref vl_constrain
+.ifdef VL_CON_FAST
+; Select the prepared entry at link time only if every possible store between
+; the two products leaves all four table pointer lows and mul_y intact.
+; Product stores must also preserve the prepared lows/operand. Indexed arrays
+; cover every byte index, including 16-bit wrap; ZP indexing may hit any ZP
+; byte, so such aliases retain the normal setup. No runtime test or storage.
+.macro _VL_CACHE_RANGE result, first, count, minimum
+.local s1l,s1h,s2l,s2h,operand
+s1l = ((mul_s1l - first) & $FFFF) >= count
+s1h = ((mul_s1h - first) & $FFFF) >= count
+s2l = ((mul_s2l - first) & $FFFF) >= count
+s2h = ((mul_s2h - first) & $FFFF) >= count
+operand = ((mul_y - first) & $FFFF) >= count
+result = (first >= minimum) .and s1l .and s1h .and s2l .and s2h .and operand
+.endmacro
+        _VL_CACHE_RANGE _VL_CACHE_XF, vl_xf, 256, 256
+        _VL_CACHE_RANGE _VL_CACHE_XL, vl_xl, 256, 256
+        _VL_CACHE_RANGE _VL_CACHE_XH, vl_xh, 256, 256
+        _VL_CACHE_RANGE _VL_CACHE_MULX, mul_x, 2, 0
+        _VL_CACHE_RANGE _VL_CACHE_P0, mul_p0, 1, 0
+        _VL_CACHE_RANGE _VL_CACHE_P1, mul_p1, 1, 0
+        _VL_CACHE_RANGE _VL_CACHE_P2, mul_p2, 1, 0
+; Complement-pointer aliases change mul_y during setup itself.
+_VL_CACHE_OPERAND = (mul_y <> mul_s2l) .and (mul_y <> mul_s2h) .and ((mul_y < $100) .or (mul_y >= $200)) .and (mul_y < $C000)
+_VL_CACHE_PRODUCT = _VL_CACHE_MULX .and _VL_CACHE_P0 .and _VL_CACHE_P1 .and _VL_CACHE_P2 .and _VL_CACHE_OPERAND
+.ifdef VL_CON_HEAVY_POINT
+        _VL_CACHE_RANGE _VL_CACHE_VAL, vl_val, 2, 0
+        _VL_CACHE_RANGE _VL_CACHE_VN, vl_vn, 2, 0
+        _VL_CACHE_RANGE _VL_CACHE_PEN, vl_pen, 2, 0
+_VL_CON_MUL_CACHE_SAFE = _VL_CACHE_XF .and _VL_CACHE_XL .and _VL_CACHE_XH .and _VL_CACHE_PRODUCT .and _VL_CACHE_VAL .and _VL_CACHE_VN .and _VL_CACHE_PEN
+.else
+_VL_CON_MUL_CACHE_SAFE = _VL_CACHE_XF .and _VL_CACHE_XL .and _VL_CACHE_XH .and _VL_CACHE_PRODUCT
+.endif
+.endif
+
 vl_constrain:
         LDX     vl_cur
         LDA     vl_con_a,X
@@ -463,7 +499,7 @@ _VL_FKN = 11 - VL_CON_FIXED_K           ; f = clamp(w / 2^n, +-127), toward 0
         STA     mul_x
         LDA     vl_dy+1
         STA     mul_x+1
-        JSR     mul_s16s8               ; (mul_y = f still)
+        JSR     mul_s16s8 + (mul_s16s8_ready - mul_s16s8) * _VL_CON_MUL_CACHE_SAFE
 .ifdef VL_CON_HEAVY_POINT
         LDA     vl_cb
         CMP     #VL_CON_HEAVY_POINT

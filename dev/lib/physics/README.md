@@ -199,6 +199,21 @@ Use `--iie`, `--reference DIR` and `--out PATH` for paired checks. Real-game
 placement costs (Lander zone-change maximum +420 cycles, Catapult flying
 maximum +4) remain within budgets and are recorded in the bench audit.
 
+The second axis of a free FAST link reuses the signed multiply's prepared
+pointers when link-time checks prove that the coefficient and four pointer
+lows survive the first product and X correction. Overlapping product slots,
+coordinate arrays, heavy scratch, stack/IO operands or complementary-pointer
+aliases select the ordinary entry. All 256 possible coordinate indices and
+16-bit address wrap are included. No option, allocation or runtime test is
+added; shared unsigned linkage also retains the ordinary entry.
+In Rope, Lander, Halfpipe and Cutrope this changes one JSR operand byte and
+saves **14 cycles per eligible link**. Every recorded hot sample is equal
+or faster; Rope's swinging median is **32,788.5 instead of 32,970.5 cycles**.
+Dirtbike and Catapult remain byte-identical. `test_verlet_cached_multiply.py
+--negative` checks 92 link/alias profiles plus three standalone-helper
+configurations, 7,863,416 paired native calls on both CPUs and seven fault
+controls; ordinary math clients remain identical.
+
 **Pins** (`VL_PIN`): `vl_pin,X` non-zero (the program sets the table; BSS
 is not cleared) pins point X: `vl_integrate` and `vl_push_all` leave it
 alone, a link with one pinned end moves the other end by the whole

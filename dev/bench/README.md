@@ -1,5 +1,13 @@
 # Current cc65 measurements
 
+The thirty-sixth-session gate passes **793 cases and 16 frame budgets**:
+**55 clients shrink and accelerate**, with 738 identical metric dictionaries.
+Twenty-five HUD8 clients save nine loaded bytes, thirty HUD16 clients save six;
+RAM, ZP and both stacks stay unchanged. **164 limits are lowered**, none raised.
+Separate proofs validate prepared FAST-axis multiplication at unchanged size
+and a five-byte-smaller AYS active-volume path, including placement costs.
+See [the thirty-sixth-session audit](HISTORY.md#audit-de-la-trente-sixième-session-du-6-novembre-2026--pointeurs-conservés-et-volume-actif).
+
 The thirty-fifth-session gate passes **793 cases and 16 frame budgets**:
 25 HUD clients save three CODE/loaded bytes; 24 timings improve and 769
 are equal. RAM, ZP and both stacks stay unchanged in the gate; **74 limits

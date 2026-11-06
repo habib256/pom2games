@@ -74,7 +74,7 @@ page2:
         lda #9+MAX_DIGITS
 offsets:
         sta digits_offset
-        jsr field_ptr
+        ; The page getter preserves ptr3, which still addresses this field.
         ldy #4
         lda (ptr3),y
         and pagebit
@@ -199,7 +199,7 @@ fits:
 .if !HUD_SMALL
         jsr _hgr_build_rows
 .endif
-        jsr field_ptr
+        ; Decimal conversion and row-table setup both preserve ptr3.
         ldy #0
         lda (ptr3),y
         sta remaining
@@ -280,7 +280,9 @@ internal:
 .endif
         lda character
         jsr cell_run
+.if !HUD_SMALL
         jsr field_ptr           ; the 16x16 cell borrows ptr3 for masks/row
+.endif
         lda digits_offset
         clc
         adc index

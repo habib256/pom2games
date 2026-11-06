@@ -1397,9 +1397,24 @@ A changed digit takes 2,211 instead of 2,255 cycles; five phase-0 digits take
 CPU/IRQ mode, exact ordered reads/writes, font/framebuffer aliases, page
 borrows, full guards and eight negative controls. The extra page-cross
 read on borrowed pointers stays in ordinary RAM, never MMIO.
-Its separate object lets only the format in use be linked. Changing all
-five digits costs at most 6,251 cycles over the benchmark's seven phases,
-against 14,962 for the 16×16 format. Prepare both pages before animating.
+The shared HUD controller also retains `ptr3` across the page getter,
+decimal conversion and row-table builder. The 8×8 cell preserves it too;
+the 16×16 cell still requires restoration. Removing those redundant calls
+saves **nine loaded bytes for HUD8, six for HUD16**, with unchanged RAM,
+ZP and stacks. Current HUD8 single-digit/cache-hit costs are **2,134/286
+cycles**; changing five phase-0 digits takes **6,050**. Its separate object
+lets only the format in use be linked. Across seven phases the maximum is
+**6,060 cycles**, against **14,875** for the 16×16 format. Prepare both pages
+before animating.
+
+`test_hgr_hud_controller_native.py --negative` checks 85,120 calls per
+source across both formats, two table options, two placements, both CPUs
+and real IRQs that save, borrow and restore scratch. It verifies ordered
+pixel/cache stores, helper pointer lifetimes, fields, ABI, stacks and guards;
+four mutations are rejected. The real examples and all global bench cases
+improve or stay equal. A combined-format synthetic layout at $60F1 with
+separate tables has 16×16 placement costs up to **148 cycles / 0.416%**
+without IRQs (399 cycles / 1.022% including IRQs), despite lower total work.
 
 The minimal example uses this format. With IIe double buffering, it spreads drawing
 and HUD over two VBL intervals; each step fits in one refresh.

@@ -1136,6 +1136,8 @@ def main():
     args=ap.parse_args()
     if args.check and args.update:ap.error('choose --check or --update')
     run(['make','-s','-C',DEV/'tools/a2run'])
+    if args.dhgr:
+        run(['make','-s','-C',DEV/'tools/a2shot'])
     with tempfile.TemporaryDirectory(prefix='apple2-bench-') as directory:
         work=Path(directory); build(work)
         markers=work/'markers.s'
