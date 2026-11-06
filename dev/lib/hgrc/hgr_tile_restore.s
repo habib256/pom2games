@@ -193,6 +193,10 @@ map_advanced:
  inx                           ; X is the clipped column count (width 1..40)
  cpx width                     ; next tile/row arithmetic resets C before reuse
  jne draw_tile
+ ; No next-row work remains after the final stores. ptr1/scan and flags
+ ; are documented caller scratch; the public result only uses A/X.
+ dec rows
+ beq draw_done
  ; ptr1 stays at this map row; X supplied each tile column.
  clc
  lda ptr1
@@ -205,8 +209,8 @@ no_carry:
  clc
  adc #8
  sta scan
- dec rows
- jne draw_row
+ jmp draw_row
+draw_done:
  lda #1
  ldx #0
  rts

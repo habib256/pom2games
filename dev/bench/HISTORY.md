@@ -4,6 +4,37 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Audit de la trentième session du 6 novembre 2026 — sortie de dernière ligne
+
+Après `749918c`, le compteur de lignes est décrémenté immédiatement après
+les derniers stores d'une ligne. La dernière sort avant l'avancement
+inutile du pointeur de carte et du numéro de scanline. Ces temporaires et
+les drapeaux sont scratch dans le contrat ; AX, piles, I/D, contexte,
+banques et images restent identiques. Les appels non finaux gardent le
+même coût de branchement. **Aucun changement CODE/chargé/RAM/ZP/piles**.
+
+Les 19 profils donnent **six accélérations et treize égalités**, aucun
+ralentissement : une tuile **887 → 864**, page complète **168 860 →
+168 837**, région 4×3 **3 124 → 3 097**, fond/sprites **5 658 → 5 635**.
+Les refus sont identiques. Le constructeur partagé reste à CODE 636,
+1 280 octets chargés et BSS nul.
+
+L'oracle SDK mesure individuellement les **1 828 cas sur chacun des deux
+CPU** : **1 102 accélèrent, 726 sont égaux**, écarts −27..0 cycles.
+Les **503 429 lectures effectives, 405 904 écritures, 9 568 franchissements
+indirect-Y et 610 rechargements** sont identiques, toutes gardes conservées.
+L'oracle avec IRQ réelles/SEC avant RTI, le contrôle de duplication avec
+I=1 et les pixels publics NMOS/IIe passent aussi. Les hauteurs d'un octet,
+une seule ligne et la dernière ligne clippée font partie de ces domaines.
+
+
+Le gate global passe **793 cas et 16 budgets** : six accélérations,
+**787 dictionnaires identiques**, aucune taille ni pile modifiée. **Six
+limites abaissées**, aucune relevée. Tous les symboles exportés du client
+partagé gardent leur adresse. `make all test-woz`, options et graphe
+Makefile passent. La reconstruction complète `make check test-woz`
+reproduit les disques suivis à l'octet près et valide les 18 paires WOZ.
+
 ## Audit de la vingt-neuvième session du 6 novembre 2026 — carte indexée et limites de vitesse
 
 Après `6ed8b0a`, X indexe les colonnes de la carte comme celles de l'écran.

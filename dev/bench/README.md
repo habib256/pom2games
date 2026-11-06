@@ -1,5 +1,12 @@
 # Current cc65 measurements
 
+The thirtieth-session gate passes **793 cases and 16 frame budgets**.
+Six tile timings improve by 23..27 cycles; **787 metric dictionaries are
+identical**, with no footprint or stack changes. **Six cycle limits are
+lowered**, none raised. Full-page restore now takes **168,837 cycles**.
+A clean rebuild reproduces every tracked disk and validates all 18 WOZ
+pairs. See [the thirtieth-session audit](HISTORY.md#audit-de-la-trentième-session-du-6-novembre-2026--sortie-de-dernière-ligne).
+
 The twenty-ninth-session gate passes **793 cases and 16 frame budgets**.
 Nine tile clients save **nine code/loaded bytes**: six accelerate, two keep
 their timing, one rejected-ID profile costs 44 extra cycles (0.225%).
@@ -997,7 +1004,7 @@ loop currently measures 34,044 cycles including its wait. The per-series
 tradeoffs are recorded in [HISTORY.md](HISTORY.md).
 
 The optional tilemap backend restores eight 7×8 tiles then draws two masked
-sprites without save-under in 5,658 cycles. The map is 960 bytes, supplied by
+sprites without save-under in 5,635 cycles. The map is 960 bytes, supplied by
 the application; a full rebuild is not presented as a 30 FPS workload. The
 region profiles keep the 6,000-cycle reservation.
 

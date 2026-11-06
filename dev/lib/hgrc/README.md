@@ -1536,7 +1536,13 @@ Current costs are **168,860** cycles for a full page, **3,124** for 4×3,
 profile costs 44 additional placement cycles (19,572 → 19,616); the other
 18 targeted profiles are faster or equal. An independent SDK oracle checks
 **503,429 ordered source reads and 405,904 ordered writes** per CPU,
-including the extra indirect-Y page crossings introduced by indexing. Tests include high tile IDs and unaligned map/tile pointers
+including the extra indirect-Y page crossings introduced by indexing.
+The final row exits before advancing the dead map/scan temporaries. This
+keeps every footprint metric unchanged and saves another **23..27 cycles**
+on successful canonical calls; rejections are unchanged. Current costs:
+**168,837** full page, **3,097** for 4×3, **864** for one tile and **5,635**
+for the combined scene. Across 1,828 guarded cases on each CPU, 1,102
+accelerate and 726 are unchanged; none slow down. Tests include high tile IDs and unaligned map/tile pointers
 crossing page boundaries on both NMOS 6502 and 65C02.
 
 Each valid tile row repatches all sixteen store-operand bytes; code must
