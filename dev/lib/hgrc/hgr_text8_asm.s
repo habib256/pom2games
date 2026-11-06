@@ -1,10 +1,13 @@
 ; VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root).
 ; hgr_text8_asm.s — Apple II HGR kernel; linked independently from hgrc.lib.
+; _hgr_blit_glyph8: D=0; destroys A/X/Y, ptr1 and tmp1..tmp3.
+; Glyph arguments, other scratch, banks and IRQ mask are preserved.
+; The string entry also advances its private text/glyph parameter blocks.
 .export _hgr_blit_glyph8, _hgr_puts_run8
 .import _hgr_rowhi, _hgr_rowlo
 .import glyph_addr
 .importzp _hgr_g_col, _hgr_g_glyph, _hgr_g_bit, _hgr_g_y, _hgr_t_bit, _hgr_t_col, _hgr_t_font, _hgr_t_n, _hgr_t_s
-.importzp ptr1, tmp2, tmp3
+.importzp ptr1, tmp1, tmp2, tmp3
 curmask = tmp2
 curbits = tmp3
 
@@ -14,20 +17,23 @@ _hgr_blit_glyph8:
 ; at columns g_col / g_col+1 (left = row << bit, right = row >> (7-bit)), ORed
 ; in as two bytes. ~350 cycles per glyph against ~2 500 for the old
 ; pixel-by-pixel pen walk.
-        ldx #0                ; source row, preserved through the blit
-@rowloop:
+        ldx _hgr_g_y          ; current physical scanline
         txa
         clc
-        adc _hgr_g_y
-        tay
-        lda _hgr_rowlo,y
-        sta ptr1
-        lda _hgr_rowhi,y
-        sta ptr1+1
+        adc #8
+        sta tmp1              ; physical end, modulo 256
+@rowloop:
         txa
-        tay
+        sec
+        sbc _hgr_g_y
+        tay                    ; source row = (physical - top), 0..7
         lda (_hgr_g_glyph),y
-        beq @next             ; blank row: nothing to OR
+        beq @next
+        ; Y builds the destination pointer without disturbing the glyph A.
+        ldy _hgr_rowlo,x
+        sty ptr1
+        ldy _hgr_rowhi,x
+        sty ptr1+1
         ; Shift the low byte in A (2 cycles), rather than ZP (5 cycles).
         ; curmask still receives carries for the high byte of the span.
         ldy #0
@@ -56,7 +62,7 @@ _hgr_blit_glyph8:
         ora (ptr1),y
         sta (ptr1),y
 @next:  inx
-        cpx #8
+        cpx tmp1
         bne @rowloop
         rts
 

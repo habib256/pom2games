@@ -3,7 +3,7 @@ Vince "Deater" Weaver <vince@deater.net>, http://www.deater.net/weave/vmwprod/pt
 Dual licensed 0BSD / GPL-2.0-only (pt3_lib-LICENSE.txt): used here under 0BSD.
 Upstream: https://github.com/deater/dos33fsprogs, music/pt3_lib,
 revision d321fbc57df4d012ba881e2815b669d5d32f31d2 (2026-10-18).
-pt3_lib_init.s is copied unchanged. Local corrections in pt3_lib_core.s
+Local corrections in pt3_lib_core.s
 (2026-11-03): use PT3_DISABLE_FREQ_CONVERSION for noise as for tones and
 envelopes; preserve the full 20-bit product when scaling a 16-bit envelope;
 omit redundant tone loads when conversion is disabled; fix amplitude slide
@@ -14,3 +14,9 @@ pt3_zp.inc replaces
 upstream zp.inc (same layout, base PT3_ZP instead of $60) and pt3.s replaces
 the IRQ handler (decode only: no Mockingboard writes, no IRQ installation,
 no slot patching, no //c ROM work-around).
+
+Optional fixed-note-table specialization (2026-11-06): pt3.s and
+pt3_lib_init.s omit unused table generators for a declared immutable table,
+verify its header at init, and produce silent/no-op playback on mismatch
+until a matching reinitialization. The default general configuration emits
+identical bytes to the prior local version. No upstream license text changes.

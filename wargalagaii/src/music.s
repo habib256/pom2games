@@ -9,6 +9,8 @@
 .export pt3_init_song, pt3_tick
 .exportzp AY_REGISTERS
 
+PT3_FIXED_NOTE_TABLE = 1        ; tools/pt3.py validates the immutable header
+
 PT3_ZP = $D0                    ; $D0-$EF (game.cfg leaves $D0-$FF to this)
 
 .segment "AUXMUS"

@@ -1689,6 +1689,16 @@ this is not a universal speedup. `test_hgr.py` checks multi-character
 advancement at all seven bit phases, both pages and the right edge;
 `test_hgr_glyphs.py` checks all 96 glyphs at all phases on both pages.
 
+The 8×8 glyph loop now counts physical scanlines in X and skips destination
+row lookup for blank source rows. Its end line uses cc65 scratch `tmp1`;
+the kernel documents all clobbers and retains the D=0 contract. This adds
+**four code bytes**, without RAM/ZP/stack growth: phase-3 text 8,498 → 8,176
+cycles, spaces 4,140 → 3,100, dense glyph 1,357 → 1,343. The real HGR demo
+saves 5,820 startup-text cycles, with small linked render/present placement
+costs recorded in the bench audit. `test_hgr_glyph8_native.py` checks 12,166
+calls per CPU/IRQ mode, ordered reads/stores, raw row wrap, framebuffer-font
+aliases, complete main/aux guards and seven fault controls (`--negative`).
+
 Native x2 inflation reuses its five-byte caller frame and existing cc65
 scratch. The 16-bit doubled stride replaces the consumed source-pointer
 arguments. `test_hgr_x2_bytes.py` compares every byte/color pair and all

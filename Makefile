@@ -172,6 +172,7 @@ test-hgr:
 	$(PYTHON) dev/tests/test_mb_irq.py
 	$(PYTHON) dev/tests/test_ezcolor.py
 	$(PYTHON) dev/tests/test_pt3_import.py
+	$(PYTHON) dev/tests/test_pt3_fixed.py
 	$(PYTHON) dev/tests/test_savehdr.py
 	$(PYTHON) dev/tests/test_vapor.py
 	$(PYTHON) dev/tests/test_exit_modes.py
@@ -188,6 +189,7 @@ test-hgr:
 	$(PYTHON) dev/tests/test_gfx_outlines.py
 	$(PYTHON) dev/tests/test_hgr_logo.py
 	$(PYTHON) dev/tests/test_hgr_glyph8.py
+	$(PYTHON) dev/tests/test_hgr_glyph8_native.py --negative
 	$(PYTHON) dev/tests/test_logo_glyphs.py
 	$(PYTHON) dev/tests/test_hgr_sprite_update.py
 	$(PYTHON) dev/tests/test_video_memory.py

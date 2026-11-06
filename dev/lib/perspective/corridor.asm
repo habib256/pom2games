@@ -97,6 +97,11 @@ _a2_corridor_select:
     bne @far
     tax
     jmp @lookup
+.elseif PC_DEPTH_SHIFT = 8
+    ; distance >> 8 is the incoming high byte in X. Keep the historical
+    ; zero scratch/Y residue while bypassing the eight-step shift.
+    ldy #0
+    sty PC_BITS
 .else
     stx PC_BITS
     ldy #PC_DEPTH_SHIFT
@@ -110,8 +115,10 @@ _a2_corridor_select:
     bne @far
     jmp @lookup
 .endif
+.if PC_DEPTH_SHIFT <> 8
 @far:
     ldx #255
+.endif
 @lookup:
     stx PC_DEPTH
     lda PC_TABLE_X,x

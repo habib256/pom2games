@@ -1,4 +1,6 @@
 ; pt3_lib_init.s
+; Local fixed-table conditionals preserve the upstream default bytes.
+; Provenance and licensing: pt3_lib-NOTICE.txt / pt3_lib-LICENSE.txt.
 
 ; Initialize a song
 
@@ -10,6 +12,31 @@
 	;====================================
 	;
 pt3_init_song:
+
+.if PT3_FIXED_NOTE_TABLE >= 0
+        lda PT3_LOC+PT3_HEADER_FREQUENCY
+        cmp #PT3_FIXED_NOTE_TABLE
+        beq fixed_table_matches
+        ; A wrong immutable module fails silent; repeated ticks are no-ops.
+        lda #$60
+        sta pt3_tick
+        lda #0
+        ldx #13
+fixed_table_silence:
+        sta AY_REGISTERS,x
+        dex
+        bpl fixed_table_silence
+        lda #$3F
+        sta AY_REGISTERS+7
+        stx AY_REGISTERS+13      ; X=$FF after clearing the fourteen registers
+        lda #1
+        sta DONE_SONG
+        sec
+        rts
+fixed_table_matches:
+        lda #$20
+        sta pt3_tick             ; allow a later matching reinitialization
+.endif
 
 	lda	#$0
 	sta	DONE_SONG						; 3
@@ -81,6 +108,7 @@ zero_song_structs_loop:
 	; but we are going to assume we are only going to be playing
 	; newer 3.4+ version files so only need the newer tables
 
+.if PT3_FIXED_NOTE_TABLE < 0
 	ldx	PT3_LOC+PT3_HEADER_FREQUENCY				; 4
 	beq	use_freq_table_0
 	dex
@@ -89,6 +117,8 @@ zero_song_structs_loop:
 	beq	use_freq_table_2
 	; fallthrough (freq table 3)
 
+.endif
+.if PT3_FIXED_NOTE_TABLE < 0 .or PT3_FIXED_NOTE_TABLE = 3
 use_freq_table_3:
 	;=================================================
 	;  Create Table #3, v4+, "PT3NoteTable_REAL_34_35"
@@ -109,17 +139,23 @@ freq_table_3_copy_loop:
 
 	jsr	NoteTablePropogate	; !3
 
+.if PT3_FIXED_NOTE_TABLE < 0
 	lda	#<table3_v4_adjust
 	sta	note_table_adjust_smc+1
 	lda	#>table3_v4_adjust
 	sta	note_table_adjust_smc+2
 
+.endif
 	jsr	NoteTableAdjust
 
+.if PT3_FIXED_NOTE_TABLE < 0
 	jmp	done_set_freq_table
+.endif
 
 
 
+.endif
+.if PT3_FIXED_NOTE_TABLE < 0 .or PT3_FIXED_NOTE_TABLE = 2
 use_freq_table_2:
 	;=================================================
 	;  Create Table #2, v4+, "PT3NoteTable_ASM_34_35"
@@ -136,15 +172,21 @@ freq_table_2_copy_loop:
 
 	jsr	NoteTablePropogate	; !3
 
+.if PT3_FIXED_NOTE_TABLE < 0
 	lda	#<table2_v4_adjust
 	sta	note_table_adjust_smc+1
 	lda	#>table2_v4_adjust
 	sta	note_table_adjust_smc+2
 
+.endif
 	jsr	NoteTableAdjust
 
+.if PT3_FIXED_NOTE_TABLE < 0
 	jmp	done_set_freq_table
+.endif
 
+.endif
+.if PT3_FIXED_NOTE_TABLE < 0 .or PT3_FIXED_NOTE_TABLE = 1
 use_freq_table_1:
 	;=================================================
 	;  Create Table #1, "PT3NoteTable_ST"
@@ -167,9 +209,13 @@ freq_table_1_copy_loop:
 	dec	NoteTable_low+46		; Tone[46]-=1;
 
 
+.if PT3_FIXED_NOTE_TABLE < 0
 	jmp	done_set_freq_table
+.endif
 
 
+.endif
+.if PT3_FIXED_NOTE_TABLE < 0 .or PT3_FIXED_NOTE_TABLE = 0
 use_freq_table_0:
 	;=================================================
 	;  Create Table #0, "PT3NoteTable_PT_34_35"
@@ -186,14 +232,17 @@ freq_table_0_copy_loop:
 
 	jsr	NoteTablePropogate	; !3
 
+.if PT3_FIXED_NOTE_TABLE < 0
 	lda	#<table0_v4_adjust
 	sta	note_table_adjust_smc+1
 	lda	#>table0_v4_adjust
 	sta	note_table_adjust_smc+2
 
+.endif
 	jsr	NoteTableAdjust
 
 
+.endif
 done_set_freq_table:
 
 
@@ -338,6 +387,9 @@ vol_m3:
 	bne	vol_outer
 
 vol_done:
+.if PT3_FIXED_NOTE_TABLE >= 0
+	clc
+.endif
 	rts
 
 
@@ -389,13 +441,18 @@ note_table_propogate_loop:
 	; propogation isn't enough, various values
 	; are often off by one, so adjust using a bitmask
 	;================================================
+.if PT3_FIXED_NOTE_TABLE <> 1
 NoteTableAdjust:
 
 	ldx	#0
 note_table_adjust_outer:
 
 note_table_adjust_smc:
+.if PT3_FIXED_NOTE_TABLE > 0
+	lda	.ident(.sprintf("table%d_v4_adjust", PT3_FIXED_NOTE_TABLE)),X
+.else
 	lda	table0_v4_adjust,X
+.endif
 	sta	PT3_TEMP
 
 	; reset smc
@@ -433,21 +490,26 @@ skip_adjust_done:
 	rts
 
 
+.endif
 ;base0_v3_high:
 ;.byte	$0C,$0B,$0A,$0A,$09,$09,$08,$08,$07,$07,$06,$06
 ;base0_v3_low:
 ;.byte	$21,$73,$CE,$33,$A0,$16,$93,$18,$A4,$36,$CE,$6D
 
 ; note: same as base0_v3_high
+.if PT3_FIXED_NOTE_TABLE < 0 .or PT3_FIXED_NOTE_TABLE = 0
 base0_v4_high:
 .byte	$0C,$0B,$0A,$0A,$09,$09,$08,$08,$07,$07,$06,$06
 base0_v4_low:
 .byte	$22,$73,$CF,$33,$A1,$17,$94,$19,$A4,$37,$CF,$6D
+.endif
 
+.if PT3_FIXED_NOTE_TABLE < 0 .or PT3_FIXED_NOTE_TABLE = 1
 base1_high:
 .byte	$0E,$0E,$0D,$0C,$0B,$0B,$0A,$09,$09,$08,$08,$07
 base1_low:
 .byte	$F8,$10,$60,$80,$D8,$28,$88,$F0,$60,$E0,$58,$E0
+.endif
 
 ;base2_v3_high:
 ;.byte	$0D,$0C,$0B,$0B,$0A,$09,$09,$08,$08,$07,$07,$07
@@ -455,27 +517,39 @@ base1_low:
 ;.byte	$3E,$80,$CC,$22,$82,$EC,$5C,$D6,$58,$E0,$6E,$04
 
 ; note almost same as above
+.if PT3_FIXED_NOTE_TABLE < 0 .or PT3_FIXED_NOTE_TABLE = 2 .or PT3_FIXED_NOTE_TABLE = 3
 base2_v4_high:
 .byte	$0D,$0C,$0B,$0A,$0A,$09,$09,$08,$08,$07,$07,$06
+.endif
+.if PT3_FIXED_NOTE_TABLE < 0 .or PT3_FIXED_NOTE_TABLE = 2
 base2_v4_low:
 .byte	$10,$55,$A4,$FC,$5F,$CA,$3D,$B8,$3B,$C5,$55,$EC
+.endif
 
 ; note almost same as above
 ;base3_high:
 ;.byte	$0C,$0C,$0B,$0A,$0A,$09,$09,$08,$08,$07,$07,$06
+.if PT3_FIXED_NOTE_TABLE < 0 .or PT3_FIXED_NOTE_TABLE = 3
 base3_low:
 .byte	$DA,$22,$73,$CF,$33,$A1,$17,$94,$19,$A4,$37,$CF
+.endif
 
 
 ; Adjustment factors
+.if PT3_FIXED_NOTE_TABLE < 0 .or PT3_FIXED_NOTE_TABLE = 0
 table0_v4_adjust:
 .byte	$40,$e6,$9c,$66,$40,$2c,$20,$30,$48,$6c,$1c,$5a
+.endif
 
+.if PT3_FIXED_NOTE_TABLE < 0 .or PT3_FIXED_NOTE_TABLE = 2
 table2_v4_adjust:
 .byte	$20,$a8,$40,$f8,$bc,$90,$78,$70,$74,$08,$2a,$50
+.endif
 
+.if PT3_FIXED_NOTE_TABLE < 0 .or PT3_FIXED_NOTE_TABLE = 3
 table3_v4_adjust:
 .byte	$B4,$40,$e6,$9c,$66,$40,$2c,$20,$30,$48,$6c,$1c
+.endif
 
 
 ; Table #1 of Pro Tracker 3.3x - 3.5x

@@ -163,6 +163,12 @@ video; `exit.asm` restores the zero page to hand control back to DOS cleanly.
   copies, literal/input/output boundaries, full 8K pages, default and borrowed
   scratch, both CPUs and complete RAM/code/stack guards; `--negative` validates
   three fault detectors and `--reference REV` compares historical sources.
+  The subsequent pair-copy loop trades 16 bytes for speed: the current
+  kernel is **203 bytes**, with unchanged scratch and stack. Dirtbike and
+  Wargalaga titles decode about **8.5% / 11.6% faster**; a full 8K match
+  workload saves 20,160 cycles. Five negative controls now include parity
+  and carry handling. The 256-placement study finds a few shortest matches
+  costing one extra cycle; real title cases all improve.
 - **`dos.asm`** — `dos_cmd_*`, `disk_protected`: DOS 3.3 commands (BLOAD,
   BSAVE…) from a BRUN program; assumes `exit.asm`. Additions are
   bounded to `DOS_CMD_MAX-1` characters; the two hexadecimal digits are
@@ -750,8 +756,9 @@ helper referenced: ~500 B. Tests: `dev/tests/test_ezcolor.py` (`make test-hgr`).
 its 0BSD option ([`pt3/pt3_lib-NOTICE.txt`](pt3/pt3_lib-NOTICE.txt): upstream
 revision, what changed). Local corrections in `pt3_lib_core.s` make the
 conversion option apply to noise too, preserve full 16-bit envelopes and signed
-sample offsets, and fix amplitude slides and vibrato countdowns;
-`pt3_lib_init.s` remains unchanged.
+sample offsets, and fix amplitude slides and vibrato countdowns.
+The optional fixed-note-table specialization also changes `pt3_lib_init.s`
+while retaining byte-identical output for the general configuration.
 `pt3_zp.inc` puts its 32 zero-page bytes at `PT3_ZP` (outside ProDOS's
 `$FA-$FF`); `pt3.s` keeps decoding only: `pt3_init_song`, then `pt3_tick`
 fills `AY_REGISTERS..+13` for one AY (R13 `$FF` = unchanged) and loops.
@@ -772,6 +779,23 @@ Measured in WARGALAGA II: 1 450-2 400 cycles a tick (mean 1 570) for a
 two-voice song. That game links it with its song for aux `$6000` and calls
 it through bank-switching trampolines from its timer 1 handler
 (`wargalagaii/src/music.s`, `sound.s`).
+
+`PT3_FIXED_NOTE_TABLE=-1` (the default) selects the module's table at runtime.
+For an immutable module, 0..3 omit unused table generators. Table 1 saves
+**231 code bytes** (2,701 → 2,470 in the isolated default fixture), with no
+extra RAM/ZP or per-tick work. Initialize with the tick source stopped or
+masked. Fixed-table init returns C=0 on success; a mismatched header returns
+C=1, sets DONE, produces a silent register buffer (R7=$3F, R13=$FF), and
+makes ticks no-ops. The caller still flushes hardware registers. A matching
+reinitialization restores playback; the existing writable-code contract applies.
+
+Wargalaga validates its generated header against the option in `music.s`.
+Its reader+song region shrinks 3,158 → 2,902 bytes, freeing 256 bytes of
+headroom inside the padded music region; WG2.AUX size stays unchanged.
+All 2,000 sampled ticks retain exact cycles/registers; init saves eight cycles.
+`test_pt3_fixed.py` checks default byte identity, all tables/headers, both
+CPUs and storage/conversion modes, silent failure, six-cycle no-op ticks,
+reinitialization and producer/header disagreement before writes.
 
 ## PT3 extension: feasibility and proposed scope (2026-10-22 notes)
 

@@ -13,6 +13,7 @@ up: PT3 note n (0 = C-1) sounds MIDI n + 12, ~40 cents sharp (A4 450 Hz).
     tools/pt3.py --table          print table 1 as the player builds it
 """
 from pathlib import Path
+import re
 import sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'dev/tools'))
 from fonts import write_if_changed  # noqa: E402
@@ -58,6 +59,19 @@ def channel(notes, sample):
     return out + [0]
 
 
+
+def validate_player_table(data, source=None):
+    """Keep the immutable module and the compiled player's table in sync."""
+    source = source or Path(__file__).resolve().parents[1] / 'src/music.s'
+    match = re.search(r'^\s*PT3_FIXED_NOTE_TABLE\s*=\s*([0-3])\s*(?:;.*)?$',
+                      Path(source).read_text(), re.M)
+    if match is None:
+        raise ValueError('music.s must declare PT3_FIXED_NOTE_TABLE = 0..3')
+    expected = int(match.group(1))
+    if len(data) <= 0x63 or data[0x63] != expected:
+        raise ValueError(f'music.s requires PT3 note table {expected}; module header disagrees')
+    return expected
+
 def module():
     lines = sum(d for _, d in sound.MELODY)
     assert lines == sum(d for _, d in sound.BASS) == 64
@@ -85,6 +99,7 @@ def module():
             data += bytes([0, 0x80 | v, 0, 0])
     for i in range(32):                         # (unused ones: sample 1)
         data[0x69 + 2 * i:0x6B + 2 * i] = at.get(i, at[1]).to_bytes(2, 'little')
+    validate_player_table(data)
     return bytes(data)
 
 

@@ -13,6 +13,7 @@
 #include <vector>
 
 using namespace pom2;
+static unsigned depth_shift = 1;
 
 struct Instance {
     Core core;
@@ -70,7 +71,9 @@ struct Instance {
         state = core.cpuState();
         assert(steps < 1000 && state.stackPointer == 255);
         assert((state.status & 12) == (flags & 12)); // I and D survive.
-        assert(state.y == ((value * 37 + 0x5a) & 255));
+        // Select8 retains its historical zero Y/scratch; select1 keeps Y.
+        assert(state.y == (mode == 0 && depth_shift == 8 ? 0 : ((value * 37 + 0x5a) & 255)));
+        if (mode == 0 && depth_shift == 8) assert(read(address("PC_BITS")) == 0);
         return {read(address("_depth")), read(address("_sx")), read(address("_sy")),
                 read(address("_left")), read(address("_top")), state.accumulator,
                 state.x, state.status, (unsigned)(state.cycles - start + 6)};
@@ -94,7 +97,8 @@ int main(int argc, char** argv)
     assert(argc == 9);
     const bool cmos = std::stoi(argv[5]);
     const unsigned shift = std::stoi(argv[6]);
-    assert(shift == 1); // This guard comparison targets the Y-preserving common path.
+    assert(shift == 1 || shift == 8);
+    depth_shift = shift;
     const unsigned cx = std::stoi(argv[7]), cy = std::stoi(argv[8]);
     Instance before(argv[1], argv[2], cmos), after(argv[3], argv[4], cmos);
     unsigned long long calls = 0;

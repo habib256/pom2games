@@ -1,5 +1,14 @@
 # Current cc65 measurements
 
+The thirty-fourth-session gate passes **793 cases and 16 frame budgets**:
+46 timings improve, 747 are equal. The 59 native-text clients add four
+CODE/loaded bytes; RAM, ZP and both stacks remain unchanged everywhere.
+**45 cycle limits are lowered**, none raised. Dedicated proofs cover a
+203-byte LZ4FH decoder (16 bytes larger, real titles 8.5..11.6% faster),
+a fixed PT3 table option saving 231 code bytes, and depth-shift-8 projection
+saving 16/18 bytes and 105..116 cycles per select.
+See [the thirty-fourth-session audit](HISTORY.md#audit-de-la-trente-quatrième-session-du-6-novembre-2026--texte-copies-par-paires-et-options-spécialisées).
+
 The thirty-third-session gate passes **793 cases and 16 frame budgets**.
 **252 DHGR clients save 5..13 RAM bytes**; one timing improves by one cycle,
 792 are equal. Loaded/code size, ZP and both stacks are unchanged everywhere;

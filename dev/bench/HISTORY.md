@@ -4,6 +4,95 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Audit de la trente-quatrième session du 6 novembre 2026 — texte, copies par paires et options spécialisées
+
+Quatrième série, référence `995c934`. Le gate passe **793 cas / 16 budgets** :
+**46 durées diminuent, 747 sont égales** ; 59 clients qui lient le texte
+natif ajoutent **quatre octets CODE/chargés**, les 734 autres dictionnaires
+restent identiques. Aucun changement de RAM, ZP ou des deux piles.
+**45 limites de cycles sont abaissées**, aucune relevée. Les autres
+optimisations de cette série sont mesurées par les bancs natifs dédiés.
+
+Le glyph8 utilise X comme ligne physique, retrouve l'indice source par
+soustraction, et ne construit le pointeur écran que pour une ligne non
+vide. `tmp1`, scratch cc65 déjà détruit par le calcul d'adresse des glyphes,
+contient la fin physique ; le contrat complet est documenté. Texte phase 3 :
+**8 498 → 8 176 cycles**, espaces **4 140 → 3 100**, dense **1 357 → 1 343**.
+Le test natif vérifie **12 166 appels par source/CPU/mode IRQ**, les 256
+valeurs de ligne et de pixels, sept phases, deux pages, tables non alignées,
+rebouclage brut Y et alias police/écran. Il compare 240 292 lectures utiles
+et 142 964 écritures ordonnées ; 1 566 octets de police sont effectivement
+modifiés par des OR antérieurs avant leur lecture. Sans IRQ, tous les appels
+accélèrent de 14..126 cycles. Les quatre matrices passent avec gardes
+main/aux/code/paramètres/pile et sept contrôles négatifs, dont une double
+écriture aux pixels identiques sous 15 vraies IRQ.
+
+Le SDK sert une IRQ puis exécute le premier PHA du handler dans le même
+`step`. Le nouveau test identifie ce cas par PC=$0901, le vecteur, le retour
+sauvegardé égal au PC interrompu, SP−4, P/I et A sauvegardé ; il ne saute
+pas arbitrairement des accès. Les anciens tests DHGR restent valables,
+leurs accès tracés étant sous SEI. Dans la vraie démo HGR, huit appels de
+texte initial gagnent **5 820 cycles** ; 100 frames et leurs images sont
+identiques. Coûts de placement conservés : present +4 cycles, somme des
+renders +158 sur 100 frames (médiane égale, maximum +3), HUD +48 sur 102
+appels. Snake et Chromabreak ne lient pas ce membre : leurs programmes,
+overlays et disques appariés restent identiques.
+
+LZ4FH copie deux octets consécutifs par boucle et traite l'éventuel dernier
+octet impair. Le carry garde la parité jusqu'à ce dernier octet, puis revient
+à zéro avant l'avance de destination ; le chevauchement conserve sa
+récurrence avant. Noyau **187 → 203 octets**, aucune autre allocation.
+La matrice native précédente passe avec cinq contrôles négatifs :
+9 078 appels accélèrent, 36 restent égaux par placement/CPU, jusqu'à
+**20 160 cycles gagnés** pour 8 Ko. L'étude des 256 positions de code,
+calculée à partir des branches réellement prises, couvre **2 333 184
+couples** : 2 323 116 plus rapides, 9 840 égaux et 228 à **+1 cycle**,
+pour de très courts matchs. Les frontières sont validées par 28 exécutions
+natives de 78 cas sur les deux CPU, sans padding spécifique au benchmark.
+
+Sur les vrais titres, 12 appels par source/CPU : Dirtbike **2 190 896 →
+2 005 340 cycles** (−8,5 %), Wargalaga **1 917 428 → 1 694 756** (−11,6 %).
+Les jeux complets appariés passent. Dirtbike ajoute 16 octets CODE mais son
+fichier reste rembourré ; FRONT/overlay Wargalaga ajoute 16 octets, sans
+changer le fichier WG2.AUX rembourré. Cette dépense est un compromis de
+vitesse explicite ; la longueur scratch reste réservée comme auparavant.
+
+`PT3_FIXED_NOTE_TABLE=-1` garde le lecteur général identique octet pour
+octet (huit configurations CPU/ZP/conversion). Les valeurs 0..3 retirent les
+générateurs inutilisés ; le mode 1 passe de **2 701 à 2 470 octets**.
+L'initialisation vérifie le header : C=1 en cas de désaccord, frame silencieuse,
+DONE et ticks remplacés par RTS ; une réinitialisation compatible restaure
+le JSR et retourne C=0. Le programme conserve la responsabilité d'écrire
+les registres matériels. Aucun état RAM/ZP supplémentaire ni coût par tick.
+Les licences/provenance sont conservées et la notice décrit ce changement.
+
+Wargalaga choisit le mode 1 ; le générateur valide le header contre la
+constante de `music.s` avant toute écriture. Cette source devient une
+prérequis du morceau ; un `touch` après validation évite de répéter les
+builds lorsque le contenu musical reste identique. Le lecteur+morceau
+passe de **3 158 à 2 902 octets** ; les **256 octets sont de la marge dans
+la région musicale rembourrée**, pas une réduction du fichier WG2.AUX.
+Les 2 000 ticks réels gardent exactement leurs cycles et 14 registres ; init
+18 079 → 18 071. Le test durable vérifie 16 384 frames et 4 112 états
+header/erreur/reprise ; les corpus supplémentaires et le mode général
+passent aussi. Une image Wargalaga corrompue après build exécute 125 ticks
+RTS réels avec volumes nuls, sans jouer avec une mauvaise table.
+
+Pour `PC_DEPTH_SHIFT=8`, X contient déjà l'indice complet. Le noyau garde
+Y=0 et PC_BITS=0, puis saute les huit décalages : **16 octets gagnés** en ZP,
+**18 avec scratch absolu**, sélection 166..168 → 61..63 cycles par défaut
+(−105..107 ; −114..116 en absolu). Les 16 profils de garde couvrent shifts
+1/8, quatre dispositions et deux CPU : 131 072 profondeurs, 65 536 appels
+D=1 de compatibilité, coordonnées/spans, états/drapeaux et gardes complets.
+Trois mutations sont rejetées. Les 32 binaires des shifts 0..7 et la
+spécialisation seule de Light3DBall restent identiques ; le build combiné
+Light3DBall ajoute quatre octets dus au texte HGR, pas au corridor.
+
+Validation finale : `make all test-woz` (18 paires), HGR, Dirtbike,
+Wargalaga II complet, Light3DBall et Maze3D passent sur le build combiné,
+ainsi que les contrôles Makefile/options. Les nouveaux tests PT3 et glyph8
+entrent dans la cible racine. Cinq disques et leurs WOZ sont reconstruits.
+
 ## Audit de la trente-troisième session du 6 novembre 2026 — état DHGR, sol et LZ4FH
 
 Troisième série du chantier jusqu'à 11 h, référence `bae4cb1`. Gate
@@ -57,7 +146,7 @@ leur ordre avant ; les autres contrats et le traitement des erreurs sont
 inchangés. Le test natif exécute **9 114 cas par placement/CPU/source**, deux
 placements dont les alias ZP réels de Dirtbike, toutes les longueurs 4..255,
 les frontières de littéraux, trois alignements source et les deux pages,
-jusqu'à 8 Ko de sortie. RAM entière, code auto-modifié, pile et A/X/Y/P
+jusqu'à 8 Ko de sortie. RAM principale entière, code auto-modifié, pile et A/X/Y/P
 sont vérifiés ; trois mutations sont rejetées. Sur chaque matrice,
 9 078 cas accélèrent et 36 sont égaux ; aucun ne ralentit.
 

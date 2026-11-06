@@ -82,6 +82,8 @@ def main():
                 'advance': text.replace('tya                             ; copied length',
                                         'txa                             ; copied length', 1),
                 'stack': text.replace('unpack:\n', 'unpack:\nsta $01fd\n', 1),
+                'parity': text.replace('bcc copied', 'bcs copied', 1),
+                'carry': text.replace('clc\ncopied:', 'sec\ncopied:', 1),
             }
             for name, mutation in mutations.items():
                 assert mutation != text, ('missing mutation marker', name)

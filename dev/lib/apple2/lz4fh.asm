@@ -147,13 +147,27 @@ adc lz4fh_read
 sta lz4fh_read
 bcs hi5
 nohi5:
+; Legal matches are 4..255 bytes. Copy forward in pairs so overlap retains
+; the LZ4 recurrence. C keeps odd/even through loads, stores and counters.
 ldy #$00
+txa
+lsr A                           ; C = odd tail, X = complete pairs below
+tax
 nohi5__copyloop:
+lda (lz4fh_match),y
+sta (lz4fh_write),y
+iny
 lda (lz4fh_match),y
 sta (lz4fh_write),y
 iny
 dex
 bne nohi5__copyloop
+bcc copied
+lda (lz4fh_match),y
+sta (lz4fh_write),y
+iny
+clc
+copied:
 tya                             ; copied length, including overlapping matches
 adc lz4fh_write
 sta lz4fh_write

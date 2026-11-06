@@ -71,18 +71,19 @@ def guarded(work, source, reference, tables):
             aliases['BITS']=0x80 if layout in ('zp','mixed') else 0x1101
             base=0x90 if layout=='zp' else 0x1201
             aliases.update({name:base+i*3 for i,name in enumerate(('SX','SY','LEFT','TOP','DEPTH'))})
-        directories=[]
-        sizes={}
-        for version,kernel in (('before',reference),('after',source)):
-            directory=work/(layout+'-'+version);directory.mkdir()
-            binary,_=build(directory,1,(128,80),tables,kernel=kernel,aliases=aliases)
-            directories.append(directory);sizes[version]=binary.stat().st_size
-        for cpu in (0,1):
-            before,after=directories
-            output=run([executable,before/'corridor.bin',before/'corridor.lbl',
-                        after/'corridor.bin',after/'corridor.lbl',cpu,1,128,80])
-            print(layout,output.strip())
-            profiles[layout+('-65c02' if cpu else '-nmos')]=dict(binary_bytes=sizes,proof=output.strip())
+        for shift in (1,8):
+            directories=[]
+            sizes={}
+            for version,kernel in (('before',reference),('after',source)):
+                directory=work/(layout+'-shift'+str(shift)+'-'+version);directory.mkdir()
+                binary,_=build(directory,shift,(128,80),tables,kernel=kernel,aliases=aliases)
+                directories.append(directory);sizes[version]=binary.stat().st_size
+            for cpu in (0,1):
+                before,after=directories
+                output=run([executable,before/'corridor.bin',before/'corridor.lbl',
+                            after/'corridor.bin',after/'corridor.lbl',cpu,shift,128,80])
+                print(layout,output.strip())
+                profiles[layout+('' if shift==1 else '_shift8')+('-65c02' if cpu else '-nmos')]=dict(binary_bytes=sizes,proof=output.strip())
     return profiles
 
 
