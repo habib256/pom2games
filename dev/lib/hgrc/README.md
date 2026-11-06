@@ -1513,9 +1513,14 @@ Restoration keeps its bounds in `ptr4` and `tmp1..tmp4`; tile-row/scanline
 and validation-count/row-address storage have disjoint lifetimes. This saves
 37 loaded bytes and eight RAM bytes without adding zero page or stack use.
 The subsequent eight-store row kernel saves another ten loaded/code
-bytes and two RAM bytes: a full page now takes **181,665 cycles**
+bytes and two RAM bytes: a full page takes **181,665 cycles**
 (previously 268,169), one tile **923** (previously 946), and the combined
-background scene **5,802**. Tests include high tile IDs and unaligned map/tile pointers
+background scene **5,802**. A further lifetime pass uses `ptr2` for preflight
+rows, then reuses dead count/height slots for left/draw rows. This removes
+another **11 code/loaded bytes and two BSS bytes**, including one redundant
+carry clear: the low address is at most 208+39, and the operand patches
+preserve its clear carry. Current costs are **180,531** for a full page,
+**909** for one tile and **5,778** for the combined scene. Tests include high tile IDs and unaligned map/tile pointers
 crossing page boundaries on both NMOS 6502 and 65C02.
 
 Each valid tile row repatches all sixteen store-operand bytes; code must

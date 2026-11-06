@@ -4,6 +4,63 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Audit de la vingt-sixième session du 6 novembre 2026 — durées de vie et comparaisons
+
+Après `c17beec`, la restauration HGR garde le nombre de lignes du précontrôle
+dans `ptr2`, inutilisé avant le dessin. Après validation, count devient left
+et height devient le compteur de lignes. La somme de l'adresse basse est
+bornée par 208+39 ; les écritures d'opérandes, LDA et ORA préservent C=0,
+ce qui supprime un CLC. **−11 octets CODE/chargés, −2 BSS**, page zéro et
+piles identiques. Page complète **181 665 → 180 531 cycles**, région 4×3
+**3 327 → 3 291**, une tuile **923 → 909**, fond avec sprites
+**5 802 → 5 778**. Le constructeur partagé confirme 1 306 → 1 295 octets
+chargés, CODE 662 → 651, BSS 4 → 2, autres segments et ordre identiques.
+
+L'oracle ancien/nouveau avec/sans IRQ passe chaque fois **1 828 appels,
+405 904 écritures ordonnées et 610 rechargements**, avec toutes les gardes.
+Le gestionnaire IRQ fait désormais SEC avant RTI : la restauration de C est
+exercée durablement. L'ancien noyau reçoit 31 633 IRQ, le nouveau 31 368 ;
+les 5 576/5 394 échantillons différés sont distingués comme à la passe
+précédente. Les duplications exécutées avec I=1 sont toujours détectées.
+Les tests publics de pixels passent sur ancien/nouveau et NMOS/IIe.
+
+Le parcours ProDOS réutilise les retenues du nom moins suffixe pour calculer
+l'adresse : **−2 octets CODE/chargés et quatre cycles par entrée éligible**.
+Les 56 profils comptent **42 accélérations, 14 égalités** : filtrage
+**22 366 → 22 346**, maximum 255 **67 829 → 66 801 cycles**. RAM, page
+zéro et piles inchangées. Les **2 351 cas appariés par CPU** et volumes
+réels résidents/OVL2 avec LOWBSS passent ; la référence exacte reproduit
+les mesures avant modification.
+
+La mise au repos des cercles compare directement les intervalles signés :
+v positif ≤ T, v négatif ≥ −T, avec T dans 1..32767. Le helper passe
+de **26 à 24 octets** ; à T=$21, coût positif **28 → 27**, négatif
+**45 → 28 cycles**, appels inclus. Les deux temporaires gardent désormais
+la vitesse signée ; ils sont scratch et non consommés par l'appelant.
+Aucune RAM/pile supplémentaire, X/Y/I/D et les sorties publiques conservés.
+L'oracle couvre **26×65 536 vitesses**, chaque seuil autorisé avec neuf
+frontières et **11 940 états publics** par source/CPU : deux largeurs Y,
+tous les pins/compteurs, wrap 255→0, autres points et gardes. Les comparaisons
+à tous les seuils patchent seulement les immédiats de la fixture ; leurs
+octets finaux sont comparés à une vraie compilation du seuil $7FFF.
+
+Dans Catapult réel, travail en vol **10 250,5 → 10 223 cycles médians**,
+pire **44 251 → 44 219**, 780 trames, écarts individuels −122..+1 selon
+le placement. Le binaire privé est identique au binaire du build normal.
+Visée et CUTROPE inchangés. Le passage du clavier round12 au clavier
+round13 avait déplacé la physique : médiane 10 205,5 → 10 250,5 et pire
+44 204 → 44 251, malgré une lecture vide gagnant un cycle. Une reconstruction
+changeant uniquement le clavier reproduit cet effet ; les budgets restent
+respectés. Ce coût de placement est distinct du gain propre au helper.
+
+Le gate global passe **793 cas et 16 budgets** : neuf clients tuiles gagnent
+onze octets chargés et deux RAM, sept accélèrent, deux gardent leur durée ;
+les **784 autres dictionnaires sont identiques**. **34 limites abaissées**,
+aucune relevée. `make all test-woz`, MBTRACKER, Catapult, les options de
+bibliothèque et le graphe Makefile passent. Seuls MBTRACKER.po et son WOZ
+suivis changent ; le disque privé Catapult est également reconstruit.
+
+
 ## Audit de la vingt-cinquième session du 6 novembre 2026 — tuiles, clavier et produits
 
 Après `7a9422c`, la restauration HGR déroule les huit écritures d'une tuile

@@ -12,6 +12,7 @@ logs a prospective STA before core.step(); a pending IRQ can consume that step
 instead, producing a deferred unchanged sample before RTI executes the real STA.
 Before EACH call, outside storewatch and before starting the VIA, prefill every
 geometrically targeted byte with the complement of its intended source byte.
+The IRQ handler deliberately sets carry before RTI to exercise status recovery.
 Each legal target occurs exactly once in the tile order, so real STAs must change
 memory. Filter only samples whose post-byte differs from A, requiring unchanged
 memory and I=0. A real duplicate leaves post=A, remains visible and fails. Guards
@@ -206,6 +207,7 @@ handler:
  pla
  tax
  pla
+ sec                         ; RTI must recover the interrupted carry
  rti
 '''
 

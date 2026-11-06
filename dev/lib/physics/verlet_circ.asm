@@ -1108,20 +1108,23 @@ vl_circ_sleep:
         STA     vl_still,X
 @rts0:  CLC
 @rts:   RTS
-; A:vl_w0 = a speed (hi:lo) -> C = 1 when |v| <= VL_CIRC_SLEEP
-@slow:  BPL     :+
+; A:vl_w0 = signed speed (hi:lo) -> C = 1 when |v| <= VL_CIRC_SLEEP.
+; Compare signed ranges directly: v >= 0 needs v <= T; v < 0 needs v >= -T.
+; T is 1..32767, so -32768 is always outside. A and NZV are scratch;
+; X/Y and I/D are unchanged. w0/w1 retain the signed speed.
+@slow:  BMI     @negative
         STA     vl_w1
-        SEC
-        LDA     #0
-        SBC     vl_w0
-        STA     vl_w0
-        LDA     #0
-        SBC     vl_w1
-:       STA     vl_w1
         LDA     #<VL_CIRC_SLEEP
         CMP     vl_w0
         LDA     #>VL_CIRC_SLEEP
         SBC     vl_w1
+        RTS
+@negative:
+        STA     vl_w1
+        LDA     vl_w0
+        CMP     #<(-VL_CIRC_SLEEP)
+        LDA     vl_w1
+        SBC     #>(-VL_CIRC_SLEEP)
         RTS
 .endif
 

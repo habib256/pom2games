@@ -292,6 +292,11 @@ Seven subsequently shortened in-range branches save another **21 code
 bytes**: 50 of the 56 profiles accelerate, six stay equal, with no change
 to RAM, zero page or stacks. Filtering takes 22,366 instead of 22,508
 cycles; the maximum-count zero-length geometry 67,829 instead of 69,194.
+The validated name/suffix difference also supplies both carries needed
+for the suffix address: **two further code bytes** and **four cycles per
+eligible entry** disappear. Of 56 profiles, 42 accelerate and 14 are
+unchanged; filtering is **22,346**, maximum count **66,801 cycles**.
+RAM, zero page and stack peaks remain unchanged.
 User: MB TRACKER (`.AYS` names, 16 bytes apart, 40 at most, in its OVL2
 overlay with the block in LOWBSS; its save prompt's name check, after its
 `.AYS` added to a name without a dot).

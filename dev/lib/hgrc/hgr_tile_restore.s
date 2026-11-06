@@ -17,10 +17,14 @@ count = tmp3                  ; no longer needed once ID validation succeeds
 row = tmp4                   ; origin uses the tile row before scan is set
 scan = tmp4
 map = ptr3                  ; screen stores no longer need a ZP pointer
+; Preflight retains height/count until checked. Its origin/next_map_row
+; helpers touch ptr1 only; ptr2 becomes a source pointer at draw_tile.
+check_rows = ptr2
+; After preflight, count is dead and height is consumed as the row countdown.
+left = tmp3
+rows = height
 .bss
 tiles: .res 2
-left: .res 1
-rows: .res 1
 .rodata
 maplo: .repeat 24,I
  .byte <(I*40)
@@ -111,7 +115,7 @@ small_count:
  ; Preflight the complete clipped rectangle before any framebuffer write.
  jsr origin
  lda height
- sta rows
+ sta check_rows
 check_row:
  ldy #0
 check_id:
@@ -122,12 +126,10 @@ check_id:
  cpy width
  bcc check_id
  jsr next_map_row
- dec rows
+ dec check_rows
  bne check_row
 checked:
  jsr origin
- lda height
- sta rows
  lda row
  asl
  asl
@@ -143,8 +145,8 @@ draw_row:
  sta draw_store0+1+6*P
  .endrepeat
  lda hgr_fixed_rowhi,x
- ora base
- clc
+ ; Low-row ADC <=208+39 leaves C=0; eight STA patches and LDA preserve it.
+ ora base                     ; ORA also preserves carry (including after RTI)
  .repeat 8,P
  sta draw_store0+2+6*P
  .if P<7

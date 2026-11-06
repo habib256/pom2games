@@ -278,6 +278,20 @@ ball resting on another keeps ~2g of speed: choose v above it. Waking a
 whole stack when one of it wakes (a sleeper under nothing would float) is
 the program's rule (dev/examples/catapult: per group).
 
+The sleep speed check compares signed ranges directly: nonnegative `v <= T`,
+negative `v >= -T`, for supported thresholds 1..32767. The private helper
+shrinks **26 → 24 code bytes**; at Catapult's threshold $21 its call costs
+**28 → 27 cycles** for positive speeds and **45 → 28** for negative speeds.
+No RAM or stack is added. X/Y and I/D are preserved; `w0/w1` now retain
+signed speed rather than its absolute value, within their scratch contract.
+The real Catapult test with the current keyboard measures flying work at
+**10,250.5 → 10,223 median**, **44,251 → 44,219 worst cycles**; individual
+frame changes range from −122 to +1 due to placement. Aiming and CUTROPE
+are unchanged. `test_verlet_sleep.py` validates 1,703,936 full velocity
+states, 294,903 boundaries covering every supported threshold, and 11,940
+public-state/guard cases per source/CPU. `--reference PATH --bench --out PATH`
+records old/new costs and real-game budgets; `--iie` checks the 65C02.
+
 ## Zero page and variables
 
 Each slot is allocated by `verlet.inc` unless the program defined the name

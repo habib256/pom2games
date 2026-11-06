@@ -180,10 +180,8 @@ entry_valid:
  sta tmp2                  ; name length
  sbc sl                    ; C set: name length minus suffix length
  sta tmp3
- clc
- adc #1
- clc
- adc ptr4
+ adc #0                    ; C=1 after nonnegative SBC: offset = difference+1
+ adc ptr4                  ; difference<=15, so the preceding ADC cleared C
  sta ptr4
  bcc suffix_compare
  inc ptr4+1

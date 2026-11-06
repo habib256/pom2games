@@ -154,7 +154,7 @@ zero page are unchanged.
 
 `test_math_products.py` checks every 16-bit input, signed and unsigned, for
 constants 0, 1, 2, 4, 8, 16, 32, 64, 73, 128, 183 and 255:
-**1,572,864 products** with default aliases, plus ten complete sweeps with
+**1,572,864 products** with default aliases, plus ten signed/unsigned sweep pairs with
 noncontiguous zero-page and absolute aliases: **2,883,584 products per CPU**.
 It also checks Y and cheap-label scope, 2,400 scratch/input/stack guards,
 and dirty carry/overflow and both IRQ-mask states. The general macros occupy 44/55 bytes instead of the original

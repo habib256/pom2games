@@ -123,6 +123,8 @@ test-hgr:
 	$(PYTHON) dev/tests/test_verlet.py
 	$(PYTHON) dev/tests/test_verlet_integrate_all.py
 	$(PYTHON) dev/tests/test_verlet_integrate_all.py --iie
+	$(PYTHON) dev/tests/test_verlet_sleep.py
+	$(PYTHON) dev/tests/test_verlet_sleep.py --iie
 	$(PYTHON) dev/tests/test_verlet_quarter_abs.py
 	$(PYTHON) dev/tests/test_verlet_quarter_abs.py --iie
 	$(PYTHON) dev/tests/test_verlet_helpers.py
