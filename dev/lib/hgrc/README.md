@@ -523,6 +523,14 @@ guards and 2,048 stack placements. It also passes against the C reference.
 Minimal clients verify that using one axis does not link the other.
 
 DHGR state and its four page functions occupy independent archive members.
+State itself is split into page, address/bank, pattern, span edges, legacy
+parameters and sprite-mask groups. Archive clients reserve only referenced
+groups: **5..13 fewer RAM bytes**, with unchanged loaded size, ZP and stacks.
+All symbols/types remain available; the all-symbol client still uses 19 BSS
+bytes and one DATA byte. Scalar addresses/order are not an ABI.
+`test_dhgr_state.py` checks 19 header clients and two explicit source families
+on both CPUs, initial values, independent writes, guards and member limits;
+`--negative` exercises three fault detectors and `--reference REV` pairs builds.
 Draw-page selection takes **25 / 31 cycles** for pages 1 / 2 and **23** for
 an invalid selector (previously 93 / 95 / 78), without C-stack use.
 Flip retains the old displayed page in Y across two internal calls that
@@ -709,8 +717,10 @@ Consumers that compile the sources directly can choose:
 
 `HGRC_DHGR_SRCS` keeps the historical set of primitives, transfers and
 8×8 text. `dhgr_internal.h` centralises the private parameters and prototypes of the
-banked primitives. When compiling manually, `dhgr_state.c` provides
-only the state; the four page functions have their own assembly files.
+banked primitives. When compiling manually, `dhgr_state.c` provides page
+state; `dhgr_address_state.s`, `dhgr_pattern_state.s`, `dhgr_span_state.s`,
+`dhgr_legacy_params.s` and `dhgr_sprite_mask_state.s` provide the other
+groups. The four page functions have their own assembly files.
 Use the family lists above to include their dependencies. The assembler kernels for masked writing, reading,
 clearing and scanlines are separate objects. The pixel address and the
 colour pattern are shared, while each read, point, rectangle

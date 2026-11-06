@@ -4,6 +4,77 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Audit de la trente-troisième session du 6 novembre 2026 — état DHGR, sol et LZ4FH
+
+Troisième série du chantier jusqu'à 11 h, référence `bae4cb1`. Gate
+**793 cas / 16 budgets** : **252 clients DHGR perdent 5 à 13 octets RAM**,
+un tracé mono clippé gagne un cycle (2 199 → 2 198), les 792 autres durées
+restent égales. CODE/chargé, ZP et les deux piles sont identiques partout.
+**541 dictionnaires complets sont identiques**, **253 limites sont abaissées**,
+aucune relevée. Les économies RAM se répartissent ainsi : 91 clients −5,
+neuf −6, 19 −9, 25 −10, 21 −12 et 87 −13 octets.
+
+L'état DHGR devient plusieurs membres d'archive : page, adresse/banque,
+motif, bords de span, paramètres historiques et pointeur de masque sprite.
+Les symboles et types restent disponibles ; les champs inutilisés ne sont
+plus extraits. Le client qui référence tout garde **19 octets BSS et un DATA**,
+sans promesse d'adresses scalaires fixes. `test_dhgr_state.py` vérifie
+19 clients d'en-tête et deux listes explicites de familles par source/CPU :
+types, valeurs initiales, écritures distinctes dans les 20 octets, lecture
+indépendante, gardes, tailles et exclusions. Trois mutations (base erronée,
+alias des anciens champs, pointeur trop petit) sont rejetées. Les 71 clients
+minimaux d'archive passent ; les oracles de spans, transferts, sprites et
+compositeur avec vraies IRQ couvrent aussi le nouvel état lié.
+
+`vl_ground` calcule la distance après le seul échantillon central et refuse
+un sol trop éloigné avant de lire les voisins et la normale. Les instructions
+sont réordonnées, sans ajout de CODE/chargé, RAM, ZP ou pile. Une vérification
+à l'assemblage conserve l'ordre ancien lorsque les scratchs se recouvrent
+avec le pointeur, les voisins ou la normale, ou si leur indépendance ne peut
+être prouvée. Sur 44 profils d'alias, **38 replis restent identiques octet
+pour octet** et six placements sûrs sont réordonnés. Le test durable couvre
+**1 114 112 appels par source/CPU**, sols pentus, frontières FAR, coordonnées
+signées et extrêmes 24 bits, bases de sol et rebouclages historiques inclus.
+État public, A/X, NZCV/I/D et Y sur les chemins proches sont identiques ;
+Y reste scratch sur le refus anticipé. Les pics matériels restent 4/6 octets.
+Deux contrôles négatifs rejettent une garde d’alias nx manquante et une
+borne FAR erronée, cette dernière détectée par le modèle de normale pentue.
+
+Tous les six jeux physiques suivent leurs modèles et budgets. Lander gagne
+sur les médianes et maxima des états ordinaires ; Catapult en vol passe de
+**10 185/44 207 à 10 128/43 941** (médiane/maximum). La fenêtre vidéo Rope
+peut commencer une frame plus tôt après accélération : une comparaison
+alignée par les 80 octets des points et l'état public retrouve **299 frames
+identiques, chacune 198 cycles plus rapide**. Les 1 195 appels réels de
+physique comparés à entrées égales gagnent 0..533 cycles. Aucun décalage de
+test ni assouplissement de budget ne masque cet effet de phase.
+
+LZ4FH réutilise Y, qui compte les octets copiés, pour avancer la destination.
+Le stockage/rechargement de `lz4fh_length` disparaît : noyau **190 → 187
+octets**, **quatre cycles de moins par match**. Son allocation/symbole reste
+réservé pour la compatibilité des scratchs. Les copies chevauchantes gardent
+leur ordre avant ; les autres contrats et le traitement des erreurs sont
+inchangés. Le test natif exécute **9 114 cas par placement/CPU/source**, deux
+placements dont les alias ZP réels de Dirtbike, toutes les longueurs 4..255,
+les frontières de littéraux, trois alignements source et les deux pages,
+jusqu'à 8 Ko de sortie. RAM entière, code auto-modifié, pile et A/X/Y/P
+sont vérifiés ; trois mutations sont rejetées. Sur chaque matrice,
+9 078 cas accélèrent et 36 sont égaux ; aucun ne ralentit.
+
+Les titres compressés réels Dirtbike/Wargalaga passent aussi, sur les deux
+CPU : 12 appels par source, **2 064 506 → 2 054 162 cycles** cumulés. Les
+deux jeux complets passent leurs tests privés appariés. Dirtbike perd trois
+octets CODE mais son fichier reste rembourré ; le segment FRONT de Wargalaga
+et son overlay perdent trois octets (6 207 → 6 204), tandis que WG2.AUX reste
+rembourré à ses frontières habituelles. Ces économies de segments ne sont
+pas présentées comme une réduction de la taille des disques.
+
+Validation finale : `make all test-woz` (18 paires), six jeux physiques,
+Wargalaga II, Robot Space Station, DHGR action/démo, Chromabreak et Maze3D,
+plus contrôles Makefile/options, passent. Le placement BSS coûte trois
+cycles par frame dans les profils DHGR action, sans modifier leurs pixels
+ni dépasser les budgets. Six disques et leurs WOZ sont reconstruits.
+
 ## Audit de la trente-deuxième session du 6 novembre 2026 — transferts DHGR, décimal et périodes
 
 Deuxième série du chantier jusqu'à 11 h, référence exacte `109ec93`.

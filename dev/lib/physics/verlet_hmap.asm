@@ -73,47 +73,51 @@ _VERLET_HMAP_ASM_LOADED_ = 1
 .else
 VL_GROUND_BASE = 0
 .endif
-vl_ground:
-        STX     vl_cur
-        LDA     #0
-        STA     vl_gnd,X
-        VL_GROUND_ENTER
-        ; Build the centre pointer once. Indexed reads reach both neighbours;
-        ; (pointer - 256) + (256 - probe) addresses the left sample even when
-        ; the low byte borrows. Restore the pointer's high byte afterwards.
-        LDA     vl_xl,X
-        STA     vl_hxl
-        LDA     vl_xh,X
-        STA     vl_hxh
-        JSR     vl_height_at
-        STA     vl_hgt
-        LDY     #VL_PROBE
-        LDA     (vl_tptr),Y
-        STA     vl_hp2
-        DEC     vl_tptr+1
-        LDY     #256 - VL_PROBE
-        LDA     (vl_tptr),Y
-        STA     vl_hm2
-        INC     vl_tptr+1
-        ; slope = h[+p] - h[-p], +-VL_SLOPE_MAX
-        LDA     vl_hp2
-        SEC
-        SBC     vl_hm2
-        BMI     @sneg
-        CMP     #VL_SLOPE_MAX+1
-        BCC     @sok
-        LDA     #VL_SLOPE_MAX
-        BNE     @sok
-@sneg:  CMP     #<(-VL_SLOPE_MAX)
-        BCS     @sok
-        LDA     #<(-VL_SLOPE_MAX)
-@sok:   CLC
-        ADC     #VL_SLOPE_MAX
-        TAY
-        LDA     vl_norm_x,Y
-        STA     vl_nx
-        LDA     vl_norm_y,Y
-        STA     vl_ny
+; Early rejection extends w0..2 across the neighbour reads. Retain the
+; original order for borrowed slots that overlap their pointer/samples/normals, or
+; whose relation cannot be proven at assembly time. No target code is added.
+_VL_GROUND_DISTANCE_EARLY .set 1
+.macro _VL_GROUND_CHECK_SLOT slot
+        .if .const(slot - vl_tptr)
+                .if slot - vl_tptr >= 0 .and slot - vl_tptr < 2
+                        _VL_GROUND_DISTANCE_EARLY .set 0
+                .endif
+        .else
+                _VL_GROUND_DISTANCE_EARLY .set 0
+        .endif
+        .if .const(slot - vl_hm2)
+                .if slot - vl_hm2 = 0
+                        _VL_GROUND_DISTANCE_EARLY .set 0
+                .endif
+        .else
+                _VL_GROUND_DISTANCE_EARLY .set 0
+        .endif
+        .if .const(slot - vl_hp2)
+                .if slot - vl_hp2 = 0
+                        _VL_GROUND_DISTANCE_EARLY .set 0
+                .endif
+        .else
+                _VL_GROUND_DISTANCE_EARLY .set 0
+        .endif
+        .if .const(slot - vl_nx)
+                .if slot - vl_nx = 0
+                        _VL_GROUND_DISTANCE_EARLY .set 0
+                .endif
+        .else
+                _VL_GROUND_DISTANCE_EARLY .set 0
+        .endif
+        .if .const(slot - vl_ny)
+                .if slot - vl_ny = 0
+                        _VL_GROUND_DISTANCE_EARLY .set 0
+                .endif
+        .else
+                _VL_GROUND_DISTANCE_EARLY .set 0
+        .endif
+.endmacro
+        _VL_GROUND_CHECK_SLOT vl_w0
+        _VL_GROUND_CHECK_SLOT vl_w1
+        _VL_GROUND_CHECK_SLOT vl_w2
+.macro _VL_GROUND_DISTANCE
 .ifdef VL_Y_HIGH
         CLC                             ; w = ((h + base) << 8) - y, 24 bits
         LDA     vl_hgt
@@ -171,7 +175,58 @@ vl_ground:
         LDA     #0
         STA     vl_w0
 .endif
-@wok:   SEC                             ; dist = (w * -ny) >> 6
+.endmacro
+vl_ground:
+        STX     vl_cur
+        LDA     #0
+        STA     vl_gnd,X
+        VL_GROUND_ENTER
+        ; Build the centre pointer once. Indexed reads reach both neighbours;
+        ; (pointer - 256) + (256 - probe) addresses the left sample even when
+        ; the low byte borrows. Restore the pointer's high byte afterwards.
+        LDA     vl_xl,X
+        STA     vl_hxl
+        LDA     vl_xh,X
+        STA     vl_hxh
+        JSR     vl_height_at
+        STA     vl_hgt
+        ; Far rejection needs neither neighbour samples nor normal scratch.
+.if _VL_GROUND_DISTANCE_EARLY
+        _VL_GROUND_DISTANCE
+@wok:
+.endif
+        LDY     #VL_PROBE
+        LDA     (vl_tptr),Y
+        STA     vl_hp2
+        DEC     vl_tptr+1
+        LDY     #256 - VL_PROBE
+        LDA     (vl_tptr),Y
+        STA     vl_hm2
+        INC     vl_tptr+1
+        ; slope = h[+p] - h[-p], +-VL_SLOPE_MAX
+        LDA     vl_hp2
+        SEC
+        SBC     vl_hm2
+        BMI     @sneg
+        CMP     #VL_SLOPE_MAX+1
+        BCC     @sok
+        LDA     #VL_SLOPE_MAX
+        BNE     @sok
+@sneg:  CMP     #<(-VL_SLOPE_MAX)
+        BCS     @sok
+        LDA     #<(-VL_SLOPE_MAX)
+@sok:   CLC
+        ADC     #VL_SLOPE_MAX
+        TAY
+        LDA     vl_norm_x,Y
+        STA     vl_nx
+        LDA     vl_norm_y,Y
+        STA     vl_ny
+.if .not _VL_GROUND_DISTANCE_EARLY
+        _VL_GROUND_DISTANCE
+@wok:
+.endif
+        SEC                             ; dist = (w * -ny) >> 6
         LDA     #0
         SBC     vl_ny
         TAY

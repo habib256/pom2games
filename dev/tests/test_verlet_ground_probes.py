@@ -52,7 +52,11 @@ def probes(work, source, iie):
     # selected full source. Integrated model tests below cover the full entry.
     ground = source.split('vl_ground:\n', 1)[1]
     start = ground.index('        VL_GROUND_ENTER\n') + len('        VL_GROUND_ENTER\n')
-    stage = ground[start:ground.index('        BMI     @sneg', start)]
+    # Sampling can be separated by the early distance rejection. Compile
+    # both actual sampling spans; the full-entry oracle covers rejection.
+    center_end = ground.index('        STA     vl_hgt\n', start) + len('        STA     vl_hgt\n')
+    neighbours = ground.index('        LDY     #VL_PROBE\n', center_end)
+    stage = ground[start:center_end] + ground[neighbours:ground.index('        BMI     @sneg', neighbours)]
     height = source.split('vl_height_at:\n', 1)[1].split('\n.endif', 1)[0]
     pattern = work / 'pattern.bin'
     pattern.write_bytes(bytes((address >> 2) & 63 for address in range(0x1c00, 0x2400)))

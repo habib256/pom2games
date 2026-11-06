@@ -137,6 +137,8 @@ test-hgr:
 	$(PYTHON) dev/tests/test_verlet_helpers.py --iie
 	$(PYTHON) dev/tests/test_verlet_ground_probes.py
 	$(PYTHON) dev/tests/test_verlet_ground_probes.py --iie
+	$(PYTHON) dev/tests/test_verlet_ground_early.py
+	$(PYTHON) dev/tests/test_verlet_ground_early.py --iie
 	$(PYTHON) dev/tests/test_verlet_fixed_gain.py
 	$(PYTHON) dev/tests/test_verlet_fixed_gain.py --iie
 	$(PYTHON) dev/tests/test_verlet_constraint_shifts.py
@@ -202,6 +204,7 @@ test-hgr:
 	$(PYTHON) dev/tests/test_sprite16_bounds.py
 	$(PYTHON) dev/tests/test_text8_strings.py
 	$(PYTHON) dev/tests/test_hgr_native.py
+	$(PYTHON) dev/tests/test_lz4fh_native.py --negative
 	$(PYTHON) dev/tests/test_hgr_wireframe.py
 	$(PYTHON) dev/tests/test_hgr_lines.py
 	$(PYTHON) dev/tests/test_hgr_hud_init.py
@@ -259,6 +262,7 @@ test-hgr-example:
 	$(PYTHON) dev/tests/test_hgr_example.py
 
 test-dhgr:
+	$(PYTHON) dev/tests/test_dhgr_state.py --negative
 	$(PYTHON) dev/tests/test_dhgr_span_native.py --negative
 	$(PYTHON) dev/tests/test_gfx_dhgr_color_entries.py
 	$(PYTHON) dev/tests/test_gfx_dhgr_color_entries.py --iie

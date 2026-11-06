@@ -101,6 +101,16 @@ flags on both CPUs: 195,072 cases each. Use `--bench --out PATH` for the
 integrated model-checked measurements, `--reference PATH` for an old source,
 and `--iie` for the second CPU.
 
+Ground rejection now runs after the centre sample, before neighbours and
+normal lookup. This reorders the existing code at unchanged size, RAM/ZP
+and stack peaks. Compile-time checks retain the old order for overlapping
+or unresolved scratch aliases. `test_verlet_ground_early.py` checks 1,114,112
+calls per source/CPU, including steep slopes, FAR boundaries and signed
+24-bit/base wrap cases; 38 alias fallback profiles remain byte-identical.
+Public state, A/X/NZCV/I/D and near-path Y agree; early-reject Y is scratch.
+Catapult flying work drops from 10,185/44,207 to 10,128/43,941 cycles
+(median/maximum); matched Rope work frames save 198 cycles each.
+
 Whole-pixel speed limits (`0 < VMAX < $8000`, low byte zero) use a
 high-byte comparison: the clamp body shrinks **42 → 31 code bytes** and
 saves 1..8 cycles per call. Typical positive/negative in-range calls take

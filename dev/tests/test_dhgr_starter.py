@@ -12,8 +12,8 @@ def main():
         sources = [DEV/'cc65/crt0_apple2.s', DEV/'tests/dhgr_starter_fixture.c',
                    DEV/'examples/dhgr/src/ball_render.s',
                    *[DEV/'lib/hgrc'/name for name in
-                     ('dhgr_state.c','dhgr_draw_page.s','dhgr_get_draw_page.s','dhgr_get_display_page.s','dhgr_flip.s','dhgr_locate.s','dhgr_pixel_asm.s','dhgr_getpixel_asm.s','dhgr_rows.s','dhgr_cells.s','dhgr_fill.s','dhgr_clear.s','dhgr_pattern_asm.s','dhgr_plot_color_asm.s','dhgr_color_state.s','dhgr_fill_bits.s','dhgr_bit_rect.s','dhgr_clear_asm.s','dhgr_span_asm.s','dhgr_address_asm.s', 'dhgr_asm.s', 'dhgr_sprite.s',
-                      'dhgr_transfer_params.c', 'dhgr_block_setup.s', 'dhgr_sprite_asm.s',
+                     ('dhgr_state.c','dhgr_address_state.s','dhgr_pattern_state.s','dhgr_span_state.s','dhgr_draw_page.s','dhgr_get_draw_page.s','dhgr_get_display_page.s','dhgr_flip.s','dhgr_locate.s','dhgr_pixel_asm.s','dhgr_getpixel_asm.s','dhgr_rows.s','dhgr_cells.s','dhgr_fill.s','dhgr_clear.s','dhgr_pattern_asm.s','dhgr_plot_color_asm.s','dhgr_color_state.s','dhgr_fill_bits.s','dhgr_bit_rect.s','dhgr_clear_asm.s','dhgr_span_asm.s','dhgr_address_asm.s', 'dhgr_asm.s', 'dhgr_sprite.s',
+                      'dhgr_transfer_params.c','dhgr_sprite_mask_state.s', 'dhgr_block_setup.s', 'dhgr_sprite_asm.s',
                       'dhgr_text_asm.s', 'hgr_font.c')],
                    DEV/'lib/apple2c/apple2io_asm.s']
         objects = []

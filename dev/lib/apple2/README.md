@@ -156,6 +156,13 @@ video; `exit.asm` restores the zero page to hand control back to DOS cleanly.
   an overlay, instead of `CODE`), stream validated at build time. A format error
   drops into the Monitor, as in the upstream decoder. Provenance and
   Apache-2.0 licence kept in `lz4fh-NOTICE.txt` / `lz4fh-LICENSE.txt`.
+  The copied length remains in Y, eliminating one scratch store/reload:
+  **187 instead of 190 code bytes and four cycles saved per match**. The
+  legacy length slot stays allocated, so RAM/ZP/layout contracts remain.
+  Enter D=0. `test_lz4fh_native.py` covers every match length, overlapping
+  copies, literal/input/output boundaries, full 8K pages, default and borrowed
+  scratch, both CPUs and complete RAM/code/stack guards; `--negative` validates
+  three fault detectors and `--reference REV` compares historical sources.
 - **`dos.asm`** — `dos_cmd_*`, `disk_protected`: DOS 3.3 commands (BLOAD,
   BSAVE…) from a BRUN program; assumes `exit.asm`. Additions are
   bounded to `DOS_CMD_MAX-1` characters; the two hexadecimal digits are

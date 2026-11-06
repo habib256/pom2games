@@ -1,5 +1,13 @@
 # Current cc65 measurements
 
+The thirty-third-session gate passes **793 cases and 16 frame budgets**.
+**252 DHGR clients save 5..13 RAM bytes**; one timing improves by one cycle,
+792 are equal. Loaded/code size, ZP and both stacks are unchanged everywhere;
+**253 limits are lowered**, none raised. Separate native/game checks validate
+earlier ground rejection at unchanged footprint and a three-byte-smaller
+LZ4FH decoder saving four cycles per match.
+See [the thirty-third-session audit](HISTORY.md#audit-de-la-trente-troisième-session-du-6-novembre-2026--état-dhgr-sol-et-lz4fh).
+
 The thirty-second-session gate passes **793 cases and 16 frame budgets**:
 **112 timings improve, 681 are equal, none regress**; 46 linked clients
 shrink, none grow. RAM, ZP and both stack peaks are unchanged everywhere.

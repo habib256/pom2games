@@ -5,7 +5,7 @@
 ; 8192 output bytes: match high bytes are ORed with the destination base.
 ; Trusted fhpack stream only: caller reserves source/output memory; no bounds
 ; checks. Invalid magic/token rings Monitor bell and jumps to Monitor.
-; Clobbers A,X,Y, read/write/match pointer pairs, token/length scratch.
+; Enter D=0. Clobbers A,X,Y, read/write/match pointer pairs, token/length scratch.
 ; Self-modifies CODE; not reentrant. Scratch may alias caller's ZP.
 ; LZ4FH_HERE=1: the code goes in the caller's current segment (an overlay)
 ; instead of CODE.
@@ -25,7 +25,7 @@ lz4fh_read: .res 2
 lz4fh_write: .res 2
 lz4fh_match: .res 2
 lz4fh_token: .res 1
-lz4fh_length: .res 1
+lz4fh_length: .res 1             ; retained for custom scratch-layout compatibility
 .endif
 .popseg
 .if !LZ4FH_HERE
@@ -133,7 +133,6 @@ bcs specialmatch
 adc #15
 noliteral__shortmatch:
 adc #4
-sta lz4fh_length
 tax
 iny
 lda (lz4fh_read),y
@@ -155,8 +154,8 @@ sta (lz4fh_write),y
 iny
 dex
 bne nohi5__copyloop
-lda lz4fh_write
-adc lz4fh_length
+tya                             ; copied length, including overlapping matches
+adc lz4fh_write
 sta lz4fh_write
 bcc mainloop
 inc lz4fh_write+1

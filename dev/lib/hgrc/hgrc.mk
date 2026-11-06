@@ -58,12 +58,12 @@ HGRC_ASM_DEPS := $(wildcard $(HGRC)/*.inc $(HGRC)/../apple2/*.inc $(HGRC)/../app
 
 # X2 C references: hgr_x2.c (host), hgr_x2_target.c (cc65); native members above.
 # IIe/IIc DHGR stays opt-in, independent from HGR and gfx.
-HGRC_DHGR_STATE_SRCS := $(HGRC)/dhgr_state.c $(HGRC)/dhgr_draw_page.s $(HGRC)/dhgr_get_draw_page.s $(HGRC)/dhgr_get_display_page.s $(HGRC)/dhgr_flip.s $(HGRC)/dhgr_asm.s
+HGRC_DHGR_STATE_SRCS := $(addprefix $(HGRC)/,dhgr_state.c dhgr_address_state.s dhgr_pattern_state.s dhgr_span_state.s dhgr_legacy_params.s dhgr_draw_page.s dhgr_get_draw_page.s dhgr_get_display_page.s dhgr_flip.s dhgr_asm.s)
 HGRC_DHGR_TABLE_SRCS := $(HGRC)/dhgr_rows.s $(HGRC)/dhgr_cells.s
 HGRC_DHGR_PIXEL_SRCS := $(addprefix $(HGRC)/,dhgr_pixel_asm.s dhgr_getpixel_asm.s dhgr_locate.s) $(HGRC_DHGR_TABLE_SRCS)
 HGRC_DHGR_CLEAR_SRCS := $(addprefix $(HGRC)/,dhgr_clear.s dhgr_pattern_asm.s dhgr_clear_asm.s dhgr_clear_rows.s dhgr_clear_rows_asm.s dhgr_rows.s)
 HGRC_DHGR_FILL_SRCS := $(sort $(HGRC_DHGR_CLEAR_SRCS) $(addprefix $(HGRC)/,dhgr_fill.s dhgr_plot_color_asm.s dhgr_color_state.s dhgr_fill_bits.s dhgr_bit_rect.s dhgr_span_asm.s) $(HGRC_DHGR_TABLE_SRCS))
-HGRC_DHGR_TRANSFER_SRCS := $(addprefix $(HGRC)/,dhgr_address_asm.s dhgr_block.s dhgr_read_block.s dhgr_write_block.s dhgr_sprite.s dhgr_transfer_params.c dhgr_block_asm.s dhgr_block_setup.s dhgr_sprite_asm.s) $(HGRC_DHGR_TABLE_SRCS)
+HGRC_DHGR_TRANSFER_SRCS := $(addprefix $(HGRC)/,dhgr_address_asm.s dhgr_block.s dhgr_read_block.s dhgr_write_block.s dhgr_sprite.s dhgr_transfer_params.c dhgr_sprite_mask_state.s dhgr_block_asm.s dhgr_block_setup.s dhgr_sprite_asm.s) $(HGRC_DHGR_TABLE_SRCS)
 HGRC_DHGR_CORE_SRCS := $(sort $(HGRC_DHGR_STATE_SRCS) $(HGRC_DHGR_PIXEL_SRCS) $(HGRC_DHGR_FILL_SRCS))
 HGRC_DHGR_SRCS := $(sort $(HGRC_DHGR_CORE_SRCS) $(HGRC)/dhgr_hline.s $(HGRC)/dhgr_vline.s $(HGRC_DHGR_TRANSFER_SRCS) $(HGRC)/dhgr_text_asm.s $(HGRC)/hgr_font.c)
 HGRC_DHGR_SMALL_TEXT_SRCS := $(HGRC)/dhgr_small.s $(HGRC)/dhgr_small_params.c $(HGRC)/dhgr_small_asm.s $(HGRC)/dhgr_small_string.s
