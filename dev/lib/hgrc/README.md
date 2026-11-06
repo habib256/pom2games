@@ -1527,7 +1527,16 @@ It saves another **six code/loaded bytes and the last two private BSS
 bytes**, with no extra ZP or stack. Costs are now **174,643** cycles for
 a full page, **3,200** for a 4×3 region, **903** for one tile and **5,716**
 for the combined scene. Both source operands are refreshed even after
-rejected calls or code reloads; nothing depends on cached patches. Tests include high tile IDs and unaligned map/tile pointers
+rejected calls or code reloads; nothing depends on cached patches.
+Finally, X indexes the map column as well as the screen column, so the map
+pointer stays at the row start and advances by a fixed 40 bytes per row.
+This saves **nine more code/loaded bytes**, with no RAM/ZP/stack change.
+Current costs are **168,860** cycles for a full page, **3,124** for 4×3,
+**887** for one tile and **5,658** for the combined scene. The invalid-last-ID
+profile costs 44 additional placement cycles (19,572 → 19,616); the other
+18 targeted profiles are faster or equal. An independent SDK oracle checks
+**503,429 ordered source reads and 405,904 ordered writes** per CPU,
+including the extra indirect-Y page crossings introduced by indexing. Tests include high tile IDs and unaligned map/tile pointers
 crossing page boundaries on both NMOS 6502 and 65C02.
 
 Each valid tile row repatches all sixteen store-operand bytes; code must

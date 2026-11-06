@@ -4,6 +4,83 @@ Ces chiffres décrivent les versions successives, pas tous la version actuelle.
 Les résultats actuels et leur protocole sont dans [README.md](README.md) ;
 `baseline.json` conserve les références utilisées par le gate.
 
+## Audit de la vingt-neuvième session du 6 novembre 2026 — carte indexée et limites de vitesse
+
+Après `6ed8b0a`, X indexe les colonnes de la carte comme celles de l'écran.
+Le pointeur reste au début de la ligne et avance de 40 octets une seule
+fois par ligne. **−9 octets CODE/chargés**, aucun changement RAM/ZP/piles
+(le BSS privé reste nul). Page complète **174 643 → 168 860 cycles**,
+région 4×3 **3 200 → 3 124**, une tuile **903 → 887**, fond/sprites
+**5 716 → 5 658**. Le cas d'ID invalide final passe de **19 572 à 19 616**
+(+44 cycles de placement) ; les 18 autres profils sont plus rapides ou
+égaux. Aucun padding ni réarrangement destiné à ce seul profil. Le
+constructeur partagé confirme CODE 645 → 636, chargé 1 289 → 1 280,
+autres segments et ordre inchangés.
+
+L'oracle SDK indépendant passe sur les deux CPU **1 828 appels par source**,
+**503 429 lectures source effectives ordonnées**, **405 904 écritures** et
+**610 rechargements**, avec gardes code/sources/contexte/piles/banques et
+RAM principale/auxiliaire complètes. Il distingue les lectures consommées
+des lectures bus factices ; les franchissements indirect-Y passent de
+7 586 à 9 568, sans changer les adresses consommées. Le contrôle historique
+ancien/nouveau avec/sans IRQ passe aussi, avec SEC avant RTI ; ancien
+30 373 IRQ/5 902 échantillons différés, nouveau 29 496/5 706. Les contrôles
+négatifs du candidat rejettent les écritures dupliquées exécutées avec I=1,
+et identifient leurs deux sources. Les pixels publics passent sur les
+deux implémentations et les deux CPU. `--reads` rend cette preuve durable.
+
+Les clamps de vitesse à limite entière positive comparent d'abord les
+octets hauts : **42 → 31 octets** par noyau. Les limites X/Y identiques
+partagent l'entrée sans trampoline, soit **84 → 31 octets** dans cinq
+clients réels (Lander, Rope, Halfpipe, Catapult, CUTROPE). Dirtbike garde
+deux limites et économise **22 octets CODE** ; son remplissage MAIN fixé
+maintient la taille de fichier à 13 705. Cas positif/négatif intérieur,
+JSR/RTS inclus : **30/31 → 22/23 cycles** ; saturation de −32768
+**40 → 35**. A/NZCV restent scratch ; X/Y, autres temporaires, I/D et piles
+sont préservés avec D=0. Les constantes fractionnaires, nulles et hors
+domaine gardent exactement l'ancien noyau et son comportement historique.
+
+Les **144 limites × 65 536 entrées = 9 437 184 cas par source/CPU**
+couvrent tous les 127 seuils entiers positifs et les frontières/fallbacks.
+Les 17 noyaux fallback sont identiques octet pour octet. Les **144 modes
+API/liens** couvrent VX/VY seuls ou ensemble, exports, ordre des références,
+limites égales/distinctes/non définies si inutilisées, alias ZP/absolus et
+absence totale de code non référencé. Résultats numériques et gardes
+correspondent au modèle et aux anciennes empreintes.
+
+Les six clients passent modèles, disques, entrées et budgets. Dirtbike :
+**645 phys_tick réels**, mêmes états et **44 cycles gagnés à chaque appel**,
+médiane 12 037 → 11 993, pire 17 260 → 17 216. Rope : oscillation
+33 280 → 33 167 médiane, 34 307 → 34 190 pire ; sol 38 966,5 → 38 762,5
+et 45 315 → 45 127. Lander améliore toutes les médianes/pires par phase.
+Halfpipe médiane 16 844 → 16 825,5, mais pire 28 267 → 28 297 (+30).
+CUTROPE actif gagne 9..140 cycles par trame ; au repos, médiane/pire
+3 712/24 426 → 3 720/24 552 (+8/+126 par placement). Catapult vol
+10 223 → 10 188,5 médiane, 44 219 → 44 203 pire ; certaines trames
+coûtent jusqu'à 70 cycles de plus, visée médiane inchangée.
+
+Le test Rope capturait le sol à un temps vidéo fixe : ancien PC=$70B1
+dans la lecture d'entrée (calcul achevé), nouveau PC=$6E56 pendant
+l'intégration du point 6. L'ancien voit trame 65/trois points au sol,
+le nouveau trame 64/un point transitoire, puis trois au calcul achevé.
+Les 340 premiers triplets d'entrée sont identiques et tous les états
+achevés correspondent au modèle. Le test rejoue désormais séparément
+le préfixe original jusqu'à `pace` pour cette assertion, garde **>=2**,
+les contrôles mode/ligne/texte et tout le calendrier initial touches/attentes.
+Aucune assertion numérique n'est assouplie ; les deux versions passent.
+
+Le gate global passe **793 cas et 16 budgets** : neuf clients gagnent neuf
+octets CODE/chargés, six accélèrent, deux gardent leur durée et un coûte
+44 cycles de plus (0,225 %). **784 dictionnaires identiques**, **24 limites
+abaissées**, aucune relevée. `make all test-woz` et les tests normaux
+CUTROPE, DIRTBIKE, Lander, Halfpipe, Rope et Catapult passent. Deux DSK
+et leurs WOZ changent, ainsi que les quatre disques privés des démos.
+Les six binaires privés finaux sont identiques aux binaires normaux de
+`make all`. Le modèle Verlet complet, les options et le graphe Makefile
+passent aussi. Une relecture indépendante des lifetimes, retenues,
+frontières signées, alias d'entrée et oracles ne relève aucun défaut.
+
+
 ## Audit de la vingt-huitième session du 6 novembre 2026 — adresse source et compteur de tuiles
 
 Après `aae57cd`, les deux ADC de la base des tuiles deviennent immédiats,

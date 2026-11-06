@@ -60,7 +60,11 @@ def main():
     steps = [lab.until('main', 2000), 'wait:60'] + look(lab)                 # 0: boot
     steps += ['key:L', 'wait:8', 'key:L', 'wait:8', 'key:L', 'wait:40'] + look(lab)  # 1: right
     steps += ['wait:600'] + look(lab)                                       # 2: 10 s swinging
-    steps += ['key:M', 'wait:240'] + look(lab)                              # 3: the floor
+    steps += ['key:M', 'wait:240']
+    # Replay this prefix for a completed-work observation; the original
+    # script keeps every key/wait time unchanged.
+    floor_checkpoint = steps + [lab.until('pace', 600)] + look(lab)
+    steps += look(lab)                              # 3: the floor
     steps += ['wait:600'] + look(lab)                                       # 4: 10 s on the floor
     steps += ['key: ', 'wait:60'] + look(lab)                               # 5: cut
     steps += ['key:R', 'wait:30'] + look(lab)                               # 6: reset
@@ -72,11 +76,13 @@ def main():
     assert s1['rp_px'] > R.START_X + 20, s1
     ticks = [(s2['frames'] - s1['frames']) & 0xFF, (s4['frames'] - s3['frames']) & 0xFF]
     assert ticks == [10 * R.TICK_HZ] * 2, ticks                         # 10 s: 200 ticks
-    assert s3['rp_mode'] == 1 and s3['rp_py'] == R.PIN_Y[1] and g3 >= 2 and t3[1] == 'FLOOR', (s3, g3, t3)
+    floor = a2test.run(str(DISK), floor_checkpoint)
+    fs, fg, ft = seen(floor, lab, 3)
+    assert fs['rp_mode'] == 1 and fs['rp_py'] == R.PIN_Y[1] and fg >= 2 and ft[1] == 'FLOOR', (fs, fg, ft)
     assert s5['rp_cut'] == 1 and t5[1] == 'FLOOR - WEIGHT CUT', (s5, t5)
     assert s6['rp_cut'] == 0 and s6['rp_mode'] == 0 and s6['rp_px'] == R.START_X and t6[1] == 'SWING', (s6, t6)
-    print(f'rope disk: boot "{t0[0]}"; L: pin {s0["rp_px"]} -> {s1["rp_px"]}; M: pin row {s3["rp_py"]}, '
-          f'{g3} points on the floor; space: "{t5[1]}"; R: "{t6[1]}"; 10 s swinging, on the floor: '
+    print(f'rope disk: boot "{t0[0]}"; L: pin {s0["rp_px"]} -> {s1["rp_px"]}; M: pin row {fs["rp_py"]}, '
+          f'{fg} points on the floor at a completed tick; space: "{t5[1]}"; R: "{t6[1]}"; 10 s swinging, on the floor: '
           f'{ticks[0]}, {ticks[1]} ticks')
     unpaced(lab)
     return frame_cycles(lab)

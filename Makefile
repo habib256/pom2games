@@ -125,6 +125,8 @@ test-hgr:
 	$(PYTHON) dev/tests/test_verlet_integrate_all.py --iie
 	$(PYTHON) dev/tests/test_verlet_sleep.py
 	$(PYTHON) dev/tests/test_verlet_sleep.py --iie
+	$(PYTHON) dev/tests/test_verlet_clamp.py
+	$(PYTHON) dev/tests/test_verlet_clamp.py --iie
 	$(PYTHON) dev/tests/test_verlet_quarter_abs.py
 	$(PYTHON) dev/tests/test_verlet_quarter_abs.py --iie
 	$(PYTHON) dev/tests/test_verlet_helpers.py
@@ -243,7 +245,7 @@ test-hgr:
 	$(PYTHON) dev/tests/test_sprengine_dirty.py
 	$(PYTHON) dev/tests/test_tilemap_init.py
 	$(PYTHON) dev/tests/test_tilemap.py
-	$(PYTHON) dev/tests/test_hgr_tile_rows.py
+	$(PYTHON) dev/tests/test_hgr_tile_rows.py --reads
 
 test-frame:
 	$(PYTHON) dev/tests/test_frame.py
@@ -507,6 +509,6 @@ audit-libs:
 
 
 test-hgr-tile-full: $(A2RUN)
-	$(PYTHON) dev/tests/test_hgr_tile_rows.py --irq --negative
+	$(PYTHON) dev/tests/test_hgr_tile_rows.py --irq --negative --reads
 
 .PHONY: test-hgr-tile-full

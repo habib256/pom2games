@@ -21,6 +21,10 @@ and bank/opcode/PC checks apply before filtering; the report counts all filters.
 --negative proves this filter rejects a deliberately duplicated executed STA,
 with I=1 so IRQ deferral is impossible. --reference REV uses the old kernel from
 git. --bench --out FILE records the 19 canonical tile scenes and environment.
+--reads adds an independent SDK source-read/write model on NMOS and 65C02.
+With --reference, it compares that old kernel with production; with --source,
+it compares production with the candidate. This trace records effective source
+operands, not unconsumed dummy bus reads. Source-immediate kernels are required.
 """
 
 import argparse
@@ -334,7 +338,7 @@ KERNEL = DEV / 'lib/hgrc/hgr_tile_restore.s'
 def negative_control(work):
     production_source_sha256 = hashlib.sha256(KERNEL.read_bytes()).hexdigest()
     source = KERNEL.read_text()
-    changes = [('.endrepeat\n lda hgr_fixed_rowhi,x', '.endrepeat\n sta duplicate_store+1\n lda hgr_fixed_rowhi,x'), ('.endrepeat\n ldx #0', '.endrepeat\n sta duplicate_store+2\n ldx #0'), ('.endrepeat\n inc ptr1\n bne map_advanced', '.endrepeat\nduplicate_store:\n sta $FFFF,x\n inc ptr1\n bne map_advanced')]
+    changes = [('.endrepeat\n lda hgr_fixed_rowhi,x', '.endrepeat\n sta duplicate_store+1\n lda hgr_fixed_rowhi,x'), ('.endrepeat\n ldx #0', '.endrepeat\n sta duplicate_store+2\n ldx #0'), ('.endrepeat\nmap_advanced:', '.endrepeat\nduplicate_store:\n sta $FFFF,x\nmap_advanced:')]
     for before, after in changes:
         assert source.count(before) == 1, 'negative-control template changed'
         source = source.replace(before, after)
@@ -380,6 +384,47 @@ def compiler_version():
     return (result.stdout + result.stderr).strip()
 
 
+def read_oracle(before, after, limit=None):
+    """Invoke native entries directly with guarded borrowed RAM and C-stack args."""
+    with tempfile.TemporaryDirectory(prefix='hgr-tile-reads-') as directory:
+        work=Path(directory)
+        images=[]
+        for name,kernel in (('before',before),('after',after)):
+            target=work/name;target.mkdir()
+            text=Path(kernel).read_text()
+            assert 'source_low:' in text and 'source_high:' in text, '--reads requires source-immediate kernels'
+            assembly=target/'kernel.s'
+            assembly.write_text(text+'\n.export source_low,source_high,draw_store0,tile_end\ntile_end:\n')
+            fixture=target/'fixture.c'
+            fixture.write_text('#include "hgr.h"\nint main(void){return hgr_tile_restore((const hgr_tilemap_t*)0x1001,1,0,0,40,24);}\n')
+            original=test_hgr.compile_source
+            def compile(member,obj,flags):
+                return original(assembly if Path(member).name=='hgr_tile_restore.s' else member,obj,flags)
+            test_hgr.compile_source=compile
+            try:build(target,fixture)
+            finally:test_hgr.compile_source=original
+            images.append(target)
+        operations=cases()
+        if limit:operations=operations[:limit]
+        inputs=work/'cases.bin'
+        inputs.write_bytes(b''.join(bytes((page,col,row,width,height,count&255,count>>8,align,flags))
+                                   for page,col,row,width,height,count,align,flags in operations))
+        executable=work/'read-probe'
+        test_hgr.run(['make','-s','-C',DEV/'tools/a2shot','probe',
+                      'SRC='+str(DEV/'bench/hgr_tile_read_probe.cpp'),'OUT='+str(executable)])
+        results={}
+        for cpu in (0,1):
+            old,new=images
+            output=test_hgr.run([executable,old/'test.bin',old/'test.lbl',new/'test.bin',new/'test.lbl',inputs,cpu])
+            print(output.strip())
+            match=re.search(r'(\d+) calls each: (\d+) exact ordered source reads, (\d+) exact ordered screen writes; indirect-Y crossings old/new (\d+)/(\d+); (\d+) reloads each;',output)
+            assert match,output
+            values=map(int,match.groups())
+            results['65c02' if cpu else 'nmos']=dict(zip(
+                ('calls','source_reads','screen_writes','before_index_crossings','after_index_crossings','code_reloads'),values))
+        return results
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     group = parser.add_mutually_exclusive_group()
@@ -387,6 +432,7 @@ def main():
     group.add_argument('--reference', help='read the kernel from this git revision')
     parser.add_argument('--irq', action='store_true', help='real VIA IRQs; alternate initial I flag')
     parser.add_argument('--negative', action='store_true', help='prove a real duplicated STA fails filtering')
+    parser.add_argument('--reads', action='store_true', help='SDK ordered source-read/write model on both CPUs')
     parser.add_argument('--limit', type=int, help='smoke-test only this many calls')
     parser.add_argument('--bench', action='store_true', help='19 canonical archive-linked tile cases')
     parser.add_argument('--out', type=Path, help='write reproducible JSON report')
@@ -404,11 +450,24 @@ def main():
         result = run_oracle(source, args.irq, args.limit)
         if args.negative:
             result['duplicate_negative'] = negative_control(work)
+        read_sources=None
+        if args.reads:
+            before,after=(source,KERNEL) if args.reference else (KERNEL,source)
+            result['ordered_reads']=read_oracle(before,after,args.limit)
+            read_sources={name:hashlib.sha256(Path(path).read_bytes()).hexdigest()
+                          for name,path in (('before',before),('after',after))}
         if args.out:
             spec = importlib.util.spec_from_file_location('tile_bench', DEV / 'bench/run.py')
             module = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(module)
             report = dict(schema=2, compiler=compiler_version(), flags='-Oirs' + (' -DTILE_IRQ=1' if args.irq else ''), results={'hgr_tile_ordered': result}, case_environments={'hgr_tile_ordered': 'iie'}, environments={'iie': module.environment(True)}, source_sha256=hashlib.sha256(source.read_bytes()).hexdigest(), test_sha256=hashlib.sha256(Path(__file__).read_bytes()).hexdigest(), reference=args.reference)
+            if args.reads:
+                report['read_sources']=read_sources
+                paths=[DEV/'bench/hgr_tile_read_probe.cpp',DEV/'tools/a2shot/probe.hpp',
+                       DEV/'tools/a2shot/sdk/include/pom2/core.hpp']
+                paths.extend(DEV.glob('tools/a2shot/sdk/lib/*/libpom2_core.a'))
+                report['read_probe_sources']=[dict(path=str(path.relative_to(ROOT)),sha256=hashlib.sha256(path.read_bytes()).hexdigest()) for path in paths]
+                report['read_environment']=dict(cpus=['NMOS6502','65C02'],memory='custom IIe 128K main/aux, no ROM',flags='SDK probe -std=c++17 -O2')
             args.out.write_text(json.dumps(report, indent=2) + '\n')
 
 if __name__ == '__main__':

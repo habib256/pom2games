@@ -325,8 +325,30 @@ vl_lap_len: .word 0
 ; ----------------------------------------------------------------------------
 ; VL_CLAMP_VAL lim -- vl_val = clamp(vl_val, -lim, lim), signed; ends in RTS
 ; (the body of vl_clamp_vx / vl_clamp_vy). ~25 cycles.
+; Keeps X/Y and other scratch. A/NZCV are scratch; I/D are unchanged (D=0).
+; Whole-pixel limits compare the high bytes first. Other constants retain
+; the general kernel, including the original zero/out-of-range behavior.
 ; ----------------------------------------------------------------------------
 .macro VL_CLAMP_VAL lim
+        .if (lim) > 0 .and (lim) < $8000 .and <(lim) = 0
+        LDA     vl_val+1
+        BMI     @neg
+        CMP     #>(lim)
+        BCC     @ok
+        BNE     @positive
+        LDA     vl_val
+        BEQ     @ok
+@positive:
+        LDA     #>(lim)
+@store: STA     vl_val+1
+        LDA     #0
+        STA     vl_val
+@ok:    RTS
+@neg:   CMP     #>(-(lim))
+        BCS     @ok
+        LDA     #>(-(lim))
+        BNE     @store
+        .else
         LDA     vl_val+1
         BMI     @neg
         LDA     #<(lim)
@@ -349,6 +371,7 @@ vl_lap_len: .word 0
         LDA     #>(-(lim))
         STA     vl_val+1
         RTS
+        .endif
 .endmacro
 
 ; ----------------------------------------------------------------------------

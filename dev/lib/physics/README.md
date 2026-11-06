@@ -101,6 +101,33 @@ flags on both CPUs: 195,072 cases each. Use `--bench --out PATH` for the
 integrated model-checked measurements, `--reference PATH` for an old source,
 and `--iie` for the second CPU.
 
+Whole-pixel speed limits (`0 < VMAX < $8000`, low byte zero) use a
+high-byte comparison: the clamp body shrinks **42 → 31 code bytes** and
+saves 1..8 cycles per call. Typical positive/negative in-range calls take
+**22/23 instead of 30/31 cycles**, including JSR/RTS. Equal X/Y limits
+share the same entry with no trampoline, saving **53 loaded bytes** in
+Lander, Rope, Halfpipe, Catapult and CUTROPE. Dirtbike's different limits
+save **22 CODE bytes**; its fixed MAIN fill keeps the file size unchanged.
+Fractional, zero and out-of-range constants retain the original kernel.
+X/Y, other scratch and I/D are preserved (D=0); A/NZCV remain scratch.
+`test_verlet_clamp.py` checks 144 limits × 65,536 inputs and 144 public
+link/export/order/alias configurations per CPU, including unchanged fallback
+code. `--reference DIR` selects saved `verlet.inc` and `verlet.asm`;
+`--bench --out PATH` adds isolated builds/models/budgets for all six clients
+and records source/tool/core identities. `--iie` selects the 65C02.
+
+Real-client gains include Dirtbike's 645 modeled physics ticks each
+**44 cycles faster**, Rope swing median **33,280 → 33,167**, and floor
+median **38,966.5 → 38,762.5**. Placement costs remain: Halfpipe worst
+**28,267 → 28,297**, frozen CUTROPE median/worst **3,712/24,426 →
+3,720/24,552**, and some Catapult frames cost up to 70 cycles more despite
+a lower flying median (**10,223 → 10,188.5**). All budgets pass.
+
+Rope's floor assertion now observes completed work at `pace`, by replaying
+the existing input prefix independently. Its original key/wait timeline and
+`>=2` condition stay intact. The older wall-time snapshot could stop inside
+integration; every completed tick still matches the independent model.
+
 The speed switches (exact: the same results, the tests run with and
 without them), `vl_constrain` on a 12-px fixed-gain link (a2run `call:`):
 

@@ -154,7 +154,9 @@ draw_row:
  .endrepeat
  ldx #0
 draw_tile:
- ldy #0
+ ; X remains the screen/map column; Y is free for the glyph source next.
+ txa
+ tay
  lda (ptr1),y
  tay
  lsr
@@ -187,19 +189,14 @@ draw_store0:
  .assert * = draw_store0 + 6*P, error, "tile store stride"
  sta $FFFF,x
 .endrepeat
- inc ptr1
- bne map_advanced
- inc ptr1+1
 map_advanced:
  inx                           ; X is the clipped column count (width 1..40)
  cpx width                     ; next tile/row arithmetic resets C before reuse
  jne draw_tile
- ; ptr1 already advanced width bytes. Skip to next map row.
- lda #40
- sec
- sbc width
+ ; ptr1 stays at this map row; X supplied each tile column.
  clc
- adc ptr1
+ lda ptr1
+ adc #40
  sta ptr1
  bcc no_carry
  inc ptr1+1

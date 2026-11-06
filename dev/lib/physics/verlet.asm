@@ -233,9 +233,16 @@ vl_integrate_free:                      ; integrate_all already checked the pin
 .endif
 
 .ifref vl_clamp_vx
-vl_clamp_vx: VL_CLAMP_VAL VL_VMAX_X
-.endif
+vl_clamp_vx:
 .ifref vl_clamp_vy
+.if VL_VMAX_X = VL_VMAX_Y
+; Both callers need the same clamp: share its code, without a trampoline.
+vl_clamp_vy = vl_clamp_vx
+.endif
+.endif
+        VL_CLAMP_VAL VL_VMAX_X
+.endif
+.if .referenced(vl_clamp_vy) .and (.not .defined(vl_clamp_vy))
 vl_clamp_vy: VL_CLAMP_VAL VL_VMAX_Y
 .endif
 
