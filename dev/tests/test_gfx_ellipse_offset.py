@@ -102,7 +102,7 @@ fail: jmp fail
             code+=name+': .byte '+','.join(map(str,values))+'\n'
         helper.write_text(code);build(work,source,extra_sources=(helper,))
         if args.reference:
-            text=(DEV/'lib/gfx/gfx_ellipse.c').read_text();start=text.index('static int gfx_ellipse_offset(')
+            text=(DEV/'lib/gfx/gfx_ellipse_ref.c').read_text();start=text.index('static int gfx_ellipse_offset(')
             opening=text.index('{',start);depth=1;end=opening+1
             while depth:
                 if text[end]=='{':depth+=1

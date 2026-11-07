@@ -1,5 +1,5 @@
 ; VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root).
-; Generic Bresenham; the same strict ties and axis shortcuts as gfx_line.c.
+; Generic Bresenham; the same strict ties and axis shortcuts as gfx_line_ref.c.
 ; Persistent state is private on the C stack, so gfx_plot may destroy every
 ; cc65 scratch byte. The doubled error lives in scratch only between calls.
 .export _gfx_line

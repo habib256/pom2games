@@ -1,6 +1,6 @@
 /* VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root). */
 /*
- * gfx_ellipse.c — card-neutral 64-segment polyline ellipse. See gfx.h.
+ * gfx_ellipse_ref.c — card-neutral 64-segment polyline ellipse. See gfx.h.
  *
  * Portable reference for gfx_ellipse.s. Both carry the same 80-byte
  * cosine/sine table. cc65 reference builds use gfx_ellipse_offset.s unless

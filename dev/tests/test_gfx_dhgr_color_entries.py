@@ -150,7 +150,7 @@ fail: jmp fail
         for i,name in enumerate(('xlo','xhi','ys')):
             code+=name+': .byte '+','.join(str(v[i]) for v in planes)+'\n'
         align.write_text(code)
-        build(work,source,extra_sources=(marker,align),gfx_backend='gfx_backend_dhgr_color.c')
+        build(work,source,extra_sources=(marker,align),gfx_backend='gfx_backend_dhgr_color_ref.c')
         if not args.reference:check_archive(work)
         stub='''.export _dhgr_color_dot, _dhgr_clear, _dhgr_dot_x, _dhgr_dot_color
 .import _records, _index
@@ -181,7 +181,7 @@ scratch:
         reference=[]
         if args.reference:
             ref=work/'reference.o'
-            compile_source(DEV/'lib/gfx/gfx_backend_dhgr_color.c',ref,
+            compile_source(DEV/'lib/gfx/gfx_backend_dhgr_color_ref.c',ref,
                            ['-t','none','-Oirs','-I',DEV/'lib/gfx','-I',DEV/'lib/hgrc'])
             reference.append(ref)
         run(['cl65','-t','none','-C',DEV/'cc65/apple2_hgr_c.cfg',

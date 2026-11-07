@@ -1272,7 +1272,7 @@ four fault detectors. `--reference REV` supports paired source comparison.
 
 The host reference `hgr_inflate_x2` (`hgr_x2.c`) and the target version
 (`hgr_x2_target.s` + `hgr_inflate_x2_asm.s`) compute the enlarged strides
-without 8-bit truncation; `hgr_x2_target.c` remains the cc65 C reference.
+without 8-bit truncation; `hgr_x2_target_ref.c` remains the cc65 C reference.
 The target transforms each byte with a 16-byte table, with no per-pixel
 loop and no division. Reserve `4*wbytes*h` bytes of output, not
 overlapping the source; the target rejects sizes above

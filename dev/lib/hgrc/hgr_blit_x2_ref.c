@@ -1,6 +1,6 @@
 /* VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root). */
 /* Portable reference; cc65 archives select hgr_blit_x2.s.
- * hgr_blit_x2.c — draw a mono ×1 sprite doubled to ×2 in a chosen colour,
+ * hgr_blit_x2_ref.c — draw a mono ×1 sprite doubled to ×2 in a chosen colour,
  * inflating ON THE FLY (no persistent buffer). The RAM-lean, cycle-costly twin of
  * the recommended inflate-once pattern (hgr_inflate_x2 at init + a byte-
  * aligned blit every frame): use this only when RAM is tighter than CPU time.

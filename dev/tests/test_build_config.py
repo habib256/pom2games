@@ -13,7 +13,7 @@ def check_native_backends():
     # stem, or cl65 can overwrite/delete that assembler source as a temporary.
     with tempfile.TemporaryDirectory(prefix='dhgr-native-build-') as directory:
         work=Path(directory)
-        sources=gfx_backend_sources(work,'gfx_backend_dhgr_color.c')
+        sources=gfx_backend_sources(work,'gfx_backend_dhgr_color_ref.c')
         native_vectors=[DEV/'lib/gfx/gfx_line.s',DEV/'lib/gfx/gfx_rect.s']
         native_circle=[DEV/'lib/gfx/gfx_circle.s']
         saved={source:source.read_bytes() for source in sources+native_vectors+native_circle}
@@ -113,7 +113,19 @@ def main():
         run(command)
         assert stamps == {p:p.stat().st_mtime_ns for p in stamps}, 'dependency build not stable'
     check_native_backends()
+    check_no_shared_stems()
     print('Archive build: distinct C/ASM members, no-op, flags and configuration rollback and transitive external C/ASM dependencies OK.')
+
+
+def check_no_shared_stems():
+    # `cl65 -c dir/x.c` writes its intermediate dir/x.s NEXT TO THE SOURCE and
+    # deletes it afterwards: a hand-written dir/x.s would be lost (2026-11-07,
+    # gfx_ellipse.s). C references therefore never share a stem with asm.
+    tracked=run(['git','-C',DEV.parent,'ls-files','*.c','*.s']).split()
+    asm={f[:-2] for f in tracked if f.endswith('.s')}
+    shared=sorted(f for f in tracked if f.endswith('.c') and f[:-2] in asm)
+    assert not shared,f'C sources sharing a stem with tracked asm (rename to *_ref.c): {shared}'
+    print('No tracked .c shares its stem with a tracked .s.')
 
 
 if __name__ == '__main__':

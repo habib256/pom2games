@@ -164,7 +164,7 @@ _gfx_line:
         reference=[]
         if args.reference:
             obj=work/'reference.o'
-            compile_source(DEV/'lib/gfx/gfx_ellipse.c',obj,['-t','none','-Oirs','-I',DEV/'lib/gfx'])
+            compile_source(DEV/'lib/gfx/gfx_ellipse_ref.c',obj,['-t','none','-Oirs','-I',DEV/'lib/gfx'])
             reference.append(obj)
         run(['cl65','-t','none','-C',DEV/'cc65/apple2_hgr_c.cfg','-Ln',work/'test.lbl','-o',work/'test.bin',work/'crt0_apple2.o',work/'entry.o',work/'apple2io_asm.o',work/'helpers.o',work/'sink.o',*reference,work/'hgrc.lib'])
         labels=a2test.labels(work/'test.lbl');disk=a2test.build_disk(work,'TEST',work/'test.bin');assert labels['__BSS_RUN__']+labels['__BSS_SIZE__']<0xa000

@@ -29,7 +29,7 @@ SEGMENTS { ZEROPAGE: load=ZP,type=zp; CODE: load=RAM,type=ro; }
     probe = work / 'probe'
     subprocess.run([*shlex.split(os.environ.get('CC', 'cc')), *defines, '-O1', '-g',
                     '-fsanitize=address,undefined', '-fno-sanitize-recover=all',
-                    '-I', str(DEV / 'tools/a2run'), str(DEV / 'tests/hgr_bitmap_bus.c'),
+                    '-I', str(DEV / 'tools/a2run'), str(DEV / 'tests/hgr_bitmap_bus_probe.c'),
                     str(DEV / 'tools/a2run/cpu6502.c'), '-o', str(probe)], check=True)
     subprocess.run([str(probe), str(binary)], check=True)
 

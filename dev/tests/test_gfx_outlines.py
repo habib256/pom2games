@@ -43,7 +43,7 @@ def check(work):
                     '-fsanitize=address,undefined', '-fno-sanitize-recover=all',
                     '-D__fastcall__=', '-I', str(DEV / 'lib/gfx'),
                     str(DEV / 'tests/gfx_outline_fixture.c'),
-                    str(DEV / 'lib/gfx/gfx_circle.c'), str(DEV / 'lib/gfx/gfx_rect.c'),
+                    str(DEV / 'lib/gfx/gfx_circle_ref.c'), str(DEV / 'lib/gfx/gfx_rect_ref.c'),
                     '-o', str(binary)], check=True)
     subprocess.run([str(binary)], check=True)
     # Filled spans go first so their first call builds the x/mask tables.

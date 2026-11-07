@@ -41,8 +41,8 @@ vpath %.s src $(GFX) $(DEV)/cc65 $(HGRC) $(APPLE2C) $(PRODOS) $(MOUSE)
 
 all: $(DISK)
 
-# Select the native backend sources explicitly: the portable .c references
-# share their stems, so vpath's C-first fallback must not choose them.
+# Select the native backend sources explicitly (the portable C references
+# are named *_ref.c, so vpath never falls back to them).
 GFX_BACKEND_OBJS := $(addprefix $(BUILD)/,$(notdir $(HGRC_DHGR_COLOR_BACKEND:.s=.o) $(HGRC_GENERIC_VECTOR_SRCS:.s=.o)))
 $(GFX_BACKEND_OBJS): $(BUILD)/%.o: $(GFX)/%.s Makefile $(HGRC)/hgrc.mk
 	@mkdir -p $(@D)

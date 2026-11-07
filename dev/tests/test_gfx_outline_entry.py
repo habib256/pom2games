@@ -238,7 +238,7 @@ fail_{kind}: jmp fail_{kind}
         sink=work/'sink.s';sink.write_text(stub);obj=work/'sink.o';run(['ca65','-o',obj,sink])
         reference=[]
         if args.reference:
-            ref=work/'reference.o';compile_source(DEV/'lib/gfx/gfx_rect.c',ref,['-t','none','-Oirs','-I',DEV/'lib/gfx'])
+            ref=work/'reference.o';compile_source(DEV/'lib/gfx/gfx_rect_ref.c',ref,['-t','none','-Oirs','-I',DEV/'lib/gfx'])
             reference.append(ref)
         run(['cl65','-t','none','-C',DEV/'cc65/apple2_hgr_c.cfg',
              '-Ln',work/'test.lbl','-o',work/'test.bin',work/'crt0_apple2.o',
