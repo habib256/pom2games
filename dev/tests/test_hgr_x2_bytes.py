@@ -66,7 +66,7 @@ int main(void) {
         disk=build(work,source,extra_sources=(marker,))
         if args.reference:
             obj=work/'reference.o'
-            compile_source(DEV/'lib/hgrc/hgr_x2_target.c',obj,
+            compile_source(DEV/'lib/hgrc/hgr_x2_target_ref.c',obj,
                            ['-t','none','-Oirs','-I',DEV/'lib/hgrc'])
             run(['cl65','-t','none','-C',DEV/'cc65/apple2_hgr_c.cfg',
                  '-Ln',work/'test.lbl','-o',work/'test.bin',work/'crt0_apple2.o',

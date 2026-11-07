@@ -11,11 +11,16 @@ Compile with `-I dev/lib/hgrc -I dev/lib/apple2c -I dev/lib/gfx`, preferably
 into an `ar65` archive so that only the functions actually called get linked
 (see [`../hgrc/hgrc_build.mk`](../hgrc/hgrc_build.mk)).
 
+Portable C references are named `*_ref.c` and never share a stem with an
+asm file: `cl65 -c x.c` writes its intermediate `x.s` next to the source and
+deletes it afterwards, which would destroy a hand-written `x.s`
+(`dev/tests/test_build_config.py` checks the whole tree).
+
 ## Apple II DHGR
 
 Two native archive families: `HGRC_DHGR_COLOR_BACKEND` (140×192, LORES
 colour 0..15) or `HGRC_DHGR_MONO_BACKEND` (560×192, bit 0/1). The matching
-`gfx_backend_dhgr_color.c` / `gfx_backend_dhgr_mono.c` files remain portable
+`gfx_backend_dhgr_color_ref.c` / `gfx_backend_dhgr_mono_ref.c` files remain portable
 references. Link exactly one
 backend with `HGRC_GENERIC_VECTOR_SRCS` and the DHGR library. The current
 colour is set with `dhgr_set_color`. Coordinates are those of the chosen
@@ -79,7 +84,7 @@ benchmark to **479**: 26 improve and 453 remain identical.
 Manual cc65 builds can use `gfx_text_backend_hgr.s`, `gfx_cell_glyph_hgr.s`
 and `gfx_cell_color_hgr.s`; `HGRC_GFX_TEXT_SRCS` selects all three.
 
-The cc65 hexadecimal converter uses `gfx_num_hex.s`; `gfx_num_hex.c` is the
+The cc65 hexadecimal converter uses `gfx_num_hex.s`; `gfx_num_hex_ref.c` is the
 host reference. Both produce uppercase text without leading zeroes and return
 the digit count. `test_gfx_hex.py` checks every 16-bit input, the terminating
 NUL, return length and buffer guards, including page-crossing buffers.
@@ -227,7 +232,7 @@ The cc65 archive selects independent native cursor state, `gfx_gotoxy`,
 character-only clients omit string iteration. Strings keep their iterator
 in two hardware-stack bytes across backend calls, with no private C-stack
 frame. This remains safe for nested callbacks that destroy all cc65 scratch;
-the cursor itself is still shared. `gfx_text.c` remains the portable reference.
+the cursor itself is still shared. `gfx_text_ref.c` remains the portable reference.
 String-only clients save 44 loaded bytes and numeric clients 18, with two
 fewer C-stack bytes but two more hardware-stack bytes while rendering.
 Empty strings take 32 cycles instead of 115. The 128-character benchmark

@@ -13,6 +13,6 @@ with tempfile.TemporaryDirectory(prefix='hgr-host-') as tmp:
                     '-fsanitize=address,undefined','-fno-sanitize-recover=all',
                     '-DHGR_NO_APPLE2','-I',str(ROOT/'dev/lib/hgrc'),
                     str(ROOT/'dev/tests/hgr_host_fixture.c'),
-                    str(ROOT/'dev/lib/hgrc/hgr_x2.c'),str(ROOT/'dev/lib/hgrc/hgr_blit_x2.c'),
+                    str(ROOT/'dev/lib/hgrc/hgr_x2.c'),str(ROOT/'dev/lib/hgrc/hgr_blit_x2_ref.c'),
                     '-o',str(binary)],check=True)
     subprocess.run([str(binary)],check=True)

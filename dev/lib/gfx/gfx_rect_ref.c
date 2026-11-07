@@ -1,6 +1,6 @@
 /* VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root). */
 /*
- * gfx_rect.c — card-neutral rectangle outline. See gfx.h.
+ * gfx_rect_ref.c — card-neutral rectangle outline. See gfx.h.
  *
  * Up to four spans, interior untouched, each outline pixel written once.
  * Corners normalised so x0<=x1, y0<=y1; flat boxes use one span.

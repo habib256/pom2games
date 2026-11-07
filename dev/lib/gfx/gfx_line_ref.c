@@ -1,6 +1,6 @@
 /* VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root). */
 /*
- * gfx_line.c — card-neutral Bresenham line. See gfx.h.
+ * gfx_line_ref.c — card-neutral Bresenham line. See gfx.h.
  *
  * Split from the former gfx_draw.c so a program that draws lines + rectangles only doesn't
  * drag in the circle or the ellipse table/scaler code that ld65 can't

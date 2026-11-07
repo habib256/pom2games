@@ -1,6 +1,6 @@
 /* VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root). */
 /* Portable reference; hgrc.mk selects independent native aliases/metadata.
- * gfx_backend_hgr.c — Apple II HGR backend for shared geometry.
+ * gfx_backend_hgr_ref.c — Apple II HGR backend for shared geometry.
  * Span primitives use the HGR rectangle fast paths. Fill/clear forwarders
  * are separate so archive links can omit them when unused.
  */
@@ -17,6 +17,6 @@ void gfx_plot(unsigned x, unsigned char y)                 { hgr_plot(x, y); }
 void gfx_hline(unsigned x0, unsigned x1, unsigned char y)  { hgr_hline(x0, x1, y); }
 void gfx_vline(unsigned x, unsigned char y0, unsigned char y1) { hgr_vline(x, y0, y1); }
 
-/* gfx_filled_rect + gfx_clear forwarders live in gfx_backend_hgr_rect.c so
+/* gfx_filled_rect + gfx_clear forwarders live in gfx_backend_hgr_rect_ref.c so
  * a HGR program that never
  * calls them won't drag gfx_filled_rect / hgr_clear in. */

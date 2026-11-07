@@ -80,7 +80,7 @@ int main(void) {
 }
 ''')
         marker=work/'marker.s';marker.write_text('.export _page_done,resume,_finished\n.code\n_page_done: nop\nresume: rts\n_finished: rts\n')
-        build(work,source,extra_sources=(marker,),gfx_backend='gfx_backend_dhgr_mono.c')
+        build(work,source,extra_sources=(marker,),gfx_backend='gfx_backend_dhgr_mono_ref.c')
         check_archive(work)
         stub='''.export _dhgr_plot, _dhgr_hline, _dhgr_vline, _dhgr_clear
 .import _records, _index, incsp3, incsp4, incsp5

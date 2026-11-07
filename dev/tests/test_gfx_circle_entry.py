@@ -178,7 +178,7 @@ _gfx_plot:
         stub+=' tax\n tay\n jmp incsp2\nfail: jmp fail\n';sink.write_text(stub);run(['ca65','-o',work/'sink.o',sink])
         reference=[]
         if args.reference:
-            obj=work/'reference.o';compile_source(DEV/'lib/gfx/gfx_circle.c',obj,['-t','none','-Oirs','-I',DEV/'lib/gfx'])
+            obj=work/'reference.o';compile_source(DEV/'lib/gfx/gfx_circle_ref.c',obj,['-t','none','-Oirs','-I',DEV/'lib/gfx'])
             reference.append(obj)
         run(['cl65','-t','none','-C',DEV/'cc65/apple2_hgr_c.cfg','-Ln',work/'test.lbl','-o',work/'test.bin',
              work/'crt0_apple2.o',work/'entry.o',work/'apple2io_asm.o',work/'helpers.o',work/'sink.o',

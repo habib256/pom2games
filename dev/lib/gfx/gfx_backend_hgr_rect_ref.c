@@ -1,10 +1,10 @@
 /* VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root). */
 /*
  * Portable reference; hgrc.mk selects native rectangle/clear members.
- * gfx_backend_hgr_rect.c — gfx_filled_rect + gfx_clear forwarders for the
+ * gfx_backend_hgr_rect_ref.c — gfx_filled_rect + gfx_clear forwarders for the
  * Apple II HGR backend.
  *
- * Split from gfx_backend_hgr.c so a HGR program that only draws
+ * Split from gfx_backend_hgr_ref.c so a HGR program that only draws
  * lines/circles/ellipses never references gfx_filled_rect or
  * hgr_clear, keeping ld65 dead-strip symmetric with the TMS side.
  */

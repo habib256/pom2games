@@ -80,8 +80,8 @@ def compile_source(source, obj, flags):
 
 def gfx_backend_sources(work, backend):
     """Resolve the selected archive family, retaining explicit custom C backends."""
-    families={'gfx_backend_dhgr_mono.c':'HGRC_DHGR_MONO_BACKEND',
-              'gfx_backend_dhgr_color.c':'HGRC_DHGR_COLOR_BACKEND'}
+    families={'gfx_backend_dhgr_mono_ref.c':'HGRC_DHGR_MONO_BACKEND',
+              'gfx_backend_dhgr_color_ref.c':'HGRC_DHGR_COLOR_BACKEND'}
     if backend not in families:return [DEV/'lib/gfx'/backend]
     mk=work/'gfx_backend.mk'
     mk.write_text(f'HGRC := {DEV}/lib/hgrc\nGFX := {DEV}/lib/gfx\n'

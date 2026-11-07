@@ -3,7 +3,7 @@
  * Derived from POM1 (GPL-3.0).
  * Algorithms call a backend selected at link time: gfx_plot, gfx_hline,
  * gfx_vline and the screen dimensions. The Apple II HGR backend lives in
- * gfx_backend_hgr.c; there is no per-pixel function-pointer dispatch.
+ * gfx_backend_hgr_ref.c; there is no per-pixel function-pointer dispatch.
  * x is unsigned, y is unsigned char. Drawing shares the backend's state and
  * scratch: not reentrant or callable from IRQ. Main RAM/ZP, D=0; see ../ABI.md.
  * Units are backend pixels. Rectangles/spans clip; diagonal lines reject
@@ -94,7 +94,7 @@ unsigned char gfx_itoa(char *buf, int value);
 unsigned char gfx_hexstr(char *buf, unsigned value);
 
 /* ===========================================================================
- * Positioned HGR text (native archive entries; gfx_text.c is the C reference).
+ * Positioned HGR text (native archive entries; gfx_text_ref.c is the C reference).
  * ===========================================================================
  * One shared 8x8-cell cursor, white text, 35 columns x 24 rows. The supplied
  * cell backend is HGR-only, writes to the current HGR draw page and is in the

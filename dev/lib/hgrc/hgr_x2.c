@@ -22,7 +22,7 @@
 #include "hgr_host.h"
 
 /* HOST-ONLY per-pixel reference implementation. The target uses the bytewise
- * implementation in hgr_x2_target.c because cc65 2.18 `-Oirs` (the standard hgrc flag)
+ * implementation in hgr_x2_target_ref.c because cc65 2.18 `-Oirs` (the standard hgrc flag)
  * MISCOMPILES this C: whatever the loop shape, the optimizer decides the inner
  * pixel-setting body is dead and drops it (computes the source-bit test, then
  * just does sx++, emitting ZERO stores into `out`) — so every x2 sprite inflated

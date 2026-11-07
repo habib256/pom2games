@@ -56,7 +56,7 @@ HGRC_AFLAGS := -I $(HGRC) -I $(HGRC)/../apple2
 HGRC_HEADERS := $(wildcard $(HGRC)/*.h $(HGRC)/*.inc $(HGRC)/../font/*.inc $(HGRC)/../apple2c/*.h $(GFX)/*.h)
 HGRC_ASM_DEPS := $(wildcard $(HGRC)/*.inc $(HGRC)/../apple2/*.inc $(HGRC)/../apple2/*.asm)
 
-# X2 C references: hgr_x2.c (host), hgr_x2_target.c (cc65); native members above.
+# X2 C references: hgr_x2.c (host), hgr_x2_target_ref.c (cc65); native members above.
 # IIe/IIc DHGR stays opt-in, independent from HGR and gfx.
 HGRC_DHGR_STATE_SRCS := $(addprefix $(HGRC)/,dhgr_state.c dhgr_address_state.s dhgr_pattern_state.s dhgr_span_state.s dhgr_legacy_params.s dhgr_draw_page.s dhgr_get_draw_page.s dhgr_get_display_page.s dhgr_flip.s dhgr_asm.s)
 HGRC_DHGR_TABLE_SRCS := $(HGRC)/dhgr_rows.s $(HGRC)/dhgr_cells.s

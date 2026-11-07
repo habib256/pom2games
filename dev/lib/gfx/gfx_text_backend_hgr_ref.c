@@ -1,7 +1,7 @@
 /* VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root). */
 /*
  * Portable reference; hgrc.mk selects native cc65 members.
- * gfx_text_backend_hgr.c — Apple II HGR backend for the gfx_text cell façade (AXIS 3).
+ * gfx_text_backend_hgr_ref.c — Apple II HGR backend for the gfx_text cell façade (AXIS 3).
  *
  * Maps the card-neutral 8x8 cell model onto HGR's NATIVE 8x8 glyph blit
  * (hgr_puts8): cell (col,row) -> pixel (col*8, row*8). 280x192 / 8 = 35x24.

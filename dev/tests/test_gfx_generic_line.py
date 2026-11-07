@@ -160,7 +160,7 @@ _align_call:
  rts
 fail: jmp fail
 ''')
-        build(work,source,extra_sources=(helpers,),gfx_backend='gfx_backend_dhgr_mono.c')
+        build(work,source,extra_sources=(helpers,),gfx_backend='gfx_backend_dhgr_mono_ref.c')
         # Replace the dummy grid setter for the final link, alongside the sinks.
         text=helpers.read_text().replace('_set_grid: rts','''_set_grid:
  lda _gridw
@@ -227,7 +227,7 @@ fail: jmp fail
         stub+=' tax\n tay\n rts\n';sink.write_text(stub);run(['ca65','-o',work/'sink.o',sink])
         reference=[]
         if args.reference:
-            obj=work/'reference.o';compile_source(DEV/'lib/gfx/gfx_line.c',obj,['-t','none','-Oirs','-I',DEV/'lib/gfx'])
+            obj=work/'reference.o';compile_source(DEV/'lib/gfx/gfx_line_ref.c',obj,['-t','none','-Oirs','-I',DEV/'lib/gfx'])
             reference.append(obj)
         run(['cl65','-t','none','-C',DEV/'cc65/apple2_hgr_c.cfg','-Ln',work/'test.lbl','-o',work/'test.bin',
              work/'crt0_apple2.o',work/'entry.o',work/'apple2io_asm.o',work/'helpers.o',work/'sink.o',

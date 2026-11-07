@@ -1,6 +1,6 @@
 /* VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root). */
 /*
- * gfx_circle.c — card-neutral midpoint circle outline. See gfx.h.
+ * gfx_circle_ref.c — card-neutral midpoint circle outline. See gfx.h.
  *
  * 8-way symmetry, every plotted point clipped to [0,gfx_width) x
  * [0,gfx_height) (int coords so a centre±radius that runs off an edge is
