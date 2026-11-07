@@ -99,19 +99,23 @@ $(DISK): $(BUILD)/RSS.SYS $(BUILD)/game.bin.ovl $(BUILD)/RSS.SYSTEM $(BUILD)/RSS
 		$(BUILD)/RSS.TEXT1=RSS.TEXT1#060000 $(BUILD)/RSS.TEXT2=RSS.TEXT2#060000 \
 		$(BUILD)/game.bin.ovl=RSS.OVL#060000)
 
+# the tests play on a fresh copy each (the game writes RSS.SAVE: never into dist/)
+TESTDISK := $(BUILD)/test.po
+FRESH = cp $(DISK) $(TESTDISK) &&
+
 test: all
 	$(PYTHON) tests/test_model.py
-	$(PYTHON) tests/test_lab.py --disk $(DISK) --labels $(BUILD)/game.lbl
-	$(PYTHON) tests/test_zone.py --disk $(DISK) --labels $(BUILD)/game.lbl
-	$(PYTHON) tests/test_lab.py --disk $(DISK) --labels $(BUILD)/game.lbl --iic
-	$(PYTHON) tests/test_zone.py --disk $(DISK) --labels $(BUILD)/game.lbl --iic
+	$(FRESH) $(PYTHON) tests/test_lab.py --disk $(TESTDISK) --labels $(BUILD)/game.lbl
+	$(FRESH) $(PYTHON) tests/test_zone.py --disk $(TESTDISK) --labels $(BUILD)/game.lbl
+	$(FRESH) $(PYTHON) tests/test_lab.py --disk $(TESTDISK) --labels $(BUILD)/game.lbl --iic
+	$(FRESH) $(PYTHON) tests/test_zone.py --disk $(TESTDISK) --labels $(BUILD)/game.lbl --iic
 
 test-long: all
-	$(PYTHON) tests/test_campaign.py --disk $(DISK) --labels $(BUILD)/game.lbl
-	$(PYTHON) tests/test_campaign.py --iic --disk $(DISK) --labels $(BUILD)/game.lbl
-	$(PYTHON) tests/test_fuzz.py --disk $(DISK) --labels $(BUILD)/game.lbl
-	$(PYTHON) tests/test_fuzz.py --iic --disk $(DISK) --labels $(BUILD)/game.lbl
-	$(PYTHON) tests/test_zone_fuzz.py --disk $(DISK) --labels $(BUILD)/game.lbl
-	$(PYTHON) tests/test_zone_fuzz.py --iic --disk $(DISK) --labels $(BUILD)/game.lbl
+	$(FRESH) $(PYTHON) tests/test_campaign.py --disk $(TESTDISK) --labels $(BUILD)/game.lbl
+	$(FRESH) $(PYTHON) tests/test_campaign.py --iic --disk $(TESTDISK) --labels $(BUILD)/game.lbl
+	$(FRESH) $(PYTHON) tests/test_fuzz.py --disk $(TESTDISK) --labels $(BUILD)/game.lbl
+	$(FRESH) $(PYTHON) tests/test_fuzz.py --iic --disk $(TESTDISK) --labels $(BUILD)/game.lbl
+	$(FRESH) $(PYTHON) tests/test_zone_fuzz.py --disk $(TESTDISK) --labels $(BUILD)/game.lbl
+	$(FRESH) $(PYTHON) tests/test_zone_fuzz.py --iic --disk $(TESTDISK) --labels $(BUILD)/game.lbl
 
 .PHONY: test test-long

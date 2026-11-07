@@ -25,6 +25,7 @@ floating bus): the game runs unpaced.
     python3 tests/test_cutrope_disk.py --fit     the pace estimate's terms
 """
 from pathlib import Path
+import shutil
 import statistics
 import sys
 import tempfile
@@ -40,7 +41,8 @@ import dos33  # noqa: E402
 from fonts import glyph  # noqa: E402
 from hgr_tables import hgr_offset  # noqa: E402
 
-DISK = ROOT / 'dist/CUTROPE.dsk'
+SRC = ROOT / 'dist/CUTROPE.dsk'
+DISK = SRC                              # a copy while the tests run (on_copy)
 LBL = GAME / 'build/cutrope.lbl'
 STATE = ['level', 'total', 'cur_x', 'cur_y', 'frames']
 NSTATE = 6 + C.NCUSH                    # cr_state .. cr_cool
@@ -171,7 +173,25 @@ def menu_ok(seen, best, sel):
     assert lines == want, '\n'.join(f'{a!r}\n{b!r}' for a, b in zip(lines, want) if a != b)
 
 
+def on_copy(fn, *args):
+    """fn(*args) with DISK a temporary copy of dist/CUTROPE.dsk: the
+    emulator writes the disk back and the game writes CUTSAVE, never into
+    dist/."""
+    global DISK
+    with tempfile.TemporaryDirectory(prefix='cutrope-') as work:
+        DISK = Path(work) / 'CUTROPE.dsk'
+        shutil.copyfile(SRC, DISK)
+        try:
+            return fn(*args)
+        finally:
+            DISK = SRC
+
+
 def main():
+    return on_copy(checks)
+
+
+def checks():
     lab = a2test.labels(LBL)
     sol = [[(t, m.bit_length()) for t, m in s] for s in C.SOLUTIONS]
     none = [0] * C.NLEVEL
@@ -410,6 +430,6 @@ def unpaced(lab):
 
 if __name__ == '__main__':
     if '--fit' in sys.argv:
-        fit(a2test.labels(LBL))
+        on_copy(fit, a2test.labels(LBL))
     else:
         main()

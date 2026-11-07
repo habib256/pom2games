@@ -6,7 +6,8 @@ while, at one frame wait, the turn count and the drones, objects, held
 objects and doors == tools/model.py's Zone after as many turns. //e, then
 //c with --iic.
 
-    tests/test_zone_fuzz.py --disk ../dist/ROBOTSTATION.po --labels build/game.lbl [--iic] [--seed N]
+    cp ../dist/ROBOTSTATION.po build/test.po      (a copy: the game writes RSS.SAVE)
+    tests/test_zone_fuzz.py --disk build/test.po --labels build/game.lbl [--iic] [--seed N]
 """
 import argparse
 from pathlib import Path
