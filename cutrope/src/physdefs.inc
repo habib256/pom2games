@@ -38,12 +38,14 @@ VL_CEILING_CLAMP = CEIL
 .endmacro
 
 .segment "BSS"
-; the state (tests/test_cutrope.py snapshots cr_state..cr_ev in this order)
+; the state (tests/test_cutrope.py snapshots cr_state..cr_cool in this order)
 cr_state:   .res 1              ; PLAY, WON, LOST
 cr_on:      .res 1              ; ropes still on (bit r)
 cr_stars:   .res 1              ; stars taken (bit s)
 cr_nstar:   .res 1              ; their count
 cr_ev:      .res 1              ; this tick's events (EV_*)
+cr_bub:     .res 1              ; the bubble: BUB_NONE, BUB_FREE, BUB_CAUGHT
+cr_cool:    .res NCUSH          ; ticks before each cushion puffs again
 in_cut:     .res 1              ; the tick's inputs: ropes cut by key (bit r)
 in_cx:      .res 1              ;   the cursor (px)
 in_cy:      .res 1
@@ -57,7 +59,13 @@ star_x:     .res 3
 star_y:     .res 3
 frog_x:     .res 1
 frog_y:     .res 1
-seg_kind:   .res NSEG           ; 0 platform, 1 spikes
+bub_x:      .res 1              ; the bubble's centre
+bub_y:      .res 1
+cr_ncush:   .res 1
+cu_x:       .res NCUSH          ; the cushions: centre, direction (0 R 1 D 2 L 3 U)
+cu_y:       .res NCUSH
+cu_dir:     .res NCUSH
+seg_kind:   .res NSEG           ; 0 platform, 1 spikes, 2 trampoline
 seg_x0:     .res NSEG           ; the drawn line (whole px)
 seg_y0:     .res NSEG
 seg_x1:     .res NSEG
@@ -94,6 +102,9 @@ cr_ux:      .res 1
 cr_uy:      .res 1
 cr_c:       .res 3              ; the cross product
 cr_lim:     .res 2
+cr_vin:     .res 2              ; the candy's vy before the ground contact
+cr_tx:      .res 1              ; within(): the target
+cr_ty:      .res 1
 .segment "ZEROPAGE"
 lvp:        .res 2              ; the level record
 .segment "CODE"

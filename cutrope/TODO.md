@@ -1,40 +1,29 @@
 # CUTROPE — TODO
 
-The prototype: three levels, key and cursor cuts, stars, spikes, a frog,
-30 ticks a second. What a full game would add, roughly in order.
+Done (2026-11-06): bubbles, air cushions, the level solver
+(`tools/cutrope.py --solve`) and the search that made the levels
+(`tools/design.py`), the levels on the disk (a sector each), the level menu
+with the stars won kept in CUTSAVE. What a full game would add, roughly in
+order.
 
 ## Play
 
-* **Bubbles.** A bubble at a fixed place: the candy entering it (a
-  distance test like the stars') is caught; while caught, the tick
-  integrates the candy with negative gravity (buoyancy: an extra
-  `vl_sub_yv` of 2 × `VL_GRAVITY` on point 0 after `vl_integrate_all`, or
-  a per-point gravity table in the model and a `VL_GRAVITY_POINT` switch
-  in lib/physics), with its speed clamped lower; the cursor touching the
-  candy with the button pops it (back to normal gravity). Model first
-  (`Game.bubble`), then `phys.inc`; the sprite drawn round the candy.
-* **Air cushions.** A cushion at a fixed place pointing in a direction:
-  a key (or the cursor + button on it) puffs, an impulse on the candy when
-  it is within its cone — `vl_val` = the puff's vector, `vl_add_xv` /
-  `vl_add_yv` on point 0 (a speed change: the position moves, the old one
-  stays), the puff's strength falling with the distance by a table.
-* **More levels.** The record format holds up to 3 ropes, 8 segments
-  (`NSEG`), any slack; the level search (cut windows over every tick or
-  pair of ticks on the model, the stars placed on a solution's
-  trajectory) is the way to make them: put it in `tools/cutrope.py` as a
-  `--solve` option that prints the windows and checks each level has a
-  3-star solution (the tests replay `SOLUTIONS` today). Moving pins
-  (a pin on a rail, `vl_pin` points moved by the program, x = ox), ropes
-  that attach when the candy passes near a pin (a new rope at that tick:
-  its points placed on the segment), several candies.
-* **Stars tally and a level menu**: the stars of each level kept, the
-  total on the title line; a save on the disk (`rwts_sectors`).
+* **More kinds of levels.** Moving pins (a pin on a rail, `vl_pin` points
+  moved by the program, x = ox), ropes that attach when the candy passes
+  near a pin (a new rope at that tick: its points placed on the segment),
+  several candies, a bubble per rope. `tools/design.py` takes a template
+  per kind: one for each.
+* **Hand-made levels.** The generated ones put the stars on the path of one
+  plan; a designer's level (stars that ask for a detour, a cushion used
+  twice) is a dict in `tools/levels.py` checked by `--solve`.
 * **A title page** (the font's x2 text) and the frog's eating animation
   (two frog sprites).
 * **The loose rope ends.** A cut rope disappears (cheaper, see README);
   the pin side could stay as a short dangling stub (its points still
   integrated, the link at the cut dropped) where the budget allows (one
   rope levels).
+* **The menu on the stick**: a push moves the choice one cell; holding it
+  could repeat.
 
 ## Speed and the budget
 
