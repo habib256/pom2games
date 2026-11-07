@@ -7,27 +7,31 @@
 ; in phys.inc (tests/test_cutrope.py: bit for bit); this file is the game
 ; around it: input, events and sounds, drawing, the text lines, the pace.
 ;
-; Screen: rows 0-7 the counters (level, stars, candies), 8-15 the message,
-; 16-190 the field (the world is the screen). The platforms, the spikes and
-; the frog are drawn once on both pages at a level's start; the stars, the
-; ropes, the candy and the cursor are drawn with hgr_plot_hist.asm, which
-; records the bits each one lit, in a stack per page: the stars at the
-; bottom (drawn again only when one is taken), the ropes and the candy, the
-; cursor on top. Each tick draws the hidden page -- what it showed above
-; the stars given back (EOR), the ropes, the candy and the cursor drawn
-; again -- and shows it in the vertical blank (vapor.asm: the beam found
-; through the floating bus, a marker on row 191 of both pages; nothing is
-; drawn below row 190), a tick every TICK_FRAMES video frames (30 a
-; second: vapor_pace, given an estimate of the tick's cycles); without a
-; floating bus (//c, IIgs) it runs unpaced. Once the candy is in the frog
-; or lost, both pages hold the last picture after two ticks: only the
-; cursor is drawn again, and the jingle plays (tune.asm, a tick of it a
-; game tick).
-; Keys: 1-3 cut rope 1-3; I J K L (or the arrows) move the cursor, space
-; holds the "button" a moment: a rope the cursor touches meanwhile is cut;
-; R restarts the level (a new game once the candies are gone), N goes to
-; the next level after a win, ESC quits to DOS. A joystick (found at
-; start): both axes move the cursor, button 0 cuts.
+; Screen: rows 0-7 the counters (level, stars, total), 8-15 the message,
+; 16-190 the field (the world is the screen). The platforms, the spikes,
+; the cushions and the frog are drawn once on both pages at a level's start;
+; the stars, the free bubble, the puffs, the ropes, the candy (in its
+; bubble) and the cursor are drawn with hgr_plot_hist.asm, which records the
+; bits each one lit, in a stack per page: the stars and the free bubble at
+; the bottom (drawn again only when one changes), the puffs, the ropes, the
+; candy, the cursor on top. Each tick draws the hidden page -- what it
+; showed above the stars given back (EOR), the rest drawn again -- and shows
+; it in the vertical blank (vapor.asm: the beam found through the floating
+; bus, a marker on row 191 of both pages; nothing is drawn below row 190),
+; a tick every TICK_FRAMES video frames (30 a second: vapor_pace, given an
+; estimate of the tick's cycles); without a floating bus (//c, IIgs) it
+; runs unpaced. Once the candy is in the frog or lost, both pages hold the
+; last picture after two ticks: only the cursor is drawn again, and the
+; jingle plays (tune.asm, a tick of it a game tick).
+; The levels are on the disk (LEVELS: one a sector, read through RWTS when
+; one is chosen, disk.inc); the menu (menu.inc) shows them with the stars
+; won, kept in CUTSAVE (written when a better result is left).
+; Keys: 1-3 cut rope 1-3, 4-5 puff cushion 1-2, 6 pops the bubble; I J K L
+; (or the arrows) move the cursor, space holds the "button" a moment: a
+; rope the cursor touches meanwhile is cut, a cushion under it puffs, the
+; candy's bubble under it pops; R restarts the level, N goes to the next one
+; after a win, ESC back to the menu. A joystick (found at start): both axes
+; move the cursor, button 0 is the button.
 ; ============================================================================
 
 .include "apple2.inc"
@@ -41,6 +45,12 @@ mul_y = mul_s1l                 ; operand is also the first table pointer low by
 .include "cutconst.inc"
 .include "physdefs.inc"
 .include "hgr_pages.inc"
+.import _mouse_init, _mouse_poll, _mouse_close             ; dev/lib/mouse (mouse.o)
+.import _mouse_slot, _mouse_x, _mouse_y, _mouse_buttons
+.exportzp ptr1
+ptr1 = lvp                              ; (the driver's, at init only)
+RWTS_SEI = 1                            ; the //c mouse runs with IRQs on
+APPLE2_EXIT_HOOK = _mouse_close
 HGR_LINE_DIV7 = hgr_div7                ; (hgr_div7_ram.asm)
 HGR_LINE_MOD7 = hgr_mod7
 HGR_TEXT8_HGR_ORDER = 1
@@ -48,7 +58,6 @@ HGR_TEXT8_HGR_ORDER = 1
 MSG_PLAY  = 0
 MSG_WON   = 1
 MSG_LOST  = 2
-MSG_OVER  = 3
 VIEW_LAST = 190                         ; the last row drawn (191: the vapor marker)
 CUR_SPEED = 3                           ; px a tick by a key (the stick: up to 3 too):
                                         ; under 2 CUT_R + 1, a sweep steps over no link
@@ -60,6 +69,10 @@ CUR_Y0    = 19                          ; rows (its 7 x 7 cross in 16..190)
 CUR_Y1    = 187
 JOY_DEAD  = 8                           ; read_stick_fast counts: |d| < 8 still,
                                         ; then |d| / 8 px a tick, up to 3
+KNIFE_MAX = 6                           ; the mouse with its button held: the cursor
+                                        ; follows it CUR_SPEED px a step, up to
+                                        ; KNIFE_MAX steps a tick, each step's point
+                                        ; tested by the knife (near: no rope jumped)
 TUNE_DELAY = 5                          ; ticks after the end before the jingle
 TK_PHYS   = $01                         ; tkf: the physics ran (PLAY at its start),
 TK_CUT    = $02                         ; a snip, a star's blip, the jingle's tick,
@@ -68,6 +81,7 @@ TK_TUNE   = $08                         ; the stars drawn again, the message
 TK_IDLE   = $10
 TK_STARS  = $20
 TK_MSG    = $40
+TK_BUB    = $80                         ; the candy's bubble drawn
 
 .segment "ZEROPAGE"
 pidx:   .res 1                          ; page drawn this frame: 0 = 1, 1 = 2
@@ -80,10 +94,10 @@ tune_ptr: .res 2                        ; (tune.asm's, in zero page)
 .segment "BSS"
 frames:   .res 2                        ; ticks shown (tests)
 level:    .res 1                        ; 0..NLEVEL-1 (BENCH_LEVEL: the tests')
-candies:  .res 1
+total:    .res 1                        ; the stars won in all (disk.inc)
 msg:      .res 1
 msg_pg:   .res 2                        ; message shown on each page
-hud_pg:   .res 6                        ; per page: level, stars, candies shown
+hud_pg:   .res 6                        ; per page: level, stars, total shown
 dirty:    .res 1                        ; bit p: page p draws its stars again
 smark:    .res 2                        ; per page: the history under the ropes
 dmark:    .res 2                        ; per page: ... under the cursor
@@ -101,6 +115,13 @@ joy_ok:   .res 1
 joy_rx:   .res 1                        ; the stick's rest position
 joy_ry:   .res 1
 pace_ok:  .res 1                        ; a floating bus: vapor_pace
+ms_x:     .res 1                        ; the mouse: its last position,
+ms_y:     .res 1
+ms_tx:    .res 1                        ; the cursor's target (clamped),
+ms_ty:    .res 1
+chase:    .res 1                        ; the cursor goes there (not yet),
+kn:       .res 1                        ; steps left this tick,
+nknife:   .res 1                        ; knife tests this tick (pace)
 nlink:    .res 1                        ; links drawn this tick (pace)
 tkf:      .res 1                        ; what this tick did (TK_*: pace)
 tkd:      .res 1                        ; digits it printed (pace)
@@ -112,6 +133,8 @@ tkd:      .res 1                        ; digits it printed (pace)
 .include "hgr_line.asm"
 .include "hgr_plot_hist.asm"            ; lib/hgr: its zero page (routines at the end)
 .include "phys.inc"
+.include "disk.inc"
+.include "menu.inc"
 
 start:  APPLE2_PREAMBLE
         JSR     apple2_zp_save
@@ -146,19 +169,28 @@ start:  APPLE2_PREAMBLE
         LDA     joy_y
         STA     joy_ry
         INC     joy_ok
-:       JSR     clear_pages             ; (and the vapor marker)
+:       JSR     _mouse_init             ; an AppleMouse (before HGR: its init
+        JSR     _mouse_poll             ; selects TEXT): where it is
+        LDA     _mouse_x
+        STA     ms_x
+        LDA     _mouse_y
+        STA     ms_y
+        LDA     #0
+        STA     chase
+        JSR     clear_pages             ; (and the vapor marker)
         JSR     hgr_init
         JSR     vapor_pace_init         ; a floating bus?
-        BCS     new_game
+        BCS     :+
         INC     pace_ok
+:       JSR     save_load               ; the stars won (DOS still whole)
+        LDA     #$FF                    ; (the menu: the first level not won)
+        STA     level
 
-new_game:
-        LDA     #CANDIES
-        STA     candies
-        LDA     #0
+to_menu:
+        JSR     menu                    ; A = the level chosen
         STA     level
 restart:
-        LDA     level
+        JSR     level_load              ; (from the disk when it changed)
         JSR     phys_load
         LDA     #0
         STA     in_cut
@@ -199,10 +231,14 @@ restart:
         BPL     :-
         LDA     #3                      ; both pages draw their stars first
         STA     dirty
+        BIT     LOWSCR                  ; (the menu showed page 1)
+        LDA     #0
+        STA     pidx
 
 main:   LDA     #0
         STA     tkf
         STA     tkd
+        STA     nknife
         JSR     input                   ; (R, N: back to restart, ESC: quit)
         LDA     cr_state
         BNE     :+
@@ -237,7 +273,7 @@ input:  JSR     poll_key
         JMP     @move
 :       CMP     #'1'
         BCC     :+
-        CMP     #'1' + NROPE
+        CMP     #'1' + 6                ; 1-3 ropes, 4-5 cushions, 6 the bubble
         BCS     :+
         SBC     #'1' - 1                ; (C = 0)
         TAX
@@ -275,9 +311,14 @@ input:  JSR     poll_key
         BEQ     @next
         CMP     #KC_ESC
         BNE     @move
-        JMP     quit
+        PLA                             ; (called from main)
+        PLA
+        JSR     save_due                ; a better result: on the disk
+        JMP     to_menu
 @key:   STY     cur_vx
         STX     cur_vy
+        LDA     #0
+        STA     chase
         LDA     #MV_HOLD
         STA     cur_hold
         BNE     @move
@@ -287,21 +328,20 @@ input:  JSR     poll_key
 @next:  LDA     cr_state
         CMP     #WON
         BNE     @move
+        PLA                             ; (called from main)
+        PLA
+        JSR     save_due
         LDX     level
         INX
         CPX     #NLEVEL
         BCC     :+
-        LDX     #0
+        JMP     to_menu                 ; (after the last one)
 :       STX     level
-        PLA                             ; (called from main)
-        PLA
         JMP     restart
 @again: PLA
         PLA
-        LDA     candies
-        BNE     :+
-        JMP     new_game
-:       JMP     restart
+        JSR     save_due
+        JMP     restart
 @move:  LDA     cur_hold                ; a key's move
         BEQ     @joy
         DEC     cur_hold
@@ -320,8 +360,19 @@ input:  JSR     poll_key
         JSR     stick_v
         TAY
         PLA
+        STA     t0
+        TYA
+        ORA     t0
+        BEQ     @mouse
+        LDA     #0                      ; (a push: the stick has the cursor)
+        STA     chase
+        LDA     t0
         JSR     move
-@out:   LDA     #0                      ; the button: space a moment, button 0
+@mouse: LDA     _mouse_slot
+        BEQ     @out
+        JSR     mouse_in
+@out:   LDA     #0                      ; the button: space a moment, button 0,
+                                        ; the mouse's
         LDX     btn_hold
         BEQ     :+
         DEC     btn_hold
@@ -331,12 +382,116 @@ input:  JSR     poll_key
         BIT     BUTN0
         BPL     :+
         LDA     #1
+:       LDX     _mouse_slot
+        BEQ     :+
+        BIT     _mouse_buttons
+        BPL     :+
+        LDA     #1
 :       STA     in_btn
         LDA     cur_x
         STA     in_cx
         LDA     cur_y
         STA     in_cy
         RTS
+
+; the mouse: when it moved, the cursor goes where it is (clamped to its box):
+; at once, or with the button held CUR_SPEED px a step on each axis, up to
+; KNIFE_MAX steps a tick, the knife tried on each step's point but the last
+; (phys_tick tries that one): a rope near it is cut (in_cut), as by its key
+mouse_in:
+        JSR     _mouse_poll
+        LDA     _mouse_x
+        CMP     ms_x
+        BNE     :+
+        LDA     _mouse_y
+        CMP     ms_y
+        BEQ     @go
+:       LDA     _mouse_x
+        STA     ms_x
+        CMP     #CUR_X0
+        BCS     :+
+        LDA     #CUR_X0
+:       STA     ms_tx
+        LDA     _mouse_y
+        STA     ms_y
+        STA     ms_ty                   ; (the driver clamps y to CUR_Y0..CUR_Y1)
+        LDA     #1
+        STA     chase
+@go:    LDA     chase
+        BEQ     @rts
+        BIT     _mouse_buttons
+        BMI     @knife
+        LDA     ms_tx                   ; no knife: at once
+        STA     cur_x
+        LDA     ms_ty
+        STA     cur_y
+        JMP     @done
+@knife: LDA     #KNIFE_MAX
+        STA     kn
+@step:  LDA     cur_x
+        LDY     ms_tx
+        JSR     toward
+        STA     cur_x
+        LDA     cur_y
+        LDY     ms_ty
+        JSR     toward
+        STA     cur_y
+        CMP     ms_ty
+        BNE     :+
+        LDA     cur_x
+        CMP     ms_tx
+        BEQ     @done
+:       DEC     kn
+        BEQ     @rts                    ; (the rest next tick)
+        JSR     knife
+        JMP     @step
+@done:  LDA     #0
+        STA     chase
+@rts:   RTS
+
+; A = a coordinate, Y = its target: A moved towards it by CUR_SPEED at most
+toward: STY     t2
+        CMP     t2
+        BEQ     @rts
+        BCS     @dn
+        ADC     #CUR_SPEED              ; (C = 0)
+        BCS     @t
+        CMP     t2
+        BCC     @rts
+@t:     LDA     t2
+@rts:   RTS
+@dn:    SBC     #CUR_SPEED              ; (C = 1)
+        BCC     @t
+        CMP     t2
+        BCC     @t
+        RTS
+
+; the knife at the cursor (in play): each rope on that near() finds -> in_cut
+knife:  LDA     cr_state
+        BNE     @rts
+        INC     nknife
+        LDA     cur_x
+        STA     in_cx
+        LDA     cur_y
+        STA     in_cy
+        LDX     #0
+@r:     CPX     cr_nrope
+        BCS     @rts
+        LDA     bit_tab,X
+        AND     cr_on
+        BEQ     @n
+        AND     in_cut
+        BNE     @n
+        STX     cr_r
+        JSR     near
+        LDX     cr_r
+        BCC     @n
+        LDA     bit_tab,X
+        ORA     in_cut
+        STA     in_cut
+@n:     INX
+        BNE     @r
+@rts:   RTS
 
 ; A = vx, Y = vy (signed, |v| <= 6): the cursor moves, kept in its box
 move:   STY     t1
@@ -413,29 +568,56 @@ stick_v:
 ; the end (TUNE_DELAY ticks after it: both pages hold the last picture
 ; first), a candy fewer when it is lost
 ; ---------------------------------------------------------------------------
-events: LDA     cr_ev
+events: LDA     cr_ev                   ; one sound a tick (the pace counts
+        AND     #EV_STAR                ; one): a star's blip, the bubble
+        BEQ     :+                      ; catching, its pop, a snip, a puff
+        LDA     #12                     ; a blip: ~1,600 cycles
+        LDX     #$18
+        BNE     @blip
+:       LDA     cr_ev
+        AND     #EV_CATCH
+        BEQ     :+
+        LDA     #10
+        LDX     #$20
+@blip:  JSR     tone
+        LDA     #TK_STAR
+        BNE     @snd
+:       LDA     cr_ev
+        AND     #EV_POP
+        BEQ     :+
+        LDA     #3                      ; ~1,000 cycles, low
+        LDX     #$40
+        BNE     @snip
+:       LDA     cr_ev
         AND     #EV_CUT
         BEQ     :+
-        LDA     #TK_CUT
-        ORA     tkf
-        STA     tkf
-        LDA     #4                      ; a snip: ~1,300 cycles
+        LDA     #4                      ; a snip: ~1,000 cycles
         LDX     #$30
-        JSR     tone
+        BNE     @snip
 :       LDA     cr_ev
-        AND     #EV_STAR
+        AND     #EV_BOING
         BEQ     :+
-        LDA     #3                      ; both pages draw their stars again
-        STA     dirty
-        LDA     #TK_STAR
-        ORA     tkf
-        STA     tkf
-        LDA     #12                     ; a blip: ~2,100 cycles
+        LDA     #3                      ; a trampoline: ~1,000 cycles, low
+        LDX     #$50
+        BNE     @snip
+:       LDA     cr_ev
+        AND     #EV_PUFF
+        BEQ     @dirty
+        LDA     #8                      ; a puff: ~1,050 cycles, high
         LDX     #$18
-        JSR     tone
+@snip:  JSR     tone
+        LDA     #TK_CUT
+@snd:   ORA     tkf
+        STA     tkf
+@dirty: LDA     cr_ev                   ; a star taken, the bubble caught or
+        AND     #EV_STAR | EV_CATCH | EV_POP    ; popped: both pages draw the
+        BEQ     :+                      ; stars and the free bubble again
+        LDA     #3
+        STA     dirty
 :       LDA     cr_ev
         AND     #EV_WON
         BEQ     :+
+        JSR     won                     ; (disk.inc: the best result kept)
         LDA     #MSG_WON
         STA     msg
         LDA     #<tune_won
@@ -444,12 +626,8 @@ events: LDA     cr_ev
 :       LDA     cr_ev
         AND     #EV_LOST
         BEQ     @play
-        DEC     candies
-        LDX     #MSG_LOST
-        LDA     candies
-        BNE     :+
-        LDX     #MSG_OVER
-:       STX     msg
+        LDA     #MSG_LOST
+        STA     msg
         LDA     #<tune_lost
         LDX     #>tune_lost
 @tune:  STA     tune_lo
@@ -477,9 +655,10 @@ events: LDA     cr_ev
 ; ---------------------------------------------------------------------------
 ; pace -- wait for line 191 of the tick's last video frame: vapor_pace with
 ; TICK_FRAMES and the tick's estimate, a sum of what it did: EST_BASE,
-; EST_LINK a link drawn (its share of the physics too), EST_DIGIT a digit
-; printed, a term per tkf flag (est_lo / est_hi: the physics, a snip, a
-; blip, the jingle's tick, the frozen render, the stars, the message), a
+; EST_LINK a link (or a puff) drawn (its share of the physics too),
+; EST_DIGIT a digit printed, a term per tkf flag (est_lo / est_hi: the
+; physics, a snip, a blip, the jingle's tick, the frozen render, the stars,
+; the message, the candy's bubble), a
 ; least-squares fit on the levels' ticks in a2run; unpaced without a
 ; floating bus
 ; ---------------------------------------------------------------------------
@@ -499,7 +678,27 @@ pace:   LDA     pace_ok
         INC     t1
 :       DEX
         BNE     @l
-@dg:    LDX     tkd
+@dg:    LDA     nknife                  ; (+ the knife's tests, the mouse's:
+        BEQ     @dg2                    ; each EST_KNIFE + EST_KNIFE_LINK a link)
+@k:     CLC
+        LDA     t0
+        ADC     #<(EST_KNIFE / 13)
+        STA     t0
+        BCC     :+
+        INC     t1
+:       LDX     nlink
+        BEQ     @kn
+:       CLC
+        LDA     t0
+        ADC     #<(EST_KNIFE_LINK / 13)
+        STA     t0
+        BCC     :+
+        INC     t1
+:       DEX
+        BNE     :--
+@kn:    DEC     nknife
+        BNE     @k
+@dg2:   LDX     tkd
         BEQ     @fl
 @d:     CLC
         LDA     t0
@@ -523,7 +722,7 @@ pace:   LDA     pace_ok
         STA     t1
         PLA
 :       INX
-        CPX     #7
+        CPX     #8
         BNE     @f
         LDX     t0
         LDY     t1
@@ -532,21 +731,24 @@ pace:   LDA     pace_ok
 @rts:   RTS
 
 ; a tick's cycles (main to pace), fitted (tests/test_cutrope_disk.py --fit)
-EST_BASE  = 4400
-EST_LINK  = 2950
-EST_DIGIT = 950
-EST_PHYS  = 3150                        ; TK_PHYS .. TK_MSG
-EST_CUT   = 2550
+EST_BASE  = 5100
+EST_LINK  = 2900
+EST_DIGIT = 150
+EST_PHYS  = 2200                        ; TK_PHYS .. TK_MSG
+EST_CUT   = 2150
 EST_STAR  = 1700
 EST_TUNE  = 16750
 EST_IDLE  = 0
-EST_STARS = 1200
-EST_MSG   = 20700
-.assert EST_LINK / 13 < 256 .and EST_DIGIT / 13 < 256, error, "pace: EST_LINK, EST_DIGIT < 3,328"
+EST_STARS = 2150
+EST_MSG   = 21050
+EST_BUB   = 3150
+EST_KNIFE = 150                         ; a knife test (near over the ropes on),
+EST_KNIFE_LINK = 210                    ; + a link (measured: 4 links 930, 8 1,850)
+.assert EST_LINK / 13 < 256 .and EST_DIGIT / 13 < 256 .and EST_KNIFE / 13 < 256 .and EST_KNIFE_LINK / 13 < 256, error, "pace: EST_LINK, EST_DIGIT < 3,328"
 est_lo:   .byte <(EST_PHYS / 13), <(EST_CUT / 13), <(EST_STAR / 13), <(EST_TUNE / 13)
-          .byte <(EST_IDLE / 13), <(EST_STARS / 13), <(EST_MSG / 13)
+          .byte <(EST_IDLE / 13), <(EST_STARS / 13), <(EST_MSG / 13), <(EST_BUB / 13)
 est_hi:   .byte >(EST_PHYS / 13), >(EST_CUT / 13), >(EST_STAR / 13), >(EST_TUNE / 13)
-          .byte >(EST_IDLE / 13), >(EST_STARS / 13), >(EST_MSG / 13)
+          .byte >(EST_IDLE / 13), >(EST_STARS / 13), >(EST_MSG / 13), >(EST_BUB / 13)
 
 ; A = 0 / 1: the page for hgr_line8 (sites), hgr_text8 (ht_page), pl_page
 set_page:
@@ -561,8 +763,8 @@ set_page:
 :       STA     ht_page
         RTS
 
-; the level's platforms (two rows), spikes (teeth every 6 px on a base
-; SPIKE_H under their line), the frog (pl_sprite: its history is dropped
+; the level's platforms (two rows), trampolines (a platform on two legs),
+; spikes (teeth every 6 px on a base SPIKE_H under their line), the frog (pl_sprite: its history is dropped
 ; by the caller, it stays)
 scenery:
         LDX     #0
@@ -571,8 +773,25 @@ scenery:
         JMP     @frog
 :       STX     gk
         LDA     seg_kind,X
+        BEQ     @plat
+        CMP     #SEG_TRAMP
         BNE     @spk
+        LDA     seg_y0,X                ; a trampoline: two legs, then the
+        STA     hl_ln_y0                ; platform's two lines
+        CLC
+        ADC     #6
+        STA     hl_ln_y1
         LDA     seg_x0,X
+        STA     hl_ln_x0
+        STA     hl_ln_x1
+        JSR     hgr_line8
+        LDX     gk
+        LDA     seg_x1,X
+        STA     hl_ln_x0
+        STA     hl_ln_x1
+        JSR     hgr_line8
+        LDX     gk
+@plat:  LDA     seg_x0,X
         STA     hl_ln_x0
         LDA     seg_y0,X
         STA     hl_ln_y0
@@ -643,7 +862,8 @@ scenery:
 @nx:    LDX     gk
         INX
         JMP     @s
-@frog:  LDA     frog_x
+@frog:  JSR     cushions
+        LDA     frog_x
         STA     pl_x
         LDA     frog_y
         STA     pl_y
@@ -652,6 +872,52 @@ scenery:
         LDA     #>frog_desc
         STA     pl_sp+1
         JMP     pl_sprite
+
+; the cushions (hgr_line8: CUSH_NL lines a direction, cush_lines)
+cushions:
+        LDX     #0
+@c:     CPX     cr_ncush
+        BCS     @rts
+        STX     gk
+        LDA     cu_dir,X                ; the direction's lines: 4 * CUSH_NL each
+        ASL     A
+        ASL     A
+        ASL     A
+        ASL     A
+        ASL     A
+.assert CUSH_NL = 8, error, "cushions: dir * 4 * CUSH_NL"
+        TAY
+        LDA     #CUSH_NL
+        STA     t1
+@l:     LDX     gk
+        LDA     cu_x,X
+        CLC
+        ADC     cush_lines,Y
+        STA     hl_ln_x0
+        LDA     cu_y,X
+        CLC
+        ADC     cush_lines+1,Y
+        STA     hl_ln_y0
+        LDA     cu_x,X
+        CLC
+        ADC     cush_lines+2,Y
+        STA     hl_ln_x1
+        LDA     cu_y,X
+        CLC
+        ADC     cush_lines+3,Y
+        STA     hl_ln_y1
+        STY     t2
+        JSR     hgr_line8
+        LDA     t2
+        CLC
+        ADC     #4
+        TAY
+        DEC     t1
+        BNE     @l
+        LDX     gk
+        INX
+        BNE     @c
+@rts:   RTS
 
 ; ---------------------------------------------------------------------------
 ; render -- the hidden page: given back above the stars (all of it, and the
@@ -695,6 +961,7 @@ render: LDA     pidx
         STA     tkf
         JSR     pl_erase
         JSR     draw_stars
+        JSR     free_bubble
         LDX     pidx
         LDA     pl_n,X
         STA     smark,X
@@ -702,8 +969,10 @@ render: LDA     pidx
 @keep:  LDA     smark,X
         JSR     pl_erase_to
 @dyn:   JSR     draw_text
+        JSR     draw_puffs
         JSR     draw_ropes
         JSR     draw_candy
+        JSR     draw_bubble
         LDX     pidx
         LDA     pl_n,X
         STA     dmark,X
@@ -748,6 +1017,100 @@ draw_stars:
         DEX
         BPL     @s
         RTS
+
+; the bubble not taken yet (11 x 11, centred)
+free_bubble:
+        LDA     cr_bub
+        CMP     #BUB_FREE
+        BNE     bub_rts
+        LDA     bub_x
+        LDY     bub_y
+bub_at: SEC                             ; A, Y = the centre (pl_x >= 0,
+        SBC     #5                      ; pl_y <= VIEW_LAST - 10)
+        BCS     :+
+        LDA     #0
+:       STA     pl_x
+        TYA
+        SEC
+        SBC     #5
+        CMP     #VIEW_LAST - 10 + 1
+        BCC     :+
+        LDA     #VIEW_LAST - 10
+:       STA     pl_y
+        LDA     #<bubble_desc
+        STA     pl_sp
+        LDA     #>bubble_desc
+        STA     pl_sp+1
+        JMP     pl_sprite
+bub_rts:
+        RTS
+
+; the bubble round the candy while it holds it (in play)
+draw_bubble:
+        LDA     cr_state
+        BNE     bub_rts
+        LDA     cr_bub
+        CMP     #BUB_CAUGHT
+        BNE     bub_rts
+        LDA     #TK_BUB
+        ORA     tkf
+        STA     tkf
+        LDY     #0
+        JSR     pt_xy
+        TAY
+        LDA     t2
+        JMP     bub_at
+
+; the puffs: PUFF_SHOW ticks from a cushion's puff, PUFF_NL lines (counted
+; as a link each for the pace)
+draw_puffs:
+        LDX     #0
+@c:     CPX     cr_ncush
+        BCS     @rts
+        LDA     cr_cool,X
+        CMP     #PUFF_COOL - PUFF_SHOW + 1
+        BCC     @n
+        STX     gk
+        INC     nlink
+        LDA     cu_dir,X                ; 4 * PUFF_NL bytes a direction
+        ASL     A
+        ASL     A
+        STA     t0
+        ASL     A
+        ADC     t0                      ; dir * 12 (C = 0)
+.assert PUFF_NL = 3, error, "draw_puffs: dir * 4 * PUFF_NL"
+        TAY
+        LDA     #PUFF_NL
+        STA     t1
+@l:     LDX     gk
+        LDA     cu_x,X
+        CLC
+        ADC     puff_lines,Y
+        STA     pl_x0
+        LDA     cu_y,X
+        CLC
+        ADC     puff_lines+1,Y
+        STA     pl_y0
+        LDA     cu_x,X
+        CLC
+        ADC     puff_lines+2,Y
+        STA     pl_x1
+        LDA     cu_y,X
+        CLC
+        ADC     puff_lines+3,Y
+        STA     pl_y1
+        STY     t2
+        JSR     pl_line
+        LDA     t2
+        CLC
+        ADC     #4
+        TAY
+        DEC     t1
+        BNE     @l
+        LDX     gk
+@n:     INX
+        BNE     @c
+@rts:   RTS
 
 ; each link of the ropes still on: a line (nlink counts them)
 draw_ropes:
@@ -849,21 +1212,21 @@ draw_text:
         BEQ     :+
         STA     hud_pg,X
         LDY     #15
-        JSR     put1
+        JSR     put2
 :       LDX     t1                      ; the stars
         LDA     cr_nstar
         CMP     hud_pg+1,X
         BEQ     :+
         STA     hud_pg+1,X
-        LDY     #24
+        LDY     #25
         JSR     put1
-:       LDX     t1                      ; the candies left
-        LDA     candies
+:       LDX     t1                      ; the stars won in all
+        LDA     total
         CMP     hud_pg+2,X
         BEQ     :+
         STA     hud_pg+2,X
-        LDY     #37
-        JSR     put1
+        LDY     #36
+        JSR     put2
 :       LDA     cr_state                ; the message: in play (a restart),
         BEQ     :+                      ; or once frozen (19,000 cycles: not
         LDA     frozen                  ; with the physics)
@@ -889,6 +1252,25 @@ draw_text:
         JMP     hgr_puts8
 @rts:   RTS
 
+; A (0..99) as two digits at column Y, row ht_sl (a space for a 0 ten)
+put2:   STY     ht_col
+        LDX     #0
+:       CMP     #10
+        BCC     :+
+        SBC     #10                     ; (C = 1)
+        INX
+        BNE     :-
+:       PHA
+        TXA
+        BEQ     :+
+        ORA     #'0' - ' '
+:       ORA     #' '
+        INC     tkd
+        JSR     hgr_putc8
+        PLA
+        LDY     ht_col
+        ; (falls into put1)
+
 ; A (0..9) as a digit at column Y, row ht_sl
 put1:   STY     ht_col
         INC     tkd
@@ -896,13 +1278,12 @@ put1:   STY     ht_col
         JMP     hgr_putc8
 
 .segment "RODATA"
-m_label:    .byte "CUTROPE  LEVEL    STARS  /3  CANDIES  ", 0
-m_play:     .byte "1-3: CUT  SPACE+IJKL/STICK: CUT  R  ESC ", 0
-m_won:      .byte "YUM!  N: NEXT LEVEL   R: PLAY AGAIN     ", 0
-m_lost:     .byte "CANDY LOST!   R: TRY AGAIN              ", 0
-m_over:     .byte "NO CANDY LEFT!   R: A NEW GAME          ", 0
-msg_lo:     .byte <m_play, <m_won, <m_lost, <m_over
-msg_hi:     .byte >m_play, >m_won, >m_lost, >m_over
+m_label:    .byte "CUTROPE  LEVEL     STARS  /3  TOTAL   ", 0
+m_play:     .byte "1-3 CUT 4-5 PUFF 6 POP  SPACE+IJKL R ESC", 0
+m_won:      .byte "YUM!  N: NEXT LEVEL  R: AGAIN  ESC: MENU", 0
+m_lost:     .byte "CANDY LOST!    R: TRY AGAIN    ESC: MENU", 0
+msg_lo:     .byte <m_play, <m_won, <m_lost
+msg_hi:     .byte >m_play, >m_won, >m_lost
 .segment "CODE"
 
 .include "hgr_text8.asm"                ; hgr_puts8_at (after its callers)
@@ -915,6 +1296,7 @@ msg_hi:     .byte >m_play, >m_won, >m_lost, >m_over
 .include "kbd.asm"
 .include "joy.asm"
 .include "tune.asm"
+.include "rwts.asm"
 .include "hgr.asm"
 
 ; both HGR pages black ($2000-$5FFF): the HGR_CLEAR_LOOP macro over 8 groups,

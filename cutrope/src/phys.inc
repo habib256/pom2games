@@ -5,18 +5,14 @@
 ; Read tools/cutrope.py first (the model explains the rules; this file only
 ; follows it, bit for bit: tests/test_cutrope.py compares the two).
 ;
-;   phys_load   A = level: its points at rest, links, segments, stars, frog
+;   phys_load   lvp = a level record: its points at rest, links, segments,
+;               stars, frog, bubble, cushions
 ;   phys_tick   one tick with in_cut / in_cx / in_cy / in_btn
 ; ============================================================================
 
 .segment "CODE"
 
 phys_load:
-        TAX
-        LDA     lvl_lo,X
-        STA     lvp
-        LDA     lvl_hi,X
-        STA     lvp+1
         LDX     #NPTS - 1               ; every point: pinned at (0, CEIL)
 @pt:    LDA     #0
         STA     vl_xf,X
@@ -69,7 +65,33 @@ phys_load:
         INY
         LDA     (lvp),Y
         STA     cr_nseg
+        INY                             ; the bubble, the cushions
+        LDA     (lvp),Y
+        STA     bub_x
+        BEQ     :+
+        LDA     #BUB_FREE
+:       STA     cr_bub
         INY
+        LDA     (lvp),Y
+        STA     bub_y
+        INY
+        LDA     (lvp),Y
+        STA     cr_ncush
+        LDX     #0
+@cu:    CPX     cr_ncush
+        BCS     @cud
+        INY
+        LDA     (lvp),Y
+        STA     cu_x,X
+        INY
+        LDA     (lvp),Y
+        STA     cu_y,X
+        INY
+        LDA     (lvp),Y
+        STA     cu_dir,X
+        INX
+        BNE     @cu
+@cud:   INY
         LDA     #1                      ; the ropes: points from 1, links from 0
         STA     cr_p
         LDA     #0
@@ -192,6 +214,9 @@ phys_load:
 @state: LDA     #PLAY
         STA     cr_state
         LDA     #0
+.repeat NCUSH, I
+        STA     cr_cool+I
+.endrepeat
         STA     cr_stars
         STA     cr_nstar
         STA     cr_ev
@@ -226,14 +251,107 @@ phys_tick:
 @cut:   JSR     cut_rope
 @nx:    INX
         BNE     @r
-@go:    JSR     vl_integrate_all
+@go:    LDA     cr_bub                  ; the bubble popped: key 6, or the
+        CMP     #BUB_CAUGHT             ; button on the candy
+        BNE     @cus
+        LDA     in_cut
+        AND     #M_POP
+        BNE     @pop
+        LDA     in_btn
+        BEQ     @cus
+        LDA     vl_xl
+        LDY     vl_yh
+        LDX     #POP_R
+        JSR     cursor_in
+        BCC     @cus
+@pop:   LDA     #BUB_NONE
+        STA     cr_bub
+        LDA     cr_ev
+        ORA     #EV_POP
+        STA     cr_ev
+@cus:   LDX     #0                      ; the cushions: waiting, or a puff
+@c:     CPX     cr_ncush
+        BCS     @int
+        LDA     cr_cool,X
+        BEQ     :+
+        DEC     cr_cool,X
+        JMP     @cn
+:       LDA     bit_tab+3,X
+        AND     in_cut
+        BNE     @puff
+        LDA     in_btn
+        BEQ     @cn
+        STX     cr_r
+        LDA     cu_x,X
+        LDY     cu_y,X
+        LDX     #CUSH_R
+        JSR     cursor_in
+        LDX     cr_r
+        BCC     @cn
+@puff:  LDA     #PUFF_COOL
+        STA     cr_cool,X
+        LDA     cr_ev
+        ORA     #EV_PUFF
+        STA     cr_ev
+        STX     cr_r
+        JSR     puff
+        LDX     cr_r
+@cn:    INX
+        BNE     @c
+@int:   JSR     vl_integrate_all
+        LDA     cr_bub                  ; caught: the candy floats
+        CMP     #BUB_CAUGHT
+        BNE     @lk
+        JSR     float
+@lk:
 .repeat PASSES
         JSR     links
 .endrepeat
         JSR     vl_ceiling
+        SEC                             ; the candy's vy before the contact
+        LDA     vl_yf
+        SBC     vl_oyf
+        STA     cr_vin
+        LDA     vl_yh
+        SBC     vl_oyh
+        STA     cr_vin+1
         LDX     #0
         JSR     vl_seg_ground
-        JMP     rules
+        LDA     vl_gnd                  ; on a trampoline: up at |vin|,
+        BEQ     @rules                  ; TRAMP_MIN at least
+        LDX     vl_sgi
+        LDA     seg_kind,X
+        CMP     #SEG_TRAMP
+        BNE     @rules
+        LDA     cr_vin+1
+        BPL     :+
+        LDA     #0
+        SEC
+        SBC     cr_vin
+        STA     cr_vin
+        LDA     #0
+        SBC     cr_vin+1
+:       STA     cr_vin+1
+        LDA     cr_vin
+        CMP     #<TRAMP_MIN
+        LDA     cr_vin+1
+        SBC     #>TRAMP_MIN
+        BCS     :+
+        LDA     #<TRAMP_MIN
+        STA     cr_vin
+        LDA     #>TRAMP_MIN
+        STA     cr_vin+1
+:       CLC                             ; oy = y + v
+        LDA     vl_yf
+        ADC     cr_vin
+        STA     vl_oyf
+        LDA     vl_yh
+        ADC     cr_vin+1
+        STA     vl_oyh
+        LDA     cr_ev
+        ORA     #EV_BOING
+        STA     cr_ev
+@rules: JMP     rules
 
 ; the rules: off the field, stars, the frog, spikes
 rules:  LDA     vl_xh
@@ -247,35 +365,32 @@ rules:  LDA     vl_xh
         CMP     #LOST_Y
         BCC     @in
 @off:   JMP     @lost
-@in:    LDX     #2
+@in:    LDA     cr_bub                  ; the bubble: catches the candy, or
+        CMP     #BUB_FREE               ; it has floated away
+        BNE     @bc
+        LDA     bub_x
+        LDY     bub_y
+        JSR     within
+        BCC     @st
+        LDA     #BUB_CAUGHT
+        STA     cr_bub
+        LDA     cr_ev
+        ORA     #EV_CATCH
+        STA     cr_ev
+        BNE     @st
+@bc:    CMP     #BUB_CAUGHT
+        BNE     @st
+        LDA     vl_yh
+        CMP     #BUB_TOP
+        BCC     @off
+@st:    LDX     #2
 @s:     LDA     bit_tab,X
         AND     cr_stars
         BNE     @sn
-        SEC                             ; |dx| <= R, |dy| <= R
-        LDA     vl_xl
-        SBC     star_x,X
-        BCS     :+
-        EOR     #$FF
-        ADC     #1                      ; (C = 0)
-:       CMP     #STAR_R + 1
-        BCS     @sn
-        TAY
-        LDA     sq_tab,Y
-        STA     cr_k
-        SEC
-        LDA     vl_yh
-        SBC     star_y,X
-        BCS     :+
-        EOR     #$FF
-        ADC     #1
-:       CMP     #STAR_R + 1
-        BCS     @sn
-        TAY
-        LDA     sq_tab,Y                ; dx^2 + dy^2 <= R^2
-        CLC
-        ADC     cr_k
-        CMP     #STAR_R * STAR_R + 1
-        BCS     @sn
+        LDA     star_x,X
+        LDY     star_y,X
+        JSR     within
+        BCC     @sn
         LDA     bit_tab,X
         ORA     cr_stars
         STA     cr_stars
@@ -305,7 +420,7 @@ rules:  LDA     vl_xh
         BEQ     @rts
         LDX     vl_sgi
         LDA     seg_kind,X
-        CMP     #1
+        CMP     #SEG_SPIKES
         BNE     @rts
 @lost:  LDA     #LOST
         STA     cr_state
@@ -313,6 +428,180 @@ rules:  LDA     vl_xh
 @ev:    ORA     cr_ev
         STA     cr_ev
 @rts:   RTS
+
+; A, Y = a point (px): C = 1 when the candy's pixel is within STAR_R of it
+; (|dx|, |dy| <= R, dx^2 + dy^2 <= R^2). Keeps X.
+within: STY     cr_ty
+        SEC
+        EOR     #$FF                    ; |xl - A|: xl + ~A + 1
+        ADC     vl_xl
+        BCS     :+
+        EOR     #$FF
+        ADC     #1                      ; (C = 0)
+:       CMP     #STAR_R + 1
+        BCS     @no
+        TAY
+        LDA     sq_tab,Y
+        STA     cr_k
+        SEC
+        LDA     vl_yh
+        SBC     cr_ty
+        BCS     :+
+        EOR     #$FF
+        ADC     #1
+:       CMP     #STAR_R + 1
+        BCS     @no
+        TAY
+        LDA     sq_tab,Y                ; dx^2 + dy^2 <= R^2
+        CLC
+        ADC     cr_k
+        CMP     #STAR_R * STAR_R + 1    ; (C = 0: within)
+        BCS     @no
+        SEC
+        RTS
+@no:    CLC
+        RTS
+
+; A, Y = a point (px), X = r: C = 1 when the cursor (in_cx, in_cy) is within
+; r of it on both axes
+cursor_in:
+        STX     cr_k
+        STY     cr_ty
+        SEC
+        SBC     in_cx                   ; |A - cx|
+        BCS     :+
+        EOR     #$FF
+        ADC     #1
+:       CMP     cr_k
+        BEQ     :+
+        BCS     @no
+:       SEC
+        LDA     cr_ty
+        SBC     in_cy
+        BCS     :+
+        EOR     #$FF
+        ADC     #1
+:       CMP     cr_k
+        BEQ     @yes
+        BCS     @no
+@yes:   SEC
+        RTS
+@no:    CLC
+        RTS
+
+; X = cushion: its puff, a speed change of the candy when it is ahead
+; (along 0 .. PUFF_LEN - 1 px on the axis, |across| <= PUFF_W + along / 4):
+; PUFF[along >> 3] on the axis
+puff:   LDA     cu_dir,X
+        BEQ     @r
+        CMP     #2
+        BEQ     @l
+        BCS     @u
+        SEC                             ; D: along = yh - y, across xl - x
+        LDA     vl_yh
+        SBC     cu_y,X
+        BCC     @no
+        STA     cr_dx
+        LDA     vl_xl
+        LDY     cu_x,X
+        JMP     @ac
+@no:    RTS
+@r:     SEC                             ; R: along = xl - x, across yh - y
+        LDA     vl_xl
+        SBC     cu_x,X
+        BCC     @no
+        STA     cr_dx
+        LDA     vl_yh
+        LDY     cu_y,X
+        JMP     @ac
+@l:     SEC                             ; L: along = x - xl
+        LDA     cu_x,X
+        SBC     vl_xl
+        BCC     @no
+        STA     cr_dx
+        LDA     vl_yh
+        LDY     cu_y,X
+        JMP     @ac
+@u:     SEC                             ; U: along = y - yh
+        LDA     cu_y,X
+        SBC     vl_yh
+        BCC     @no
+        STA     cr_dx
+        LDA     vl_xl
+        LDY     cu_x,X
+@ac:    STY     cr_ty                   ; across = |A - Y|
+        SEC
+        SBC     cr_ty
+        BCS     :+
+        EOR     #$FF
+        ADC     #1
+:       STA     cr_dy
+        LDA     cr_dx
+        CMP     #PUFF_LEN
+        BCS     @no
+        LSR     A
+        LSR     A
+        CLC
+        ADC     #PUFF_W
+        CMP     cr_dy
+        BCC     @no
+        LDA     cr_dx
+        LSR     A
+        LSR     A
+        LSR     A
+        TAY
+        LDA     puff_lo,Y
+        STA     vl_val
+        LDA     puff_hi,Y
+        STA     vl_val+1
+        LDA     cu_dir,X
+        LDX     #0
+        CMP     #1
+        BCC     @ax
+        BEQ     @ay
+        CMP     #2
+        BEQ     @sx
+        JMP     vl_sub_yv
+@ax:    JMP     vl_add_xv
+@ay:    JMP     vl_add_yv
+@sx:    JMP     vl_sub_xv
+
+; the candy in the bubble: v -= v >> BUB_DRAG on both axes, vy -= BUOY
+float:  SEC
+        LDA     vl_xf
+        SBC     vl_oxf
+        STA     vl_val
+        LDA     vl_xl
+        SBC     vl_oxl
+        JSR     drag
+        LDX     #0
+        JSR     vl_sub_xv
+        SEC
+        LDA     vl_yf
+        SBC     vl_oyf
+        STA     vl_val
+        LDA     vl_yh
+        SBC     vl_oyh
+        JSR     drag
+        CLC
+        LDA     vl_val
+        ADC     #<BUOY
+        STA     vl_val
+        LDA     vl_val+1
+        ADC     #>BUOY
+        STA     vl_val+1
+        LDX     #0
+        JMP     vl_sub_yv
+
+; vl_val = (A, vl_val) >> BUB_DRAG, arithmetic (floor)
+drag:   LDY     #BUB_DRAG
+:       CMP     #$80
+        ROR     A
+        ROR     vl_val
+        DEY
+        BNE     :-
+        STA     vl_val+1
+        RTS
 
 ; PASSES of: the links of each rope still on, rope by rope, pin to candy
 links:  LDX     #0
@@ -517,7 +806,7 @@ sabs:   CMP     #$80
 :       RTS
 
 .segment "RODATA"
-bit_tab:    .byte 1, 2, 4, 8
+bit_tab:    .byte 1, 2, 4, 8, 16, 32, 64, 128
 on_tab:     .byte 0, 1, 3, 7
 sq_tab:     .repeat STAR_R + 1, I
             .byte I * I
