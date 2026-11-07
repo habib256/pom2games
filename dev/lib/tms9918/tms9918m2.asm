@@ -124,11 +124,9 @@ init_vdp_g2:
         JSR     ez_ctrl_w
         TXA
         ORA #$80
-        JSR     ez_pad18   ; +18c silicon-strict pad18-v4 (back-to-back VDP store)
         JSR     ez_ctrl_w
         INX
         CPX #8
-        JSR     ez_pad18   ; +18c silicon-strict pad18-v4 (back-to-back VDP store)
         BNE @rg
         ; --- wipe ALL 16 KB of VRAM ($0000-$3FFF) while display is OFF ---
         ; Self-sufficient init: nothing relies on power-on VRAM (CLAUDE.md
@@ -216,10 +214,8 @@ clear_bitmap:
         LDX #24
         LDY #0
 @lp:    LDA #$00
-        JSR     ez_pad18   ; +18c silicon-strict pad18-v4 (back-to-back VDP store)
         JSR     ez_data_w
         INY
-        JSR     ez_pad18   ; +18c silicon-strict pad18-v4 (back-to-back VDP store)
         BNE @lp
         DEX
         BNE @lp

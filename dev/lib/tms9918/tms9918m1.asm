@@ -104,11 +104,9 @@ init_vdp_g1:
         JSR     ez_ctrl_w
         TXA
         ORA     #$80
-        JSR     ez_pad18   ; +18c silicon-strict pad18-v4 (back-to-back VDP store)
         JSR     ez_ctrl_w
         INX
         CPX     #8
-        JSR     ez_pad18   ; +18c silicon-strict pad18-v4 (back-to-back VDP store)
         BNE     @rg
         JSR     wipe_all_vram   ; zero all 16 KB while display is still OFF
         JSR     disable_sprites ; SAT terminator with display still OFF
@@ -239,7 +237,6 @@ vdp_upload_a:
         JSR     ez_data_w
         INY
         CPY     tmp
-        JSR     ez_pad18   ; +18c silicon-strict pad18-v4 (back-to-back VDP store)
         BNE     @lp
         RTS
 .endif
@@ -255,7 +252,6 @@ print_at_rc:
         JSR     name_at_rc
         JSR     vdp_set_write
         PLA
-        JSR     ez_pad18   ; +18c silicon-strict pad18-v4 (back-to-back VDP store)
         JSR     ez_data_w
         RTS
 .endif

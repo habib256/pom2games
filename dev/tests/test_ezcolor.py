@@ -4,7 +4,8 @@
 slot it may sit in (and none), the boot-slot skip and slot 3, the VRAM
 around the probe left as it was; the access helpers, ez_fill / ez_copy /
 ez_read and their blanked variants; the frame flag; a Graphics I screen the
-TMS_Rogue way (init_vdp_g1, name_at_rc, WRT_DATA_*, a 16x16 sprite) and a
+TMS_Rogue way (init_vdp_g1, name_at_rc, WRT_DATA_*, a 16x16 sprite sent by
+vdp_upload_a with the display on) and a
 Graphics II one (init_vdp_g2, line_xy, text_blit_glyph) rendered to PNG; the
 silicon-strict counter (0 for every library path, > 0 for an unpadded
 loop); the NMOS dummy read of an indexed store; the frame IRQ.
@@ -190,18 +191,17 @@ t_m1:                                   ; a TMS_Rogue-style Graphics I screen
         STA     vdp_col
         LDA     #'*'
         JSR     print_at_rc
-        LDA     #$00                    ; sprite pattern 0 = Quale's sword
-        LDX     #$38
-        JSR     ez_vram_addr_w
+        LDA     #$00                    ; sprite pattern 0 = Quale's sword,
+        STA     vdp_lo                  ; display on: vdp_upload_a's own
+        LDA     #$38                    ; store-to-store gap is what the
+        STA     vdp_hi                  ; silicon-strict counter sees
+        JSR     vdp_set_write
         LDA     #<outfit_sword_pat
-        STA     ez_ptr
+        STA     vdp_src_lo
         LDA     #>outfit_sword_pat
-        STA     ez_ptr+1
+        STA     vdp_src_hi
         LDA     #32
-        STA     ez_count
-        LDA     #0
-        STA     ez_count+1
-        JSR     ez_copy
+        JSR     vdp_upload_a
         LDA     #$00                    ; SAT[0]: Y 79, X 120, pattern 0, red
         LDX     #$1B
         JSR     ez_vram_addr_w

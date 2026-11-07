@@ -245,7 +245,6 @@ console_scroll:
         JSR     ez_data_w
         INY
         CPY     #40
-        JSR     ez_pad18   ; +18c silicon-strict pad18-v4 (back-to-back VDP store)
         BNE     @wr
         ; advance row
         INC     con_tmp
@@ -263,7 +262,6 @@ console_scroll:
         LDY     #40
 @bl:    JSR     ez_data_w
         DEY
-        JSR     ez_pad18   ; +18c silicon-strict pad18-v4 (back-to-back VDP store)
         BNE     @bl
         RTS
 .endif

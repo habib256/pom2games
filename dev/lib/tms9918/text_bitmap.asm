@@ -85,7 +85,6 @@ text_blit_glyph:
         JSR     ez_data_w
         INY
         CPY #8
-        JSR     ez_pad18   ; +18c silicon-strict pad18-v4 (back-to-back VDP store)
         BNE @row
         ; --- paint the cell's 8 colour-table bytes with pen_color so callers
         ;     also tint LABEL/SAY text. The colour table mirrors the

@@ -96,11 +96,9 @@ init_vdp_text:
         JSR     ez_ctrl_w
         TXA
         ORA     #$80
-        JSR     ez_pad18   ; +18c silicon-strict pad18-v4 (back-to-back VDP store)
         JSR     ez_ctrl_w
         INX
         CPX     #8
-        JSR     ez_pad18   ; +18c silicon-strict pad18-v4 (back-to-back VDP store)
         BNE     @rg
         RTS
 .endif
@@ -180,7 +178,6 @@ clear_screen_text:
 @p:     LDY     #0
 @b:     JSR     ez_data_w
         INY
-        JSR     ez_pad18   ; +18c silicon-strict pad18-v4 (back-to-back VDP store)
         BNE     @b
         DEX
         BNE     @p
@@ -188,7 +185,6 @@ clear_screen_text:
         LDY     #192
 @t:     JSR     ez_data_w
         DEY
-        JSR     ez_pad18   ; +18c silicon-strict pad18-v4 (back-to-back VDP store)
         BNE     @t
         RTS
 .endif
@@ -220,7 +216,6 @@ print_at_rc_text:
         JSR     name_at_rc_text
         JSR     vdp_set_write
         PLA
-        JSR     ez_pad18   ; +18c silicon-strict pad18-v4 (back-to-back VDP store)
         JSR     ez_data_w
         RTS
 .endif
@@ -236,7 +231,6 @@ vdp_set_write:
         NOP                     ; +2c gap
         LDA     vdp_hi
         ORA     #$40            ; bit 6 = write
-        JSR     ez_pad18   ; +18c silicon-strict pad18-v4 (back-to-back VDP store)
         JSR     ez_ctrl_w
         RTS
 .endif
