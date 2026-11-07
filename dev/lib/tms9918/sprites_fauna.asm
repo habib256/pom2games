@@ -1,6 +1,6 @@
 ; ported from POM1 dev/lib/tms9918 @ e399808 (sprites_fauna.asm)
-; Port: .export lines dropped; each pattern is .ifref-guarded (only the
-; patterns the source above references assemble), RODATA segment.
+; Port: .export lines dropped; RODATA segment. Each pattern assembles when
+; the source above references either of its two labels (X or _X).
 ; ============================================================================
 ; sprites_fauna.asm  --  13 sprites (16x16, TMS9918 sprite mode)
 ; Labels _fauna_*: cc65/C export (see demos/sprite_animals). Regenerate
@@ -28,11 +28,8 @@ _SPRITES_FAUNA_ASM_LOADED_ = 1
 
 
 ; slot 01/13 of "Fauna" row -- rat  (was: dog)
-.ifref fauna_rat_pat
+.if .referenced(fauna_rat_pat) || .referenced(_fauna_rat_pat)
 fauna_rat_pat:
-.endif
-
-.ifref _fauna_rat_pat
 _fauna_rat_pat:
         .byte $00, $00, $00, $00, $18, $18, $0F, $56
         .byte $3F, $00, $07, $0F, $17, $07, $07, $0B
@@ -41,11 +38,8 @@ _fauna_rat_pat:
 .endif
 
 ; slot 02/13 of "Fauna" row -- bat  (was: rabbit)
-.ifref fauna_bat_pat
+.if .referenced(fauna_bat_pat) || .referenced(_fauna_bat_pat)
 fauna_bat_pat:
-.endif
-
-.ifref _fauna_bat_pat
 _fauna_bat_pat:
         .byte $00, $00, $00, $10, $24, $66, $66, $76
         .byte $7F, $7D, $77, $52, $40, $00, $00, $00
@@ -54,11 +48,8 @@ _fauna_bat_pat:
 .endif
 
 ; slot 03/13 of "Fauna" row -- centipede  (was: spider)
-.ifref fauna_centipede_pat
+.if .referenced(fauna_centipede_pat) || .referenced(_fauna_centipede_pat)
 fauna_centipede_pat:
-.endif
-
-.ifref _fauna_centipede_pat
 _fauna_centipede_pat:
         .byte $00, $1E, $1F, $0F, $13, $04, $01, $2F
         .byte $1F, $1F, $1F, $2F, $07, $09, $02, $00
@@ -67,11 +58,8 @@ _fauna_centipede_pat:
 .endif
 
 ; slot 04/13 of "Fauna" row -- spider  (was: octopus)
-.ifref fauna_spider_pat
+.if .referenced(fauna_spider_pat) || .referenced(_fauna_spider_pat)
 fauna_spider_pat:
-.endif
-
-.ifref _fauna_spider_pat
 _fauna_spider_pat:
         .byte $00, $13, $17, $27, $27, $13, $69, $5F
         .byte $0D, $3B, $49, $52, $12, $10, $08, $08
@@ -80,11 +68,8 @@ _fauna_spider_pat:
 .endif
 
 ; slot 05/13 of "Fauna" row -- scorpion  (was: cat)
-.ifref fauna_scorpion_pat
+.if .referenced(fauna_scorpion_pat) || .referenced(_fauna_scorpion_pat)
 fauna_scorpion_pat:
-.endif
-
-.ifref _fauna_scorpion_pat
 _fauna_scorpion_pat:
         .byte $00, $0E, $1F, $17, $10, $09, $00, $03
         .byte $08, $07, $07, $3D, $7B, $58, $48, $28
@@ -93,11 +78,8 @@ _fauna_scorpion_pat:
 .endif
 
 ; slot 06/13 of "Fauna" row -- snail  (was: snake)
-.ifref fauna_snail_pat
+.if .referenced(fauna_snail_pat) || .referenced(_fauna_snail_pat)
 fauna_snail_pat:
-.endif
-
-.ifref _fauna_snail_pat
 _fauna_snail_pat:
         .byte $00, $00, $00, $00, $03, $07, $07, $0E
         .byte $6D, $6D, $2A, $22, $1C, $1F, $23, $54
@@ -106,11 +88,8 @@ _fauna_snail_pat:
 .endif
 
 ; slot 07/13 of "Fauna" row -- snake  (was: bat)
-.ifref fauna_snake_pat
+.if .referenced(fauna_snake_pat) || .referenced(_fauna_snake_pat)
 fauna_snake_pat:
-.endif
-
-.ifref _fauna_snake_pat
 _fauna_snake_pat:
         .byte $00, $00, $0F, $38, $7F, $7F, $1F, $00
         .byte $01, $07, $0B, $0F, $0A, $08, $04, $03
@@ -119,11 +98,8 @@ _fauna_snake_pat:
 .endif
 
 ; slot 08/13 of "Fauna" row -- wolf  (was: kitten)
-.ifref fauna_wolf_pat
+.if .referenced(fauna_wolf_pat) || .referenced(_fauna_wolf_pat)
 fauna_wolf_pat:
-.endif
-
-.ifref _fauna_wolf_pat
 _fauna_wolf_pat:
         .byte $00, $06, $05, $07, $03, $23, $63, $60
         .byte $6E, $7F, $3F, $3F, $39, $31, $21, $21
@@ -132,11 +108,8 @@ _fauna_wolf_pat:
 .endif
 
 ; slot 09/13 of "Fauna" row -- lion  (was: bear)
-.ifref fauna_lion_pat
+.if .referenced(fauna_lion_pat) || .referenced(_fauna_lion_pat)
 fauna_lion_pat:
-.endif
-
-.ifref _fauna_lion_pat
 _fauna_lion_pat:
         .byte $00, $06, $05, $07, $22, $43, $4F, $5D
         .byte $5E, $3E, $3F, $3F, $37, $36, $26, $26
@@ -145,11 +118,8 @@ _fauna_lion_pat:
 .endif
 
 ; slot 10/13 of "Fauna" row -- bear  (was: snail)
-.ifref fauna_bear_pat
+.if .referenced(fauna_bear_pat) || .referenced(_fauna_bear_pat)
 fauna_bear_pat:
-.endif
-
-.ifref _fauna_bear_pat
 _fauna_bear_pat:
         .byte $00, $1B, $17, $0F, $1F, $1D, $1F, $2E
         .byte $77, $79, $7C, $7E, $7F, $7F, $77, $37
@@ -158,11 +128,8 @@ _fauna_bear_pat:
 .endif
 
 ; slot 11/13 of "Fauna" row -- drake  (was: lion)
-.ifref fauna_drake_pat
+.if .referenced(fauna_drake_pat) || .referenced(_fauna_drake_pat)
 fauna_drake_pat:
-.endif
-
-.ifref _fauna_drake_pat
 _fauna_drake_pat:
         .byte $00, $01, $07, $0E, $1F, $1F, $1B, $19
         .byte $1C, $1E, $1F, $1F, $0F, $17, $3B, $48
@@ -171,11 +138,8 @@ _fauna_drake_pat:
 .endif
 
 ; slot 12/13 of "Fauna" row -- dragon  (was: tiger)
-.ifref fauna_dragon_pat
+.if .referenced(fauna_dragon_pat) || .referenced(_fauna_dragon_pat)
 fauna_dragon_pat:
-.endif
-
-.ifref _fauna_dragon_pat
 _fauna_dragon_pat:
         .byte $00, $5D, $37, $0E, $1F, $1F, $3B, $39
         .byte $3C, $3E, $3F, $3F, $3F, $0F, $37, $68
@@ -184,11 +148,8 @@ _fauna_dragon_pat:
 .endif
 
 ; slot 13/13 of "Fauna" row -- horse
-.ifref fauna_horse_pat
+.if .referenced(fauna_horse_pat) || .referenced(_fauna_horse_pat)
 fauna_horse_pat:
-.endif
-
-.ifref _fauna_horse_pat
 _fauna_horse_pat:
         .byte $02, $07, $0E, $0F, $1F, $1D, $1C, $1F
         .byte $1F, $1F, $3F, $2F, $22, $22, $12, $02
