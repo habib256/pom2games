@@ -6,7 +6,8 @@ the lab's board in RSS.SAVE; a random sequence of E1-E4 values is poked
 into lab_inputs and played turn by turn (key P); the 72 values after each
 turn == tools/model.py's Sim. //e, then //c with --iic.
 
-    tests/test_fuzz.py --disk ../dist/ROBOTSTATION.po --labels build/game.lbl [--iic] [--seed N]
+    cp ../dist/ROBOTSTATION.po build/test.po      (a copy: the game writes RSS.SAVE)
+    tests/test_fuzz.py --disk build/test.po --labels build/game.lbl [--iic] [--seed N]
 """
 import argparse
 from pathlib import Path

@@ -18,9 +18,12 @@ GAME = HERE.parent
 ROOT = GAME.parent
 sys.path.insert(0, str(ROOT / 'dev/tools'))
 import a2test  # noqa: E402
+import shutil  # noqa: E402
 import subprocess  # noqa: E402
+import tempfile  # noqa: E402
 
-DISK = ROOT / 'dist/CUTROPE.dsk'
+SRC = ROOT / 'dist/CUTROPE.dsk'
+DISK = SRC                              # a copy at run time: the game writes CUTSAVE
 LBL = GAME / 'build/cutrope.lbl'
 
 
@@ -62,4 +65,7 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    with tempfile.TemporaryDirectory(prefix='cutrope-') as work:
+        DISK = Path(work) / 'CUTROPE.dsk'       # the emulator writes the save back: never into dist/
+        shutil.copyfile(SRC, DISK)
+        main()

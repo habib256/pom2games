@@ -6,7 +6,8 @@ the model has him (on a plate, or out of the room so that no drone takes
 him in), then where the goal wants him; won, drones and objects == the
 model at its winning turn. //e, then //c with --iic.
 
-    tests/test_campaign.py --disk ../dist/ROBOTSTATION.po --labels build/game.lbl [--iic]
+    cp ../dist/ROBOTSTATION.po build/test.po      (a copy: the game writes RSS.SAVE)
+    tests/test_campaign.py --disk build/test.po --labels build/game.lbl [--iic]
 """
 import argparse
 from pathlib import Path

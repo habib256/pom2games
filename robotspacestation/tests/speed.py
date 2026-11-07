@@ -5,7 +5,8 @@ solution), RUN, then tick_count over a window of emulated frames (a2shot's
 time: host load does not matter). A mission won inside the window stops the
 turns: the window is short enough for 1, 4 and 7, and `won` is reported.
 
-    python3 tests/speed.py --disk ../dist/ROBOTSTATION.po --labels build/game.lbl [--iic]
+    cp ../dist/ROBOTSTATION.po build/test.po      (a copy: the game writes RSS.SAVE)
+    python3 tests/speed.py --disk build/test.po --labels build/game.lbl [--iic]
 """
 import argparse
 import os
