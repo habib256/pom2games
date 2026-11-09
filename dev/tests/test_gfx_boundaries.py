@@ -18,7 +18,7 @@ def geometry(work):
                     '-fsanitize=address,undefined', '-fno-sanitize-recover=all',
                     '-D__fastcall__=', '-I', str(DEV / 'lib/gfx'),
                     str(DEV / 'tests/gfx_geometry_fixture.c'),
-                    *[str(DEV / 'lib/gfx' / ('gfx_' + name + '.c'))
+                    *[str(DEV / 'lib/gfx' / ('gfx_' + name + '_ref.c'))
                       for name in ('circle', 'ellipse', 'line')],
                     '-o', str(binary)], check=True)
     for mode in ('circle', 'ellipse'):

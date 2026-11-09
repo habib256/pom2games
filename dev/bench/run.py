@@ -1148,7 +1148,7 @@ def main():
                   if options.get('backend') and args.dhgr and wanted(name)}
         for backend in sorted(backends):
             backend_work=work/('gfx_'+backend);backend_work.mkdir()
-            build(backend_work,gfx_backend='gfx_backend_dhgr_'+backend+'.c')
+            build(backend_work,gfx_backend='gfx_backend_dhgr_'+backend+'_ref.c')
             (work/f'hgrc_{backend}.lib').write_bytes((backend_work/'hgrc.lib').read_bytes())
         results={name:measure(work,name,call,dhgr) for name,(call,dhgr) in CASES.items() if (args.dhgr or not dhgr) and wanted(name)}
         results.update({name:measure(work,name,**options) for name,options in SCENES.items() if (args.dhgr or not options.get('iie',False)) and wanted(name)})

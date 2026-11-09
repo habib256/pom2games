@@ -48,7 +48,7 @@ def main():
     if args.axes and not args.color:parser.error('--axes requires --color')
     width=140 if args.color else 560
     pen=15 if args.color else 1
-    backend="gfx_backend_dhgr_"+("color" if args.color else "mono")+".c"
+    backend="gfx_backend_dhgr_"+("color" if args.color else "mono")+"_ref.c"
     with tempfile.TemporaryDirectory(prefix='gfx-dhgr-rect-entry-') as directory:
         work=Path(directory);source=work/'axes.c'
         source.write_text('''#include "gfx.h"

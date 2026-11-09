@@ -30,7 +30,7 @@ def main():
                 'gfx_line(lines[i].x0,lines[i].y0,lines[i].x1,lines[i].y1);'
                 'gfx_line(65535u,0,0,1); gfx_line(0,255,1,0);'
                 'apple2_getkey();}} return 0;}')
-            disk = build(work,fixture,gfx_backend='gfx_backend_dhgr_'+('mono' if mono else 'color')+'.c')
+            disk = build(work,fixture,gfx_backend='gfx_backend_dhgr_'+('mono' if mono else 'color')+'_ref.c')
             linked = (work/'test.map').read_text().split('Segment list:')[0]
             assert 'gfx_line.o):' in linked and 'gfx_line_hgr.o):' not in linked
             assert 'hgr_line_asm.o):' not in linked
