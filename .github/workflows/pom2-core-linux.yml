@@ -16,7 +16,7 @@ on:
     inputs:
       pom2_commit:
         description: POM2 commit (github.com/habib256/pom2) to build
-        default: 11017144367d3aa2ddd1d53462833a6937612abb
+        default: 40aeb8ed379ee27d1629b7a06518aee9cc3b3023
   push:
     paths:
       - .github/workflows/pom2-core-linux.yml
@@ -33,7 +33,7 @@ jobs:
             cmake g++ pkg-config cc65 libglfw3-dev libgl1-mesa-dev libslirp-dev libglib2.0-dev zlib1g-dev
       - name: Fetch POM2 at the commit, and its pinned Dear ImGui (miniaudio.h)
         env:
-          POM2_COMMIT: ${{ inputs.pom2_commit || '11017144367d3aa2ddd1d53462833a6937612abb' }}
+          POM2_COMMIT: ${{ inputs.pom2_commit || '40aeb8ed379ee27d1629b7a06518aee9cc3b3023' }}
         run: |
           set -euo pipefail
           git init -q pom2

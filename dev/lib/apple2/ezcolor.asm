@@ -67,7 +67,8 @@
 ; ZP: ez_ptr (2), ez_count (2); each can be aliased (define it first).
 ;
 ; Interrupt: with R1 bit 5 the VDP's /INT goes through jumper JP2 to NMI
-; (the published card) or IRQ (MAME, POM2), or nowhere (jumper open). A
+; (the published card, POM2's default) or IRQ (MAME, a2run), or nowhere
+; (jumper open). A
 ; handler must read the status ($C0n1, ez_status) to drop /INT; that read
 ; also resets the control-port flip-flop, so a main-line control pair it
 ; splits decodes wrong. Best: keep R1 bit 5 off and poll EZ_WAIT_VBLANK.

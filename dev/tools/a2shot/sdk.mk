@@ -6,9 +6,10 @@
 #   POM2_CORE_CFLAGS  POM2_CORE_LIBS
 #
 # sdk/include/pom2/core.hpp and both archives are pom2_core at POM2 commit
-# 11017144367d3aa2ddd1d53462833a6937612abb (github.com/habib256/pom2 main,
-# 2026-11-16, "Merge release 1.2.1"). They include E-Z Color (TMS9918A, with
-# jumper JP2 since 1.2.1), hard disks and the harness API (physical RAM,
+# 40aeb8ed379ee27d1629b7a06518aee9cc3b3023 (github.com/habib256/pom2 main,
+# 2026-11-16: release 1.2.1 plus 2f42a747, "E-Z Color: JP2 on /NMI by
+# default"). They include E-Z Color (TMS9918A, jumper JP2 on NMI unless
+# a2shot --ezcolor-int says otherwise), hard disks and the harness API (physical RAM,
 # keyboard state and SDK provenance). POM2_SDK_HAS_EZCOLOR=1,
 # POM2_SDK_HAS_EZCOLOR_JP2=1 and POM2_SDK_HAS_HARNESS=1 enable these APIs on
 # both supported hosts.
@@ -16,8 +17,8 @@
 #                 commit (cmake --build build --target pom2_core, then
 #                 cmake --install --component pom2_core_sdk)
 #   linux-x86_64  built on ubuntu-24.04 (glibc 2.39) by
-#                 .github/workflows/pom2-core-linux.yml, run 43818408015
-#                 (github.com/habib256/pom2games/actions/runs/43818408015),
+#                 .github/workflows/pom2-core-linux.yml, run 43835086036
+#                 (github.com/habib256/pom2games/actions/runs/43835086036),
 #                 with the same commit; its header is byte-identical.
 # Debug symbols stripped (strip -S) on both hosts. The compiled core is
 # GPL-3.0, like POM2.

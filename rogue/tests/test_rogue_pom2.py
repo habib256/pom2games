@@ -11,7 +11,7 @@ by POM2's card monitor (build/tests/pom2_*.png), their VRAM and registers
 byte-identical to a2run's model at the same checkpoint (the dungeon seed
 pinned at gen_dungeon: the PRNG counts the player's reaction time), and no
 dropped access over the title, the scripted 200-key game of test_rogue.py
-(replayed with jumper JP2 on NMI and open: the same VRAM) and the walk to
+(on POM2's default JP2 = NMI, replayed on IRQ and open: the same VRAM) and the walk to
 the stairs (depth 2). Skipped without a2shot.
 """
 from collections import deque
@@ -148,13 +148,14 @@ def main():
     check(r.vdp_dropped == 0, f'200 keys of play: vdp_dropped == {r.vdp_dropped}')
     check(r.vregs == GAME_REGS and 'ROGUE PLAYS' in screen(r)[0], '200 keys of play: still running')
     same_vram(r, model(play), '200 keys of play')
-    # jumper JP2 on NMI (BYTE's wiring) or open: ROGUE never sets R1 IE, so
-    # the same game, the same VRAM
-    for wiring in ('nmi', 'open'):
+    # jumper JP2: NMI (POM2's default since 1.2.1+, BYTE's wiring) above;
+    # IRQ or open here. ROGUE never sets R1 IE: the same game, the same VRAM
+    check(r.vjp2 == 'nmi', f'POM2 default JP2: int={r.vjp2} (want nmi)')
+    for wiring in ('irq', 'open'):
         w = pom2(play, ezcolor_int=wiring)
         check(w.vjp2 == wiring and w.vdp_dropped == 0 and w.vregs == GAME_REGS,
               f'200 keys, JP2 {wiring}: int={w.vjp2}, dropped {w.vdp_dropped}')
-        same_vram(w, r, f'200 keys of play, JP2 {wiring} vs irq')
+        same_vram(w, r, f'200 keys of play, JP2 {wiring} vs nmi')
 
     # --- to the stairs: depth 2 (one live session) -------------------------
     with a2test.Session(DISK, ezcolor=4) as s:
