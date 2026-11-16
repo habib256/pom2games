@@ -47,6 +47,7 @@ import argparse
 import hashlib
 from fractions import Fraction
 import json
+import os
 import re
 import struct
 import sys
@@ -448,6 +449,16 @@ XL_IMAGES = {16: ('wildsta.bin', 0x9600, 'wildstx.bin', 'stx_base'),
 XL_COPIES = [(0x83, 'wildxlr.bin', 'page_foot', 'pg_lines')]
 
 
+def write_atomic(path, data):
+    """Write through a temporary file and rename it: tests build disks in
+    parallel (dev/tools/run_tests.py) and read these shared build/ files, so a
+    reader must see the old file or the new one, never a half-written one."""
+    path = Path(path)
+    tmp = path.with_name(f'.{path.name}.{os.getpid()}.tmp')
+    tmp.write_bytes(data)
+    os.replace(tmp, path)
+
+
 def xl_name(name):
     stem, dot, ext = name.partition('.')
     return f'{stem}-xl.{ext}'
@@ -489,7 +500,9 @@ def xl_files(build, sym):
     out = {}
     for code, (data, _) in images.items():
         name = XL_IMAGES[code][0]
-        (build / xl_name(name)).write_bytes(bytes(data))
+        path = build / xl_name(name)
+        if not path.exists() or path.read_bytes() != data:
+            write_atomic(path, bytes(data))
         out[name] = xl_name(name)
     return out
 
@@ -556,7 +569,7 @@ def cached_compress(chunk, cache):
             return packed
     packed = compress(chunk)
     cache.mkdir(parents=True, exist_ok=True)
-    path.write_bytes(packed)
+    write_atomic(path, packed)
     return packed
 
 

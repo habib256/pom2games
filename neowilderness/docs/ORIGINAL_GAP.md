@@ -19,7 +19,7 @@ où le code devrait vivre et ce que chaque ajout coûte.
 ### 1.1 Comparaison
 
 - **État du port.** [README](../README.md), [TODO](../TODO.md) (direction 1),
-  [TODO_HGR](../TODO_HGR.md) (cases non cochées), [IMPLEMENTATION.md](IMPLEMENTATION.md)
+  [TODO de Wilderness](../../wilderness/TODO.md) (cases non cochées), [IMPLEMENTATION.md](IMPLEMENTATION.md)
   (« Règles provisoires et écarts », « Conditions médicales », « Arbres »),
   [SCENARIOS.md](SCENARIOS.md), [REGIONS.md](REGIONS.md) § 7,
   [STARS.md](STARS.md) § 11, [HOF.md](HOF.md), [MENUS.md](MENUS.md),

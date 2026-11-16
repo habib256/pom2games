@@ -171,81 +171,92 @@ inspect: all
 
 # Active XL regression suite. Cross-edition historical tests are explicit.
 test: test-xl
+# Long tier (convention of ../dev/cc65/apple2.mk): the historical cross-edition
+# suite stays explicit (make test-all-editions).
+test-long:
+	@echo "neowilderness: no long tests (see test-all-editions)"
+.PHONY: test-xl test-long
+# The XL suite runs in parallel (dev/tools/run_tests.py, one a2shot per test,
+# longest first from build/test_times.json); TEST_JOBS=1 runs it in sequence.
+XL_TESTS := \
+	'tests/test_transfers.py' \
+	'tests/test_pack_boot.py' \
+	'tests/test_textbank.py' \
+	'tests/test_reference_state.py --optional' \
+	'tests/test_input.py' \
+	'tests/test_navigation.py' \
+	'tests/test_menu_bar.py' \
+	'tests/test_route_planning.py' \
+	'tests/test_travel_resume.py' \
+	'tests/test_context_actions.py' \
+	'tests/test_primary_context.py' \
+	'tests/test_departure.py' \
+	'tests/test_guidance.py' \
+	'tests/test_duration.py' \
+	'tests/test_night.py' \
+	'tests/test_campguide.py' \
+	'tests/test_camp_departure.py' \
+	'tests/test_camp_progress.py' \
+	'tests/test_threat_context.py' \
+	'tests/test_route_followup.py' \
+	'tests/test_quick_context.py' \
+	'tests/test_ui_transition_cost.py' \
+	'tests/test_priority_advice.py' \
+	'tests/test_actionable_hud.py' \
+	'tests/test_guidance_redraw.py' \
+	'tests/test_tracked_arrival.py' \
+	'tests/test_result_followups.py' \
+	'tests/test_refusals.py' \
+	'tests/test_transfer_redraw.py' \
+	'tests/test_survival_flows.py' \
+	'tests/test_menu_survival.py' \
+	'tests/test_sleep.py' \
+	'tests/test_object_actions.py' \
+	'tests/test_action_filter.py' \
+	'tests/test_use_requirements.py' \
+	'tests/test_menu_intents.py' \
+	'tests/test_camp_requirements.py' \
+	'tests/test_lighting_requirements.py' \
+	'tests/test_instrument_requirements.py' \
+	'tests/test_quick_quantities.py' \
+	'tests/test_fit_quantities.py' \
+	'tests/test_transfer_weight_preview.py' \
+	'tests/test_capacity_details.py' \
+	'tests/test_transfer_sources.py' \
+	'tests/test_container_requirements.py' \
+	'tests/test_object_care.py' \
+	'tests/test_status_gauges.py' \
+	'tests/test_status_care_preview.py' \
+	'tests/test_care_presence.py' \
+	'tests/test_care_fire_context.py' \
+	'tests/test_care_blade.py' \
+	'tests/test_care_water_preview.py' \
+	'tests/test_status_care_return.py' \
+	'tests/test_object_taste.py' \
+	'tests/test_hung_preview.py' \
+	'tests/test_equipment.py' \
+	'tests/test_crafted_refusals.py' \
+	'tests/test_craft.py' \
+	'tests/test_craft_page.py' \
+	'tests/test_craft_followup.py' \
+	'tests/test_craft_preview.py' \
+	'tests/test_readable_pages.py' \
+	'tests/test_objects.py' \
+	'tests/test_focus.py' \
+	'tests/test_transitions.py' \
+	'tests/test_grid_play.py' \
+	'tests/test_grid_catch.py' \
+	'tests/test_joystick_journey.py' \
+	'tests/test_feedback.py' \
+	'tests/test_load.py' \
+	'tests/test_care.py' \
+	'tests/test_orientation.py' \
+	'tests/test_tree.py' \
+	'tests/test_view.py'
+TEST_JOBS ?=
 test-xl: all $(A2SHOT)
-	$(PYTHON) tests/test_transfers.py
-	$(PYTHON) tests/test_pack_boot.py
-	$(PYTHON) tests/test_textbank.py
-	$(PYTHON) tests/test_reference_state.py --optional
-	$(PYTHON) tests/test_input.py
-	$(PYTHON) tests/test_navigation.py
-	$(PYTHON) tests/test_menu_bar.py
-	$(PYTHON) tests/test_route_planning.py
-	$(PYTHON) tests/test_travel_resume.py
-	$(PYTHON) tests/test_context_actions.py
-	$(PYTHON) tests/test_primary_context.py
-	$(PYTHON) tests/test_departure.py
-	$(PYTHON) tests/test_guidance.py
-	$(PYTHON) tests/test_duration.py
-	$(PYTHON) tests/test_night.py
-	$(PYTHON) tests/test_campguide.py
-	$(PYTHON) tests/test_camp_departure.py
-	$(PYTHON) tests/test_camp_progress.py
-	$(PYTHON) tests/test_threat_context.py
-	$(PYTHON) tests/test_route_followup.py
-	$(PYTHON) tests/test_quick_context.py
-	$(PYTHON) tests/test_ui_transition_cost.py
-	$(PYTHON) tests/test_priority_advice.py
-	$(PYTHON) tests/test_actionable_hud.py
-	$(PYTHON) tests/test_guidance_redraw.py
-	$(PYTHON) tests/test_tracked_arrival.py
-	$(PYTHON) tests/test_result_followups.py
-	$(PYTHON) tests/test_refusals.py
-	$(PYTHON) tests/test_transfer_redraw.py
-	$(PYTHON) tests/test_survival_flows.py
-	$(PYTHON) tests/test_menu_survival.py
-	$(PYTHON) tests/test_sleep.py
-	$(PYTHON) tests/test_object_actions.py
-	$(PYTHON) tests/test_action_filter.py
-	$(PYTHON) tests/test_use_requirements.py
-	$(PYTHON) tests/test_menu_intents.py
-	$(PYTHON) tests/test_camp_requirements.py
-	$(PYTHON) tests/test_lighting_requirements.py
-	$(PYTHON) tests/test_instrument_requirements.py
-	$(PYTHON) tests/test_quick_quantities.py
-	$(PYTHON) tests/test_fit_quantities.py
-	$(PYTHON) tests/test_transfer_weight_preview.py
-	$(PYTHON) tests/test_capacity_details.py
-	$(PYTHON) tests/test_transfer_sources.py
-	$(PYTHON) tests/test_container_requirements.py
-	$(PYTHON) tests/test_object_care.py
-	$(PYTHON) tests/test_status_gauges.py
-	$(PYTHON) tests/test_status_care_preview.py
-	$(PYTHON) tests/test_care_presence.py
-	$(PYTHON) tests/test_care_fire_context.py
-	$(PYTHON) tests/test_care_blade.py
-	$(PYTHON) tests/test_care_water_preview.py
-	$(PYTHON) tests/test_status_care_return.py
-	$(PYTHON) tests/test_object_taste.py
-	$(PYTHON) tests/test_hung_preview.py
-	$(PYTHON) tests/test_equipment.py
-	$(PYTHON) tests/test_crafted_refusals.py
-	$(PYTHON) tests/test_craft.py
-	$(PYTHON) tests/test_craft_page.py
-	$(PYTHON) tests/test_craft_followup.py
-	$(PYTHON) tests/test_craft_preview.py
-	$(PYTHON) tests/test_readable_pages.py
-	$(PYTHON) tests/test_objects.py
-	$(PYTHON) tests/test_focus.py
-	$(PYTHON) tests/test_transitions.py
-	$(PYTHON) tests/test_grid_play.py
-	$(PYTHON) tests/test_grid_catch.py
-	$(PYTHON) tests/test_joystick_journey.py
-	$(PYTHON) tests/test_feedback.py
-	$(PYTHON) tests/test_load.py
-	$(PYTHON) tests/test_care.py
-	$(PYTHON) tests/test_orientation.py
-	$(PYTHON) tests/test_tree.py
-	$(PYTHON) tests/test_view.py
+	$(PYTHON) $(DEV)/tools/run_tests.py $(if $(TEST_JOBS),-j $(TEST_JOBS)) --python $(PYTHON) \
+	    --times $(BUILD)/test_times.json $(XL_TESTS)
 
 test-all-editions: all $(A2SHOT)
 	$(PYTHON) tests/test_journey.py
@@ -389,15 +400,19 @@ original/extras/Wilderness\ -\ Journey.a2r: original/extras/.done
 
 originals: $(PROGRAM_WOZ) $(DEMO_DSK) original/extras/.done
 
-$(PROGRAM_WOZ):
-	mkdir -p original
+# One download for both games: original/ is a link to ../wilderness/original
+# (same files, same names). An existing folder or link is left as it is.
+original:
+	mkdir -p ../wilderness/original
+	ln -s ../wilderness/original $@
+
+$(PROGRAM_WOZ): | original
 	curl -sfLo $@ "$(WOZADAY)/00playable.woz"
 
-$(DEMO_DSK):
-	mkdir -p original
+$(DEMO_DSK): | original
 	curl -sfLo $@ "$(IA)/$(DEMO_ID)/Wilderness_A_Survival_Adventure_Demonstration_Disk_Apple_II_Series_Electric_Transit.dsk"
 
-original/extras/.done:
+original/extras/.done: | original
 	mkdir -p original/extras
 	curl -sfLo original/extras.zip "$(WOZADAY)/Wilderness-%20A%20Survival%20Adventure%20extras%20(woz-a-day%20collection).zip"
 	unzip -qjo original/extras.zip -d original/extras && rm original/extras.zip
@@ -447,7 +462,13 @@ topo: extract
 $(BUILD)/SIERRA.dsk: $(PROGRAM_WOZ)
 	$(PYTHON) -I $(DEV)/tools/re6502/flux2dsk.py $< $@
 
-$(BUILD)/regions/regions.json: tools/regions.py $(WTOOLS)/smalldos.py $(BUILD)/SIERRA.dsk
+# GO3 (the introduction program) gives each region its intro name and fauna
+# sentence; without it regions.json lacks them and build_disk.py fails.
+$(BUILD)/files/GO3.B: $(WTOOLS)/smalldos.py $(BUILD)/SIERRA.dsk
+	$(PYTHON) -I $(WTOOLS)/smalldos.py $(BUILD)/SIERRA.dsk --extract $(BUILD)/files
+	@test -f $@
+
+$(BUILD)/regions/regions.json: tools/regions.py $(WTOOLS)/smalldos.py $(BUILD)/SIERRA.dsk $(BUILD)/files/GO3.B
 	$(PYTHON) -I tools/regions.py
 
 $(BUILD)/maps/r%.bin: tools/mkmap.py tools/regions.py $(WTOOLS)/topo.py $(BUILD)/regions/regions.json

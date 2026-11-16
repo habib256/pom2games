@@ -76,10 +76,15 @@ the shared libraries, the headless emulator `a2shot` and the test harness live
 in [`dev/`](dev/). Each game folder has its own `README.md`, most also a
 `TODO.md`.
 
-    make                 # every disk into dist/, except NEOWILDERNESSXL (make -C neowilderness)
+    make                 # every disk into dist/
     make -C chess run    # build one game and run it in POM2
     make test            # fast tests (make test-all: both tiers, about an hour)
     make check           # rebuild those disks, fail if dist/ does not match
+
+WILDERNESS and NEOWILDERNESS XL fetch the 1985 originals from archive.org on
+their first build (they reuse its sprites and texts, kept out of git). WILDERNESS,
+the II+ HGR reimplementation that NEOWILDERNESS XL grew from, builds into
+`wilderness/build/` only: the XL disk is the one in `dist/`.
 
 Builds are byte-for-byte reproducible on macOS and Linux; CI runs `make check`
 and `make test-all` on every push.

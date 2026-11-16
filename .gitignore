@@ -3,6 +3,7 @@
 build/
 # These images are generated locally from the retained example/editor sources.
 dist/HELLO.dsk
+dist/woz/HELLO.woz
 dev/tools/a2shot/a2shot
 dev/tools/a2run/a2run
 
