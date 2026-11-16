@@ -11,8 +11,11 @@
 ;   $C0n0 = $C080 + n*16      VDP data port (VRAM read/write, auto-increment)
 ;   $C0n1 = $C081 + n*16      VDP register port (status read; address and
 ;                             register writes, two bytes each)
-;   other $C0nX read $FF; /INT drives the slot IRQ; no slot ROM ($Cn00 is
-;   empty, so detection probes the VDP itself: ez_detect).
+;   Only A0 is decoded: every even $C0nX is the data port, every odd one the
+;   register port (BYTE 8/82 fig. 4, POM2 1.2.1), so a generic $C0n0-$C0nF
+;   scan touches the VDP. /INT goes through jumper JP2: NMI on the published
+;   card, IRQ in MAME / POM2 (see ezcolor.asm). No slot ROM ($Cn00 is empty,
+;   so detection probes the VDP's VRAM: ez_detect).
 ;
 ; Two access styles, both after ez_detect:
 ;   1. Helpers whose absolute operands ez_detect patched to the slot
@@ -70,7 +73,7 @@ EZ_CTRL = $C081                 ; + slot*16: LDA EZ_CTRL,X = status read
 ; Register 1 bits (TMS9918A).
 EZ_R1_16K   = $80               ; 4116/4416 16 KB VRAM (always set)
 EZ_R1_BLANK = $40               ; 1 = display on
-EZ_R1_IE    = $20               ; 1 = frame interrupt on /INT (slot IRQ)
+EZ_R1_IE    = $20               ; 1 = frame interrupt on /INT (JP2: NMI or IRQ)
 EZ_R1_M1    = $10               ; text mode
 EZ_R1_M2    = $08               ; multicolour mode
 EZ_R1_SIZE  = $02               ; 16x16 sprites

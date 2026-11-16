@@ -309,7 +309,7 @@ def have_a2shot(what=None):
 
 def run(disk, steps, emulator=None, iie=False, wp=False, timeout=120, check=True,
         pad_until=False, cwd=None, pal=False, mockingboard=False, ezcolor=None,
-        ezcolor_lax=False):
+        ezcolor_lax=False, ezcolor_int=None):
     """Boot `disk` and play `steps`. emulator defaults to a2run (a2shot when
     iie). disk=None (a2run): no boot card, the machine waits at the Applesoft
     prompt after 8 frames; start test code with bin_steps(). pad_until inserts `wait:1` before every until: (a2shot needs a
@@ -318,11 +318,13 @@ def run(disk, steps, emulator=None, iie=False, wp=False, timeout=120, check=True
     (a2run --ezcolor=N; read back with vpeek:/vregs, see vdp_shot). With
     emulator=A2SHOT the card is POM2's (silicon-strict access window: count
     in Result.vdp_dropped; vshot:FILE.png renders its monitor); ezcolor_lax
-    (a2shot only) turns that window off."""
+    (a2shot only) turns that window off; ezcolor_int (a2run only): 'irq'
+    (default), 'nmi' or 'open', where jumper JP2 sends the VDP's /INT."""
     emulator = Path(emulator or (A2SHOT if iie else A2RUN))
     args = [str(emulator)] + (['--iie'] if iie else []) + (['--pal'] if pal else []) \
         + (['--mockingboard'] if mockingboard else []) \
         + ([f'--ezcolor={ezcolor}'] if ezcolor else []) + (['--ezcolor-lax'] if ezcolor_lax else []) \
+        + ([f'--ezcolor-int={ezcolor_int}'] if ezcolor_int else []) \
         + (['--disk', str(disk)] if disk else [])
     if wp:
         args.append('--wp')

@@ -674,8 +674,13 @@ what is reported lost: its docstring; `dev/tests/test_pt3_import.py` checks
 Steve Ciarcia's E-Z Color Graphics Interface (BYTE, August 1982): a TMS9918A
 with 16 KB of VRAM and its own video output, in any slot n. `$C0n0` is the
 VDP data port (VRAM read/write, auto-increment), `$C0n1` the register port
-(status read; address and register writes, two bytes each); the other
-`$C0nX` read `$FF`; `/INT` drives the slot IRQ; there is no slot ROM. Not
+(status read; address and register writes, two bytes each). The card decodes
+A0 alone (BYTE 8/82, figure 4: A0 on the VDP's MODE pin), so every even
+`$C0nX` is the data port and every odd one the register port: a generic scan
+of `$C0n0-$C0nF` touches the VDP (each even read advances the VRAM address,
+each odd read clears F and the byte flip-flop). The library only uses
+`$C0n0`/`$C0n1`. `/INT` goes through jumper JP2 (see **Interrupt** below);
+there is no slot ROM. Not
 validated on real hardware ([HARDWARE.md](../HARDWARE.md)); emulated by
 POM2 (2026-10-31, `src/EzColorCard.cpp`, not yet in the vendored SDK, see
 [the letter](../../tools/a2shot/LETTRE_POM2_EZCOLOR.md)) and by
@@ -724,14 +729,18 @@ address setup, which prefetches) while the display is on and the beam is in
 the 192 active lines: a 22-cycle store-to-store gap. The register port's
 writes do not touch VRAM. With the display blanked (R1 bit 6 = 0) or in
 vertical blanking, the chip serves the CPU every ~2 µs: `ez_fill_blank` /
-`ez_copy_blank` (9 / 14 cycles a byte). `a2run` counts the accesses closer
+`ez_copy_blank` (9 / 14 cycles a byte). The VDP's frame is 262 lines of 342
+clocks of its own 10.7386 MHz crystal: 17,067 CPU cycles (59.92 Hz), not the
+Apple's 17,030 nor NTSC's 17,062. `a2run` counts the accesses closer
 than 16 cycles in the active display and prints `vdp_fast_writes=N`
 (programs keep it 0). `a2shot --ezcolor=N` runs POM2's own card (SDK
 ba7f04da, silicon-strict window from openMSX's slot tables: 8 cycles apart
 never lose a byte in Graphics I/II) and prints `vdp_dropped=N`; the
 `vregs` step shows the counter.
 
-**Detection.** Slots 7, 5, 4, 2, 1, 6, then 3 with `EZ_DETECT_SKIP3 = 0`
+**Detection.** No register reads `$FF` on this card (every `$C0nX` is a VDP
+port), so `ez_detect` proves a VDP by its VRAM, without side effects:
+slots 7, 5, 4, 2, 1, 6, then 3 with `EZ_DETECT_SKIP3 = 0`
 (`EZ_DETECT_ORDER`: your own zero-terminated list). `EZ_DETECT_BOOT_SLOT`
 names a byte whose bits 4-6 hold a slot never probed: `$B7E9` (DOS 3.3's
 IOB, slot×16) or `$BF30` (ProDOS `DEVNUM`, DSSS0000). Per candidate the
@@ -757,11 +766,28 @@ different bytes reject both. Per card:
   `$C0nX` ignored, safe.
 - **//c**: no slots; do not call `ez_detect` (`$FBC0` = 0).
 
-**IRQ.** With R1 bit 5 the frame flag pulls the slot IRQ until the status is
-read. A handler that reads it (it must, to drop `/INT`) also resets the
-control flip-flop: keep IRQs masked and poll (`EZ_WAIT_VBLANK_SAFE`), or set
-`EZ_PAIR_SEI = 1` so the library's control pairs are atomic (and wrap your
-own). On DOS 3.3 a II+ handler goes in `$03FE` (A saved at `$45`).
+**Interrupt.** With R1 bit 5 the frame flag pulls `/INT` low until the
+status is read. Where it goes depends on jumper JP2: on the published card
+(BYTE 8/82, figure 4) to bus pin 29, **NMI**; MAME, POM2 up to 1.2.1 and
+`a2run` by default send it to the IRQ (`a2run --ezcolor-int=irq|nmi|open`);
+without the jumper there is none. The library and ROGUE never set R1 bit 5:
+they poll F (`EZ_WAIT_VBLANK_SAFE`), which works with any wiring. A program
+that wants the frame interrupt must work with both:
+
+- One handler for both vectors: NMI through `$FFFA` → `$03FB` (put a `JMP`
+  there), IRQ through `$FFFE` → ROM → `$03FE` (on DOS 3.3 a II+ handler
+  finds A saved at `$45`). It must read the status to release `/INT`.
+- SEI does not mask an NMI, so `EZ_PAIR_SEI = 1` (the library's control pairs
+  under SEI) only protects the IRQ wiring. A status read that splits a
+  main-line control pair resets the flip-flop and the pair decodes wrong.
+  Under NMI the handler either touches no port (it sets a flag the main loop
+  handles) or honours a "VDP busy" semaphore set around every pair and
+  address + data sequence (and skips the status read, losing that frame).
+- The NMI is edge-triggered: one per frame, and none at all after a handler
+  that never reads the status (an IRQ would re-enter at once instead).
+- The VDP runs on its own crystal (17,067 cycles a frame, 59.92 Hz, phase
+  drifting against the CPU): never time a VDP effect on `$C019` or the Apple
+  video, PAL or NTSC.
 
 ```asm
 .include "apple2.inc"
