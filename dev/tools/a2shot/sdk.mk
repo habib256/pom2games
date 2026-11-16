@@ -6,15 +6,18 @@
 #   POM2_CORE_CFLAGS  POM2_CORE_LIBS
 #
 # sdk/include/pom2/core.hpp and both archives are pom2_core at POM2 commit
-# 0d1d388e98b2268629cc65269c1aba161720585a (github.com/habib256/pom2 main,
-# 2026-11-04, "The SDK mounts hard disks and answers a test harness"). They
-# include E-Z Color (TMS9918A), hard disks and the harness API (physical RAM,
-# keyboard state and SDK provenance). POM2_SDK_HAS_EZCOLOR=1 and
-# POM2_SDK_HAS_HARNESS=1 enable these APIs on both supported hosts.
-#   darwin-arm64  packaged on the author's Mac with tools/package_core_sdk.sh
+# 11017144367d3aa2ddd1d53462833a6937612abb (github.com/habib256/pom2 main,
+# 2026-11-16, "Merge release 1.2.1"). They include E-Z Color (TMS9918A, with
+# jumper JP2 since 1.2.1), hard disks and the harness API (physical RAM,
+# keyboard state and SDK provenance). POM2_SDK_HAS_EZCOLOR=1,
+# POM2_SDK_HAS_EZCOLOR_JP2=1 and POM2_SDK_HAS_HARNESS=1 enable these APIs on
+# both supported hosts.
+#   darwin-arm64  built on the author's Mac from a clean POM2 checkout at that
+#                 commit (cmake --build build --target pom2_core, then
+#                 cmake --install --component pom2_core_sdk)
 #   linux-x86_64  built on ubuntu-24.04 (glibc 2.39) by
-#                 .github/workflows/pom2-core-linux.yml, run 41894229835
-#                 (github.com/habib256/pom2games/actions/runs/41894229835),
+#                 .github/workflows/pom2-core-linux.yml, run 43818408015
+#                 (github.com/habib256/pom2games/actions/runs/43818408015),
 #                 with the same commit; its header is byte-identical.
 # Debug symbols stripped (strip -S) on both hosts. The compiled core is
 # GPL-3.0, like POM2.
@@ -28,7 +31,7 @@
 POM2_HOST := $(subst Darwin-arm64,darwin-arm64,$(subst Linux-x86_64,linux-x86_64,$(shell uname -sm | tr ' ' -)))
 POM2_HOST := $(filter darwin-arm64 linux-x86_64,$(POM2_HOST))
 POM2_CORE_LIB    := $(A2SHOT_DIR)/sdk/lib/$(POM2_HOST)/libpom2_core.a
-POM2_CORE_CFLAGS := -std=c++17 -I $(A2SHOT_DIR)/sdk/include -DPOM2_SDK_HAS_EZCOLOR=1 -DPOM2_SDK_HAS_HARNESS=1
+POM2_CORE_CFLAGS := -std=c++17 -I $(A2SHOT_DIR)/sdk/include -DPOM2_SDK_HAS_EZCOLOR=1 -DPOM2_SDK_HAS_EZCOLOR_JP2=1 -DPOM2_SDK_HAS_HARNESS=1
 
 ifeq ($(POM2_HOST),darwin-arm64)
 POM2_SYS_LIBS := -framework CoreAudio -framework AudioToolbox -framework AudioUnit

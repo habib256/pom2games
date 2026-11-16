@@ -224,6 +224,7 @@ class Result:
         self.vdp_dropped = None
         self.vregs_dropped = None
         self.virq = None
+        self.vjp2 = None            # a2shot: 'irq', 'nmi' or 'open'
         rest = []
         for line in other:
             if len(line) > 7 and line[0] == 'V' and line[5] == ':':
@@ -244,6 +245,8 @@ class Result:
                     self.vregs_dropped = int(kv['dropped'])
                 if 'irq' in kv:
                     self.virq = int(kv['irq'])
+                if 'int' in kv:
+                    self.vjp2 = kv['int']
                 rest.append(line)
             elif line.startswith('vdp_fast_writes='):
                 self.vdp_fast = int(line.split('=')[1])
@@ -318,8 +321,9 @@ def run(disk, steps, emulator=None, iie=False, wp=False, timeout=120, check=True
     (a2run --ezcolor=N; read back with vpeek:/vregs, see vdp_shot). With
     emulator=A2SHOT the card is POM2's (silicon-strict access window: count
     in Result.vdp_dropped; vshot:FILE.png renders its monitor); ezcolor_lax
-    (a2shot only) turns that window off; ezcolor_int (a2run only): 'irq'
-    (default), 'nmi' or 'open', where jumper JP2 sends the VDP's /INT."""
+    (a2shot only) turns that window off; ezcolor_int: 'irq' (default), 'nmi'
+    or 'open', where jumper JP2 sends the VDP's /INT (a2run, and a2shot on
+    POM2 1.2.1: Result.vjp2 from the vregs line)."""
     emulator = Path(emulator or (A2SHOT if iie else A2RUN))
     args = [str(emulator)] + (['--iie'] if iie else []) + (['--pal'] if pal else []) \
         + (['--mockingboard'] if mockingboard else []) \

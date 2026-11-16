@@ -768,21 +768,29 @@ different bytes reject both. Per card:
 
 **Interrupt.** With R1 bit 5 the frame flag pulls `/INT` low until the
 status is read. Where it goes depends on jumper JP2: on the published card
-(BYTE 8/82, figure 4) to bus pin 29, **NMI**; MAME, POM2 up to 1.2.1 and
-`a2run` by default send it to the IRQ (`a2run --ezcolor-int=irq|nmi|open`);
-without the jumper there is none. The library and ROGUE never set R1 bit 5:
-they poll F (`EZ_WAIT_VBLANK_SAFE`), which works with any wiring. A program
-that wants the frame interrupt must work with both:
+(BYTE 8/82, figure 4) to bus pin 29, **NMI**; MAME, POM2 1.2.1 by default
+and `a2run` by default send it to the IRQ; without the jumper there is none.
+`a2run --ezcolor-int=irq|nmi|open` and `a2shot --ezcolor-int=...` (POM2's
+`setEzColorInterrupt`) pick the wiring. The library and ROGUE never set R1
+bit 5: they poll F (`EZ_WAIT_VBLANK_SAFE`), which works with any wiring
+(`rogue/tests/test_rogue_pom2.py` replays a game under NMI and open: same
+VRAM). A program that wants the frame interrupt must work with both:
 
 - One handler for both vectors: NMI through `$FFFA` → `$03FB` (put a `JMP`
-  there), IRQ through `$FFFE` → ROM → `$03FE` (on DOS 3.3 a II+ handler
-  finds A saved at `$45`). It must read the status to release `/INT`.
+  there), IRQ through `$FFFE` → ROM → `$03FE` (the ROM keeps A at `$45`, on
+  the II+ and the //e). Point `$03FB` at a stub `STA $45` that falls into the
+  IRQ handler, and end it with `LDA $45 / RTI`: one exit for both. It must
+  read the status to release `/INT`.
 - SEI does not mask an NMI, so `EZ_PAIR_SEI = 1` (the library's control pairs
   under SEI) only protects the IRQ wiring. A status read that splits a
   main-line control pair resets the flip-flop and the pair decodes wrong.
-  Under NMI the handler either touches no port (it sets a flag the main loop
-  handles) or honours a "VDP busy" semaphore set around every pair and
-  address + data sequence (and skips the status read, losing that frame).
+  The recipe tested on a2run and POM2 (`t_pairs` in `dev/tests/test_ezcolor.py`,
+  ][+ and //e, the three wirings): around every pair `PHP / SEI / INC busy`
+  … `DEC busy / PLP`; a handler that finds `busy` set skips the status read
+  and sets `pend`; after the pair the main program reads the status itself
+  when `pend` is set (it re-arms the edge). A single data access needs no
+  guard. Without the guard, under NMI, 2 KB of address + data pairs come out
+  with 6 bytes misplaced; with it, none.
 - The NMI is edge-triggered: one per frame, and none at all after a handler
   that never reads the status (an IRQ would re-enter at once instead).
 - The VDP runs on its own crystal (17,067 cycles a frame, 59.92 Hz, phase
