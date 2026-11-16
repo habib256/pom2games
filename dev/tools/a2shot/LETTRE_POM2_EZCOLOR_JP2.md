@@ -47,12 +47,16 @@ La garde que nous avons validée :
   `t_nmi_quiet` le vérifie : une seule NMI en 5 trames.
 
 **Une précision sur « un gestionnaire commun ».** Les deux chemins
-n'arrivent pas dans le même état. En IRQ, la ROM (][+ comme //e) a déjà
-sauvé A en `$45` avant de sauter par `$03FE`. En NMI, `$FFFA` mène
-directement à `$03FB`, et rien n'est sauvé. Nous plaçons donc en `$03FB`
-un `JMP` vers un petit préambule `STA $45`, qui tombe dans le gestionnaire
-IRQ. Les deux chemins finissent alors pareil, par `LDA $45 / RTI`. Ce
-détail mériterait une ligne dans votre documentation de JP2.
+n'arrivent pas dans le même état. En IRQ sur ][ / ][+, la ROM (`$FA40`)
+sauve A en `$45` avant de sauter par `$03FE`. Sur le //e amélioré, elle
+empile A, X et Y, puis reprend la main au `RTI` du gestionnaire pour tout
+restaurer : il n'y a pas de `STA $45` sur ce chemin (merci pour la
+correction). En NMI, `$FFFA` mène directement à `$03FB`, et rien n'est
+sauvé. Nous plaçons donc en `$03FB` un `JMP` vers un petit préambule
+`STA $45`, qui tombe dans le gestionnaire IRQ, terminé par `LDA $45 / RTI`.
+Ce `LDA $45` est nécessaire en NMI et sur l'IRQ du ][+. Sur l'IRQ du //e,
+il ne sert à rien mais ne gêne pas, puisque la ROM restaure A ensuite. Nos
+tests le confirment sur les deux machines.
 
 Autres vérifications sur POM2 1.2.1 :
 - `t_nmi` : 5 NMI en environ 5 trames sous SEI. Aucune en `open`, aucune en

@@ -381,7 +381,9 @@ nmi_q:  INC     r_irq
 
 ; One handler for both vectors, the main program writing address pairs
 ; under it (POM2 1.2.1's recipe). The NMI stub keeps A in $45 as the
-; Monitor's IRQ entry does, so com_h ends the same way for both. A pair is
+; II+ Monitor's IRQ entry does, so com_h ends the same way for both (the
+; enhanced //e ROM saves A/X/Y on the stack and restores them after the
+; RTI: LDA $45 is harmless there). A pair is
 ; guarded by SEI (IRQ) and r_busy (NMI: SEI does not mask it); a handler
 ; that finds r_busy set leaves /INT low and sets r_pend, and the main
 ; program reads the status after the pair (the next F then re-arms the
@@ -901,6 +903,8 @@ def pom2(work, A, LA):
     for wiring in ('irq', 'nmi', 'open'):
         r = jp2(['vregs'], wiring)
         ok(r.vjp2 == wiring, f'POM2 JP2 {wiring}: vregs says int={r.vjp2}')
+    r = shot(['vregs'], 4)
+    ok(r.vjp2 == 'nmi', f'POM2 default JP2: int={r.vjp2} (want nmi, as published)')
     r = jp2([call(LA, 't_detect'), call(LA, 't_nmi', 20), LA.peek('r_irq')], 'nmi')
     n = r.dumps[0][0]
     ok(4 <= n <= 6, f'POM2 NMI count {n}')

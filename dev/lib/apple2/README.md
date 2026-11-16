@@ -552,8 +552,10 @@ WG). The handler owns the chip(s) its tick writes; the main program writes
 only the other one (`mb_write` masks interrupts, `mb_chip` is restored).
 
 Options (before the first include): `MB_IRQ_PRODOS` (1 default; 0 = own
-vector), `MB_IRQ_VECTOR` (`$03FE` default: the ROM's handler saved A at
-`$45`, the handler keeps X/Y and returns with `LDA $45`/`RTI`; or `$FFFE`
+vector), `MB_IRQ_VECTOR` (`$03FE` default: the II+ ROM's handler saved A at
+`$45`, the handler keeps X/Y and returns with `LDA $45`/`RTI` — on the
+enhanced //e the ROM restores A/X/Y itself after that `RTI`, so the same
+exit works; or `$FFFE`
 with the language card's RAM banked in: raw entry, A/X/Y saved; the program
 enables LC writes around `mb_irq_start`/`mb_irq_stop`), `MB_IRQ_HZ` (50) /
 `MB_IRQ_PERIOD` (latch, default `1020484 / MB_IRQ_HZ - 2`), `MB_IRQ_TICK`
@@ -768,8 +770,9 @@ different bytes reject both. Per card:
 
 **Interrupt.** With R1 bit 5 the frame flag pulls `/INT` low until the
 status is read. Where it goes depends on jumper JP2: on the published card
-(BYTE 8/82, figure 4) to bus pin 29, **NMI**; MAME, POM2 1.2.1 by default
-and `a2run` by default send it to the IRQ; without the jumper there is none.
+(BYTE 8/82, figure 4) to bus pin 29, **NMI**, POM2's default since
+`2f42a747`; MAME, POM2 1.2.1 and `a2run` by default send it to the IRQ;
+without the jumper there is none.
 `a2run --ezcolor-int=irq|nmi|open` and `a2shot --ezcolor-int=...` (POM2's
 `setEzColorInterrupt`) pick the wiring. The library and ROGUE never set R1
 bit 5: they poll F (`EZ_WAIT_VBLANK_SAFE`), which works with any wiring
@@ -777,10 +780,13 @@ bit 5: they poll F (`EZ_WAIT_VBLANK_SAFE`), which works with any wiring
 VRAM). A program that wants the frame interrupt must work with both:
 
 - One handler for both vectors: NMI through `$FFFA` → `$03FB` (put a `JMP`
-  there), IRQ through `$FFFE` → ROM → `$03FE` (the ROM keeps A at `$45`, on
-  the II+ and the //e). Point `$03FB` at a stub `STA $45` that falls into the
-  IRQ handler, and end it with `LDA $45 / RTI`: one exit for both. It must
-  read the status to release `/INT`.
+  there), IRQ through `$FFFE` → ROM → `$03FE`. The II / II+ ROM (`$FA40`)
+  saves A at `$45` and leaves its restoring to the handler; the enhanced //e
+  ROM pushes A, X and Y, and takes back control at the handler's `RTI` to
+  restore them itself (no `$45` on that path). Point `$03FB` at a stub
+  `STA $45` that falls into the IRQ handler, and end it with `LDA $45 /
+  RTI`: right on the II+ IRQ and on the NMI, harmless on the //e IRQ
+  (the ROM restores A after it). It must read the status to release `/INT`.
 - SEI does not mask an NMI, so `EZ_PAIR_SEI = 1` (the library's control pairs
   under SEI) only protects the IRQ wiring. A status read that splits a
   main-line control pair resets the flip-flop and the pair decodes wrong.

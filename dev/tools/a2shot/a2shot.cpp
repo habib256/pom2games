@@ -50,8 +50,8 @@
 // too close together are dropped, as on the chip; R1 bit 7 selects 16 KB).
 // --ezcolor-lax turns the window off (implies --ezcolor if no slot given).
 // --ezcolor-int=irq|nmi|open sets jumper JP2, where the VDP's /INT goes:
-// the slot IRQ (POM2's default), NMI (BYTE's published wiring: one NMI per
-// falling edge, SEI does not mask it) or nowhere (implies --ezcolor too).
+// NMI (POM2's default, BYTE's published wiring: one NMI per falling edge,
+// SEI does not mask it), the slot IRQ or nowhere (implies --ezcolor too).
 // Its steps (a2run's formats, so a2test.Result parses both):
 //   vpeek:ADDR[:LEN] hex-dump VRAM (wrapping at 16 KB), lines "VADDR: XX ..."
 //   vregs           "vregs R0..R7 status=SS addr=AAAA irq=I dropped=N strict=S int=W"
