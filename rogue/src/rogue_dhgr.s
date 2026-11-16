@@ -21,6 +21,7 @@
 ; ============================================================================
 
 .include "apple2.inc"
+SND_MB = 0                      ; speaker only (the Mockingboard: ROGUE.TMS)
 
 QUIT_MARK = $0FFE               ; = src/hello.bas PEEK (4094), (4095): "QU"
                                 ; (above HELLO and its variables; DOS's boot

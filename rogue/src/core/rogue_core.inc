@@ -728,6 +728,14 @@ start:
         ; tileset / colour / sprite uploads, clear, R1 = $C2) is the
         ; back-end's vid_init now (video_tms.asm keeps POM1's sequence).
         JSR vid_init
+.if SND_MB
+        ; APPLE II: a Mockingboard plays on its 50 Hz interrupt (sfx.inc):
+        ; unmask it. The VDP never interrupts (R1's IE bit stays 0).
+        LDA snd_mb
+        BEQ @no_mb
+        CLI
+@no_mb:
+.endif
 
         JSR draw_title          ; ROGUE banner + controls reminder
         JSR wait_kb_choice      ; bind IJKL keys + seed prng from key timing
@@ -5306,9 +5314,7 @@ death_screen:
         JSR     draw_text
         ; Detailed stats + footer
         JSR     paint_scores
-        LDA     #<tune_death    ; APPLE II: the dirge
-        LDY     #>tune_death
-        JSR     tune_play
+        JSR     music_death     ; APPLE II: the dirge
         JMP     wait_for_restart
 
 
@@ -5344,9 +5350,7 @@ win_screen:
         JSR     draw_text
         ; Detailed stats + footer
         JSR     paint_scores
-        LDA     #<tune_win      ; APPLE II: the fanfare
-        LDY     #>tune_win
-        JSR     tune_play
+        JSR     music_win       ; APPLE II: the fanfare
         JMP     wait_for_restart
 
 
@@ -6639,9 +6643,7 @@ wait_kb_choice:
         STA     prng_hi
         ; APPLE II: the title tune plays once while the loop counts (one
         ; ~1/60 s tick a pass), then the loop runs at full speed again.
-        LDA     #<tune_title
-        LDY     #>tune_title
-        JSR     tune_once
+        JSR     music_title
         JSR     vid_idle        ; APPLE II: the title on screen first
 @lp:    INC     prng_lo
         BNE     @nocascade
@@ -6762,3 +6764,12 @@ SOUND_GATE = snd_on
 TUNE_MUTE  = snd_on
 .include "sound.asm"            ; tone (dev/lib/apple2)
 .include "tune.asm"             ; tune_start / tune_tick / tune_play
+.if SND_MB                      ; the Mockingboard (sfx.inc), DOS 3.3: the
+MB_IRQ_PRODOS = 0               ; ROM's IRQ handler through $03FE
+MB_FAST_WRITE = 1
+MB_IRQ_TICK   = ays_tick
+MB_IRQ_GATE   = snd_gate
+.include "mb_irq.asm"
+.include "aysong.asm"
+.include "mockingboard.asm"
+.endif

@@ -28,7 +28,9 @@ DISK = ROOT / 'dist/ROGUE.dsk'
 OUT = GAME / 'build/tests'
 L = a2test.labels(GAME / 'build/rogue_tms.lbl')
 LL = a2test.labels(GAME / 'build/launcher.lbl')
-BOOT = ['wait:1500']                          # DOS boot + launcher + ROGUE.TMS
+# DOS boot + launcher + ROGUE.TMS, until the title (its tune starts), then
+# its picture: no fixed wait, the file's load time follows its size.
+BOOT = [L.until('music_title', 3000), 'wait:30']
 START = BOOT + ['key:X', 'wait:30', 'key:X', 'wait:60']   # title, briefing
 GAME_REGS = [0x00, 0xC2, 0x06, 0x80, 0x00, 0x36, 0x07, 0x01]
 DIRS = {'I': (0, -1), 'K': (0, 1), 'J': (-1, 0), 'L': (1, 0)}
@@ -130,7 +132,7 @@ def main():
               f'card in slot {slot}: found, game up')
 
     # --- no card on a II+: the page, a key, back to DOS --------------------
-    r = a2test.run(DISK, BOOT + ['text', 'key:X', 'wait:60', 'text'])
+    r = a2test.run(DISK, ['wait:1500', 'text', 'key:X', 'wait:60', 'text'])  # the launcher's page
     before, after = screen(r, 0), screen(r, -1)
     check('ROGUE CANNOT RUN ON THIS APPLE' in before[0], 'no card, II+: "CANNOT RUN" page')
     check(any('E-Z COLOR GRAPHICS INTERFACE' in row for row in before)

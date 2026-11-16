@@ -18,7 +18,7 @@ cœur sur la même disquette.
 
     make            # -> ../dist/ROGUE.dsk (+ ../dist/woz/ROGUE.woz)
     make run        # POM2 en Apple II+ avec la carte dans l'emplacement 4
-    make test       # lanceur, détection, VRAM, timing VDP, sons, DHGR //e et //c, carte POM2
+    make test       # lanceur, détection, VRAM, timing VDP, sons, DHGR //e et //c, carte POM2, Mockingboard
 
 ## Quelle version démarre ?
 
@@ -151,13 +151,22 @@ porté, monstre tué, dague lancée, bonus, soin, parchemin, morsure, fosse,
 escalier, niveau gagné, salle du démon ; un air au titre, un glas à la mort,
 une fanfare à la victoire. Le détail est dans [docs/PORT.md](docs/PORT.md).
 
+**Mockingboard** (`ROGUE.TMS`, depuis le 2026-11-16) : si une carte est dans un
+emplacement libre (l'E-Z Color dans un autre), les mêmes sons et les mêmes airs
+passent par son AY, joués sur l'interruption de son minuteur à 50 Hz : le jeu
+n'attend plus la fin d'un son (le suivant le remplace), les airs ont une
+seconde voix une octave plus bas, le haut-parleur se tait. `S` coupe aussi le
+Mockingboard ; ESC et Ctrl-RESET l'arrêtent avant de rendre la main à DOS.
+`ROGUE.DHGR` reste au haut-parleur pour l'instant.
+
 ## Dans POM2
 
     make run                                    # = POM2 --preset ii+ --slot 4=ezcolor ../dist/ROGUE.dsk
 
 ou, dans POM2, *Slot Config* : carte `ezcolor` dans un emplacement libre, puis
 *Display ▸ Card Monitor* pour voir le moniteur de la carte à côté de l'écran
-Apple (ou l'écran principal sur « Card video »). `APPLE2_RUN_FLAGS` change
+Apple (ou l'écran principal sur « Card video »). Pour entendre le Mockingboard :
+la carte E-Z Color dans l'emplacement 5 et un Mockingboard dans le 4. `APPLE2_RUN_FLAGS` change
 l'emplacement (`make run APPLE2_RUN_FLAGS="--slot 2=ezcolor"`).
 
 Les tests tournent sur `a2run --ezcolor=N` (émulateur C du dépôt, rendu PNG
