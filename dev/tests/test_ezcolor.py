@@ -10,12 +10,15 @@ Graphics II one (init_vdp_g2, line_xy, text_blit_glyph) rendered to PNG; the
 silicon-strict counter (0 for every library path, > 0 for an unpadded
 loop); the NMOS dummy read of an indexed store; the mirrors (A0 alone picks
 the port); the frame interrupt on IRQ, on NMI (one per falling edge of
-/INT) and with jumper JP2 open.
+/INT) and with jumper JP2 open; one handler for both vectors while the
+main program writes address pairs (guarded: none cut; unguarded under NMI:
+cut).
 Then the same library on POM2's own card (a2shot --ezcolor=N, silicon-strict
-access window, ba7f04da): detection in slots 4 and 7 and none, the helpers'
+access window, POM2 1.2.1): detection in slots 4 and 7 and none, the helpers'
 round trip (R1 bit 7 set first: 16 KB addressing), a Graphics I screen whose
 VRAM is byte-identical to a2run's, droppedAccesses 0 for every library path
-and > 0 for a 4-cycle burst, the NMOS dummy read of an indexed store."""
+and > 0 for a 4-cycle burst, the NMOS dummy read of an indexed store, the
+mirrors, jumper JP2 (--ezcolor-int) and the guarded pairs under each wiring."""
 from pathlib import Path
 import re
 import subprocess
@@ -42,6 +45,10 @@ r_copy:  .res 300
 r_irq:   .res 1
 r_mir:   .res 4
 r_boot:  .res 1
+r_busy:  .res 1
+r_pend:  .res 1
+r_guard: .res 1
+r_ptr:   .res 2
 .code
 '''
 
@@ -370,6 +377,77 @@ nmi_h:  INC     r_irq
         PLA
         RTI
 nmi_q:  INC     r_irq
+        RTI
+
+; One handler for both vectors, the main program writing address pairs
+; under it (POM2 1.2.1's recipe). The NMI stub keeps A in $45 as the
+; Monitor's IRQ entry does, so com_h ends the same way for both. A pair is
+; guarded by SEI (IRQ) and r_busy (NMI: SEI does not mask it); a handler
+; that finds r_busy set leaves /INT low and sets r_pend, and the main
+; program reads the status after the pair (the next F then re-arms the
+; edge). r_guard = 0 drops the guard: the handler cuts pairs.
+t_pairs:
+        LDA     #$4C                    ; $03FB: JMP nmi_e
+        STA     $03FB
+        LDA     #<nmi_e
+        STA     $03FC
+        LDA     #>nmi_e
+        STA     $03FD
+        LDA     #<com_h                 ; $03FE: com_h
+        STA     $03FE
+        LDA     #>com_h
+        STA     $03FF
+        LDA     #0
+        STA     r_irq
+        STA     r_busy
+        STA     r_pend
+        STA     r_ptr
+        LDA     #$10                    ; $1000-$17FF := lo EOR hi
+        STA     r_ptr+1
+        SEI
+        LDA     #$A0                    ; 16K, display off, IE
+        LDX     #1
+        JSR     ez_set_reg
+        CLI                             ; IRQ wiring: taken between pairs
+@loop:  PHP
+        SEI
+        INC     r_busy
+        LDA     r_ptr
+        LDX     r_ptr+1
+        JSR     ez_vram_addr_w
+        DEC     r_busy
+        PLP
+        LDA     r_pend
+        BEQ     @data
+        LDA     #0
+        STA     r_pend
+        JSR     ez_status               ; the deferred read
+@data:  LDA     r_ptr
+        EOR     r_ptr+1
+        JSR     ez_data_w               ; one access: nothing to cut
+        INC     r_ptr
+        BNE     @loop
+        INC     r_ptr+1
+        LDA     r_ptr+1
+        CMP     #$18
+        BNE     @loop
+        SEI
+        INC     r_busy
+        LDA     #$80                    ; IE off
+        LDX     #1
+        JSR     ez_set_reg
+        DEC     r_busy
+        RTS
+nmi_e:  STA     $45
+com_h:  INC     r_irq
+        LDA     r_busy
+        AND     r_guard
+        BEQ     @read
+        STA     r_pend                  ; inside a pair: later
+        LDA     $45
+        RTI
+@read:  JSR     ez_status               ; raises /INT: the next F re-arms
+        LDA     $45
         RTI
 
 irq_h:  INC     r_irq
@@ -713,9 +791,39 @@ def main():
         print(f'ok   JP2 = NMI: {n} in ~5 frames under SEI, 1 when /INT is never released; '
               'open: none')
 
+        n = pairs(lambda steps, wiring: run(A, steps, 4, ezcolor_int=wiring), LA, 'a2run')
+        print(f'ok   one handler at $03FB and $03FE: {n} interrupts over 2 KB of address pairs, '
+              'none cut (IRQ: SEI; NMI: r_busy), cut without the guard')
+
         pom2(work, A, LA)
 
     print(f'test_ezcolor: {checks} checks passed')
+
+
+PAIRS_WANT = bytes((i & 0xFF) ^ (0x10 + (i >> 8)) for i in range(0x800))
+
+
+def pairs(runner, LA, where):
+    """t_pairs (one handler for both vectors, the main program writing
+    $1000-$17FF one address pair a byte) under each wiring of JP2. Returns
+    the interrupt count with NMI."""
+    def go(wiring, guard):
+        r = runner([call(LA, 't_detect'), LA.poke('r_guard', guard), call(LA, 't_pairs', 60),
+                    LA.peek('r_irq'), 'vpeek:1000:2048', 'vregs'], wiring)
+        bad = sum(x != y for x, y in zip(r.vmem(0x1000, 0x800), PAIRS_WANT))
+        return r, r.dumps[0][0], bad
+    counts = {}
+    for wiring in ('nmi', 'irq', 'open'):
+        r, n, bad = go(wiring, 1)
+        ok(bad == 0 and r.vregs[1] == 0x80, f'{where}, JP2 {wiring}: {bad} bytes cut, R1 {r.vregs[1]:02X}')
+        ok((n == 0) if wiring == 'open' else (12 <= n <= 22), f'{where}, JP2 {wiring}: {n} interrupts')
+        ok(r.vdp_dropped in (None, 0), f'{where}, JP2 {wiring}: {r.vdp_dropped} dropped')
+        counts[wiring] = n
+    # without the guard the NMI handler's status read lands inside pairs
+    # (SEI still protects them on IRQ): the test can see a cut pair
+    _, _, bad = go('nmi', 0)
+    ok(bad > 0, f'{where}, JP2 nmi, no guard: no pair cut (the test sees nothing)')
+    return counts['nmi']
 
 
 def pom2(work, A, LA):
@@ -779,6 +887,35 @@ def pom2(work, A, LA):
     r = a2test.run(disk, boot + steps, emulator=a2test.A2SHOT, ezcolor=4, ezcolor_lax=True)
     ok(r.vmem(0x101, 1) == b'\xAB', f'POM2 lax: STA EZ_DATA,X wrote {r.vmem(0x100, 2).hex()}')
     print('ok   POM2 card: STA EZ_DATA,X dummy read seen (strict: 1 dropped; lax: lands one further)')
+
+    # mirrors (POM2 1.2.1 decodes A0 alone, as the card)
+    r = shot([call(LA, 't_detect'), call(LA, 't_mirror'), LA.peek('r_mir', 3), 'vpeek:0140:2'], 5)
+    ok(r.vmem(0x140, 2) == b'\xC1\xC2' and r.dumps[0][:2] == b'\xC1\xC2',
+       f'POM2 mirrors: wrote {r.vmem(0x140, 2).hex()}, read {r.dumps[0][:2].hex()}')
+    ok(r.vdp_dropped == 0, f'POM2 mirrors: {r.vdp_dropped} dropped')
+    print('ok   POM2 card: mirrors $C0n2/$C0n3/$C0n4/$C0n5/$C0nA/$C0nE/$C0nF')
+
+    # jumper JP2 (setEzColorInterrupt): the vregs line names it
+    def jp2(steps, wiring, **kw):
+        return a2test.run(disk, boot + steps, emulator=a2test.A2SHOT, ezcolor=4, ezcolor_int=wiring, **kw)
+    for wiring in ('irq', 'nmi', 'open'):
+        r = jp2(['vregs'], wiring)
+        ok(r.vjp2 == wiring, f'POM2 JP2 {wiring}: vregs says int={r.vjp2}')
+    r = jp2([call(LA, 't_detect'), call(LA, 't_nmi', 20), LA.peek('r_irq')], 'nmi')
+    n = r.dumps[0][0]
+    ok(4 <= n <= 6, f'POM2 NMI count {n}')
+    r = jp2([call(LA, 't_detect'), call(LA, 't_nmi_quiet', 20), LA.peek('r_irq')], 'nmi')
+    ok(r.dumps[0][0] == 1, f'POM2 NMI without a status read: {r.dumps[0][0]} (want 1)')
+    for wiring in ('open', 'irq'):
+        r = jp2([call(LA, 't_detect'), call(LA, 't_nmi', 20), LA.peek('r_irq')], wiring)
+        ok(r.dumps[0][0] == 0, f'POM2 JP2 {wiring}, I = 1: {r.dumps[0][0]} interrupts')
+    print(f'ok   POM2 card, JP2 = NMI: {n} in ~5 frames under SEI, 1 when /INT is never released; '
+          'open and IRQ under SEI: none')
+
+    n = pairs(lambda steps, wiring: jp2(steps, wiring), LA, 'POM2')
+    pairs(lambda steps, wiring: jp2(steps, wiring, iie=True), LA, 'POM2 //e')
+    print(f'ok   POM2 card, ][+ and //e: one handler at $03FB and $03FE, {n} NMIs over 2 KB of '
+          'address pairs, none cut, 0 dropped; cut without the guard')
 
 if __name__ == '__main__':
     main()

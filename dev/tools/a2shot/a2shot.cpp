@@ -49,9 +49,13 @@
 // of the ][+ or //e, with the VDP's silicon-strict access window (accesses
 // too close together are dropped, as on the chip; R1 bit 7 selects 16 KB).
 // --ezcolor-lax turns the window off (implies --ezcolor if no slot given).
+// --ezcolor-int=irq|nmi|open sets jumper JP2, where the VDP's /INT goes:
+// the slot IRQ (POM2's default), NMI (BYTE's published wiring: one NMI per
+// falling edge, SEI does not mask it) or nowhere (implies --ezcolor too).
 // Its steps (a2run's formats, so a2test.Result parses both):
 //   vpeek:ADDR[:LEN] hex-dump VRAM (wrapping at 16 KB), lines "VADDR: XX ..."
-//   vregs           "vregs R0..R7 status=SS addr=AAAA irq=I dropped=N strict=S"
+//   vregs           "vregs R0..R7 status=SS addr=AAAA irq=I dropped=N strict=S int=W"
+//                   (irq = /INT low, int = JP2: irq, nmi or open)
 //                   (read without side effects: F stays set)
 //   vdrop:reset     zero the dropped-access counter
 //   vshot:FILE.png  the card's monitor, 288x216 (picture at 16,12 inside the
@@ -122,6 +126,10 @@
 // header (or without sdk.mk) still compiles, and --ezcolor then refuses.
 #ifndef POM2_SDK_HAS_EZCOLOR
 #define POM2_SDK_HAS_EZCOLOR 0
+#endif
+// Jumper JP2 (setEzColorInterrupt, EzColorState::interrupt): POM2 1.2.1.
+#ifndef POM2_SDK_HAS_EZCOLOR_JP2
+#define POM2_SDK_HAS_EZCOLOR_JP2 0
 #endif
 
 #include <unistd.h>
@@ -250,6 +258,7 @@ int main(int argc, char** argv)
     bool stdinScript = false;
     int ezSlot = 0;                             // --ezcolor[=N]
     bool ezStrict = true;                       // --ezcolor-lax: false
+    std::string ezInt;                          // --ezcolor-int=irq|nmi|open
     int hddSlot = 0;                            // --hdd[=N], else chosen by size
     std::vector<std::string> script;
     for (int i = 1; i < argc; ++i) {
@@ -271,13 +280,21 @@ int main(int argc, char** argv)
             if (ezSlot < 1 || ezSlot > 7) { std::fprintf(stderr, "a2shot: --ezcolor=1..7\n"); return 2; }
         }
         else if (a == "--ezcolor-lax") ezStrict = false;
+        else if (a.rfind("--ezcolor-int=", 0) == 0) {
+            ezInt = a.substr(14);
+            if (ezInt != "irq" && ezInt != "nmi" && ezInt != "open") {
+                std::fprintf(stderr, "a2shot: --ezcolor-int=irq|nmi|open\n");
+                return 2;
+            }
+        }
         else if (a == "--hdd") hddSlot = 7;
         else if (a.rfind("--hdd=", 0) == 0) hddSlot = std::atoi(a.c_str() + 6);
         else script.push_back(a);
     }
     if (disk.empty()) {
         std::fprintf(stderr, "usage: a2shot [--iie|--iic|--iic16] [--pal] [--mockingboard] [--mouse[=applewin]] [--mouse-slot=N]\n"
-                             "              [--ezcolor[=N]] [--ezcolor-lax] [--hdd[=N]] [--roms DIR] --disk X.dsk step...\n");
+                             "              [--ezcolor[=N]] [--ezcolor-lax] [--ezcolor-int=irq|nmi|open] [--hdd[=N]]\n"
+                             "              [--roms DIR] --disk X.dsk step...\n");
         return 2;
     }
 
@@ -326,12 +343,25 @@ int main(int argc, char** argv)
         std::fprintf(stderr, "mouse: %s\n", iic ? "the //c has its own" : core.lastError().c_str());
         return 1;
     }
-    if (!ezStrict && !ezSlot) ezSlot = 4;
+    if ((!ezStrict || !ezInt.empty()) && !ezSlot) ezSlot = 4;
 #if POM2_SDK_HAS_EZCOLOR
     if (ezSlot && !core.attachEzColor(ezSlot, ezStrict)) {
         std::fprintf(stderr, "E-Z Color: %s\n", core.lastError().c_str());
         return 1;
     }
+#if POM2_SDK_HAS_EZCOLOR_JP2
+    if (!ezInt.empty() && !core.setEzColorInterrupt(ezInt == "nmi" ? pom2::EzColorInterrupt::Nmi
+                                                    : ezInt == "open" ? pom2::EzColorInterrupt::Open
+                                                    : pom2::EzColorInterrupt::Irq)) {
+        std::fprintf(stderr, "E-Z Color JP2: %s\n", core.lastError().c_str());
+        return 1;
+    }
+#else
+    if (!ezInt.empty()) {
+        std::fprintf(stderr, "E-Z Color: this POM2 core SDK predates jumper JP2 (needs 1.2.1)\n");
+        return 1;
+    }
+#endif
 #else
     if (ezSlot) {
         std::fprintf(stderr, "E-Z Color: this POM2 core SDK predates the card (needs ba7f04da)\n");
@@ -890,11 +920,16 @@ int main(int argc, char** argv)
         } else if (op == "vregs") {
             if (!ezSlot) return 2;
             const auto e = core.ezColorState();
-            std::printf("vregs %02X %02X %02X %02X %02X %02X %02X %02X status=%02X addr=%04X irq=%d dropped=%llu strict=%d\n",
+            std::printf("vregs %02X %02X %02X %02X %02X %02X %02X %02X status=%02X addr=%04X irq=%d dropped=%llu strict=%d",
                         e.registers[0], e.registers[1], e.registers[2], e.registers[3],
                         e.registers[4], e.registers[5], e.registers[6], e.registers[7],
                         e.status, e.address, int(e.irqAsserted),
                         static_cast<unsigned long long>(e.droppedAccesses), int(e.siliconStrict));
+#if POM2_SDK_HAS_EZCOLOR_JP2
+            std::printf(" int=%s", e.interrupt == pom2::EzColorInterrupt::Nmi ? "nmi"
+                                   : e.interrupt == pom2::EzColorInterrupt::Open ? "open" : "irq");
+#endif
+            std::printf("\n");
         } else if (op == "vdrop") {
             if (!ezSlot || arg != "reset") return 2;
             core.resetEzColorDropCount();

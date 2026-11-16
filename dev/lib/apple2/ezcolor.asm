@@ -72,8 +72,8 @@
 ; also resets the control-port flip-flop, so a main-line control pair it
 ; splits decodes wrong. Best: keep R1 bit 5 off and poll EZ_WAIT_VBLANK.
 ; EZ_PAIR_SEI = 1 protects the pairs under IRQ only: SEI does not mask an
-; NMI (there, a handler that touches no port, or a "VDP busy" semaphore).
-; See README.md "Interrupt".
+; NMI (there, a "VDP busy" semaphore around each pair; the handler defers
+; its status read to the main program). See README.md "Interrupt".
 ; ============================================================================
 
 .ifndef _EZCOLOR_ASM_LOADED_
