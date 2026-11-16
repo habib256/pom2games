@@ -33,16 +33,23 @@
  *   vregs           (--ezcolor) "vregs R0..R7 status=SS addr=AAAA fast=N"
  *
  * --ezcolor[=N] puts an E-Z Color Graphics Interface in slot N (default 4):
- * a TMS9918A with 16 KB of VRAM. $C0n0 = data port (VRAM read/write with
+ * a TMS9918A with 16 KB of VRAM. The card decodes A0 only (BYTE 8/82 fig. 4,
+ * POM2 1.2.1): every even $C0nX is the data port, every odd one the register
+ * port. $C0n0 = data port (VRAM read/write with
  * auto-increment and the chip's read-ahead buffer: setting a read address
  * prefetches, a read returns the buffer and prefetches the next byte, a
  * write also loads the buffer), $C0n1 = register port (status read clears
  * F/5S/C and the byte flip-flop; two-byte address/register writes, the
  * first byte landing in the address low bits at once, a register write
- * also loading the address high bits, as openMSX/POM1), other $C0nX read
- * $FF. F rises at the start of vertical blanking (line 192 of 262, the
- * card's own NTSC frame of 17062 cycles from power-on, as POM2's card); with R1 bit 5 set it pulls
- * the 6502 IRQ (taken through $FFFE when I = 0). 5S and C stay 0 (no sprite
+ * also loading the address high bits, as openMSX/POM1). F rises at the
+ * start of vertical blanking (line 192 of 262, the VDP's own frame of 17067
+ * cycles from power-on: 342 x 262 clocks of its 10.7386 MHz crystal, as
+ * POM2 1.2.1); with R1 bit 5 set /INT = F goes where jumper JP2 sends it:
+ * --ezcolor-int=irq (default, as MAME and POM2 1.2.1) holds the 6502 IRQ
+ * (taken through $FFFE when I = 0), =nmi (the published card: bus pin 29)
+ * takes one NMI on each falling edge of /INT (through $FFFA = $03FB; no
+ * new one until the status read raises /INT), =open (no jumper) none.
+ * 5S and C stay 0 (no sprite
  * scan). RESET resets the VDP (registers, status, flip-flop; VRAM kept).
  * The IRQ goes to the Autostart ROM's $FA40 (then JMP ($03FE)): the
  * vendored apple2p.rom has $FF59 at $FFFE, see machine_step().
@@ -95,14 +102,19 @@ static int have_disk;           /* 0: no card in slot 6 (--disk not given) */
 Cpu cpu;
 
 /* --- E-Z Color (TMS9918A), --ezcolor[=N] ------------------------------------- */
-/* The card has its own crystal: an NTSC frame of 17062 CPU cycles (59.94 Hz,
- * 262 lines of 17062/262 cycles, 192 active), not the Apple's 17030, as in
- * POM2's E-Z Color card (ba7f04da), so frame-flag waits keep the same phase
- * in both emulators. vdp_lines(t) = beam lines since power-on. */
-#define VDP_FRAME_CYCLES 17062u
+/* The card has its own crystal: 262 lines of 342 clocks at 10.7386 MHz, a
+ * 4/21-cycle clock, so a frame of 17067 CPU cycles (59.92 Hz, 192 active
+ * lines), not the Apple's 17030 nor NTSC's 17062, as POM2 1.2.1's card, so
+ * frame-flag waits keep the same phase in both emulators. Asynchronous to
+ * the Apple's video (and on a PAL Apple, to its 50 Hz).
+ * vdp_lines(t) = beam lines since power-on. */
+#define VDP_FRAME_CYCLES 17067u
 #define VDP_LINES 262u
 static uint64_t vdp_lines(uint64_t t) { return t * VDP_LINES / VDP_FRAME_CYCLES; }
 static int ez_slot;                     /* 0: no card */
+enum { EZ_INT_IRQ, EZ_INT_NMI, EZ_INT_OPEN };
+static int ez_int;                      /* jumper JP2: where /INT goes */
+static int ez_int_low;                  /* /INT seen low (NMI edge) */
 static uint8_t vram[16384], vreg[8], vstatus, vbuf, vfirst;
 static int vsecond;
 static uint16_t vaddr;
@@ -141,7 +153,7 @@ static uint8_t ez_io(int reg, int write, uint8_t val)
 {
     uint64_t t = inst_cycles + (bus_n ? bus_n - 1 : 0);
     vdp_sync(t);
-    if (reg == 0) {
+    if (!(reg & 1)) {                   /* A0 = 0: data port */
         vsecond = 0;
         vdp_vram_access(t);
         if (write) {
@@ -154,8 +166,7 @@ static uint8_t ez_io(int reg, int write, uint8_t val)
         vaddr = (vaddr + 1) & 0x3FFF;
         return write ? 0 : val;
     }
-    if (reg != 1) return write ? 0 : 0xFF;
-    if (!write) {
+    if (!write) {                       /* A0 = 1: register port */
         uint8_t r = vstatus;
         vsecond = 0;
         vstatus &= 0x1F;
@@ -515,22 +526,33 @@ static void feed_keyboard(void)
     kbd_last = cpu.cycles;
 }
 
-/* One instruction, after the card's IRQ (R1 IE and F) when I = 0. */
+static void push_interrupt(uint16_t vector)
+{
+    ram[0x100 | cpu.s--] = (uint8_t)(cpu.pc >> 8);
+    ram[0x100 | cpu.s--] = (uint8_t)cpu.pc;
+    ram[0x100 | cpu.s--] = (uint8_t)((cpu.p & ~FB) | FU);
+    cpu.p |= FI;
+    cpu.pc = (uint16_t)(rom[vector - 0xD000] | (rom[vector + 1 - 0xD000] << 8));
+    cpu.cycles += 7;
+}
+
+/* One instruction, after the card's interrupt: /INT = R1 IE and F, to the
+ * IRQ (level, when I = 0) or the NMI (falling edge) through jumper JP2. */
 static void machine_step(void)
 {
-    if (ez_slot && (vreg[1] & 0x20)) {
+    if (ez_slot && ez_int == EZ_INT_NMI) {
+        int low = 0;
+        if (vreg[1] & 0x20) { vdp_sync(cpu.cycles); low = (vstatus & 0x80) != 0; }
+        if (low && !ez_int_low) push_interrupt(0xFFFA);     /* Autostart: $03FB */
+        ez_int_low = low;
+    } else if (ez_slot && ez_int == EZ_INT_IRQ && (vreg[1] & 0x20)) {
         vdp_sync(cpu.cycles);
         if ((vstatus & 0x80) && !(cpu.p & FI)) {
-            ram[0x100 | cpu.s--] = (uint8_t)(cpu.pc >> 8);
-            ram[0x100 | cpu.s--] = (uint8_t)cpu.pc;
-            ram[0x100 | cpu.s--] = (uint8_t)((cpu.p & ~FB) | FU);
-            cpu.p |= FI;
-            cpu.pc = (uint16_t)(rom[0xFFFE - 0xD000] | (rom[0xFFFF - 0xD000] << 8));
+            push_interrupt(0xFFFE);
             /* The vendored apple2p.rom holds $FF59 (the old Monitor's RESET)
              * at $FFFE; the Autostart ROM's IRQ entry is $FA40 (STA $45,
              * PLA, PHA, ASL x3, BMI BREAK, JMP ($03FE)), which is there. */
             if (cpu.pc == 0xFF59 && rom[0xFA40 - 0xD000] == 0x85) cpu.pc = 0xFA40;
-            cpu.cycles += 7;
         }
     }
     inst_pc = cpu.pc;
@@ -743,10 +765,17 @@ int a2run_main(int argc, char **argv)
             ez_slot = atoi(argv[i] + 10);
             if (ez_slot < 1 || ez_slot > 7) { fprintf(stderr, "a2run: --ezcolor=1..7\n"); return 2; }
         }
+        else if (!strncmp(argv[i], "--ezcolor-int=", 14)) {
+            const char *w = argv[i] + 14;
+            if (!strcmp(w, "irq")) ez_int = EZ_INT_IRQ;
+            else if (!strcmp(w, "nmi")) ez_int = EZ_INT_NMI;
+            else if (!strcmp(w, "open")) ez_int = EZ_INT_OPEN;
+            else { fprintf(stderr, "a2run: --ezcolor-int=irq|nmi|open\n"); return 2; }
+        }
         else break;
     }
     if (i < argc && argv[i][0] == '-') {
-        fprintf(stderr, "usage: a2run [--roms DIR] [--wp] [--ezcolor[=N]] [--disk X.dsk] step...\n");
+        fprintf(stderr, "usage: a2run [--roms DIR] [--wp] [--ezcolor[=N]] [--ezcolor-int=irq|nmi|open] [--disk X.dsk] step...\n");
         return 2;
     }
     char path[1200];

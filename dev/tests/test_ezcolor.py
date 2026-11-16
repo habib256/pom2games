@@ -8,12 +8,14 @@ TMS_Rogue way (init_vdp_g1, name_at_rc, WRT_DATA_*, a 16x16 sprite sent by
 vdp_upload_a with the display on) and a
 Graphics II one (init_vdp_g2, line_xy, text_blit_glyph) rendered to PNG; the
 silicon-strict counter (0 for every library path, > 0 for an unpadded
-loop); the NMOS dummy read of an indexed store; the frame IRQ.
+loop); the NMOS dummy read of an indexed store; the mirrors (A0 alone picks
+the port); the frame interrupt on IRQ, on NMI (one per falling edge of
+/INT) and with jumper JP2 open.
 Then the same library on POM2's own card (a2shot --ezcolor=N, silicon-strict
 access window, ba7f04da): detection in slots 4 and 7 and none, the helpers'
 round trip (R1 bit 7 set first: 16 KB addressing), a Graphics I screen whose
 VRAM is byte-identical to a2run's, droppedAccesses 0 for every library path
-and > 0 for a 4-cycle burst."""
+and > 0 for a 4-cycle burst, the NMOS dummy read of an indexed store."""
 from pathlib import Path
 import re
 import subprocess
@@ -38,6 +40,7 @@ r_slotx: .res 1
 r_buf:   .res 16
 r_copy:  .res 300
 r_irq:   .res 1
+r_mir:   .res 4
 r_boot:  .res 1
 .code
 '''
@@ -286,6 +289,89 @@ t_noirq:
         JSR     delay5
         SEI
         RTS
+t_mirror:                               ; A0 alone picks the port
+        LDA     #$40                    ; write address $0140 through $C0n3/$C0nF
+        JSR     ez_mir_w3
+        LDA     #$41
+        JSR     ez_mir_wf
+        LDA     #$C1                    ; data through $C0n2, $C0nE
+        JSR     ez_mir_w2
+        LDA     #$C2
+        JSR     ez_mir_we
+        LDA     #$40                    ; read address $0140 through $C0n1/$C0n5
+        JSR     ez_mir_w3
+        LDA     #$01
+        JSR     ez_mir_w5
+        JSR     ez_mir_ra               ; data through $C0nA, $C0n4
+        STA     r_mir
+        JSR     ez_mir_r4
+        STA     r_mir+1
+        JSR     ez_mir_rf               ; status through $C0nF
+        STA     r_mir+2
+        RTS
+; absolute stores patched to $C0nX (X = the low nibble), as the library does
+ez_mir_w2: LDY #$82
+        BNE     ez_mir_w
+ez_mir_we: LDY #$8E
+        BNE     ez_mir_w
+ez_mir_w3: LDY #$83
+        BNE     ez_mir_w
+ez_mir_wf: LDY #$8F
+        BNE     ez_mir_w
+ez_mir_w5: LDY #$85
+ez_mir_w:
+        PHA
+        TYA
+        ORA     ez_slotx
+        STA     ez_mir_ws+1
+        PLA
+ez_mir_ws:
+        STA     $C000
+        JMP     ez_pad18
+ez_mir_ra: LDY #$8A
+        BNE     ez_mir_r
+ez_mir_r4: LDY #$84
+        BNE     ez_mir_r
+ez_mir_rf: LDY #$8F
+ez_mir_r:
+        TYA
+        ORA     ez_slotx
+        STA     ez_mir_rs+1
+ez_mir_rs:
+        LDA     $C000
+        JMP     ez_pad18
+
+t_nmi:                                  ; R1 IE, handler reads the status
+        LDA     #<nmi_h
+        LDX     #>nmi_h
+        BNE     t_nmi_go
+t_nmi_quiet:                            ; R1 IE, handler leaves /INT low
+        LDA     #<nmi_q
+        LDX     #>nmi_q
+t_nmi_go:
+        STA     $03FC
+        STX     $03FD
+        LDA     #$4C                    ; JMP
+        STA     $03FB
+        LDA     #0
+        STA     r_irq
+        SEI                             ; an NMI ignores it
+        LDA     #$A0                    ; 16K, display off, IE
+        LDX     #1
+        JSR     ez_set_reg
+        JSR     delay5
+        LDA     #$80                    ; IE off
+        LDX     #1
+        JSR     ez_set_reg
+        RTS
+nmi_h:  INC     r_irq
+        PHA
+        JSR     ez_status               ; raises /INT: the next F re-arms
+        PLA
+        RTI
+nmi_q:  INC     r_irq
+        RTI
+
 irq_h:  INC     r_irq
         JSR     ez_status               ; drops /INT
         LDA     $45                     ; the Monitor saved A there
@@ -468,8 +554,8 @@ def build(work, name, src):
     return a2test.labels(work / f'{name}.lbl'), work / f'{name}.bin'
 
 
-def run(binary, steps, slot):
-    return a2test.run(None, [f'load:{binary}@6000'] + steps, ezcolor=slot)
+def run(binary, steps, slot, ezcolor_int=None):
+    return a2test.run(None, [f'load:{binary}@6000'] + steps, ezcolor=slot, ezcolor_int=ezcolor_int)
 
 
 def call(L, name, frames=200):
@@ -607,6 +693,26 @@ def main():
         ok(r.dumps[0][0] == 0, 'no IRQ with R1 IE off')
         print(f'ok   frame IRQ: {n} in ~5 frames with R1 IE, 0 without')
 
+        # mirrors: every even $C0nX is the data port, every odd one the
+        # register port (BYTE 8/82 fig. 4: A0 to MODE, nothing else decoded)
+        r = run(A, [call(LA, 't_detect'), call(LA, 't_mirror'), LA.peek('r_mir', 3), 'vpeek:0140:2'], 5)
+        ok(r.vmem(0x140, 2) == b'\xC1\xC2', f'mirrored writes {r.vmem(0x140, 2).hex()}')
+        ok(r.dumps[0][:2] == b'\xC1\xC2', f'mirrored reads {r.dumps[0][:2]}')
+        print('ok   mirrors: address via $C0n3/$C0nF/$C0n5, data via $C0n2/$C0nE/$C0nA/$C0n4')
+
+        # jumper JP2: NMI (edge, SEI does not mask it; one a frame only while
+        # the handler reads the status), open (none), IRQ (with I = 1: none)
+        r = run(A, [call(LA, 't_detect'), call(LA, 't_nmi', 20), LA.peek('r_irq')], 4, ezcolor_int='nmi')
+        n = r.dumps[0][0]
+        ok(4 <= n <= 6, f'NMI count {n}')
+        r = run(A, [call(LA, 't_detect'), call(LA, 't_nmi_quiet', 20), LA.peek('r_irq')], 4, ezcolor_int='nmi')
+        ok(r.dumps[0][0] == 1, f'NMI without a status read: {r.dumps[0][0]} (want 1)')
+        for wiring in ('open', 'irq'):
+            r = run(A, [call(LA, 't_detect'), call(LA, 't_nmi', 20), LA.peek('r_irq')], 4, ezcolor_int=wiring)
+            ok(r.dumps[0][0] == 0, f'JP2 {wiring}, I = 1: {r.dumps[0][0]} interrupts')
+        print(f'ok   JP2 = NMI: {n} in ~5 frames under SEI, 1 when /INT is never released; '
+              'open: none')
+
         pom2(work, A, LA)
 
     print(f'test_ezcolor: {checks} checks passed')
@@ -661,13 +767,18 @@ def pom2(work, A, LA):
     ok(r.vdp_dropped > 20, f'POM2: 4-cycle burst dropped {r.vdp_dropped}')
     print(f'ok   POM2 card: 9-cycle STA loop dropped {nine}, 4-cycle burst {r.vdp_dropped} (window counted)')
 
-    # Reported, not checked: POM2 ba7f04da does not send the NMOS dummy read
-    # of STA abs,X to the card (the byte lands at $0100; a2run and the 6502
-    # put it at $0101). The library never writes indexed.
-    r = shot([call(LA, 't_detect'), call(LA, 't_r16k'), call(LA, 't_indexed'), 'vpeek:0100:2'], 4)
-    print(f'info POM2 card: STA EZ_DATA,X wrote {r.vmem(0x100, 2).hex()} at $0100 '
-          f'({"dummy read seen" if r.vmem(0x100, 2) == bytes([0, 0xAB]) else "no dummy read"})')
-
+    # The NMOS dummy read of STA abs,X reaches POM2's card: with the access
+    # window off it advances the pointer (the byte lands one further, as on
+    # a2run); with it on, the store comes 1 cycle after the read and merges
+    # into the slot the read scheduled: the byte lands at the pointer and
+    # counts as one dropped access (POM2 tests/ezcolor_card_test.cpp).
+    steps = [call(LA, 't_detect'), call(LA, 't_r16k'), 'vdrop:reset', call(LA, 't_indexed'), 'vpeek:0100:2']
+    r = shot(steps, 4)
+    ok(r.vmem(0x100, 1) == b'\xAB' and r.vdp_dropped == 1,
+       f'POM2 strict: STA EZ_DATA,X wrote {r.vmem(0x100, 2).hex()}, dropped {r.vdp_dropped}')
+    r = a2test.run(disk, boot + steps, emulator=a2test.A2SHOT, ezcolor=4, ezcolor_lax=True)
+    ok(r.vmem(0x101, 1) == b'\xAB', f'POM2 lax: STA EZ_DATA,X wrote {r.vmem(0x100, 2).hex()}')
+    print('ok   POM2 card: STA EZ_DATA,X dummy read seen (strict: 1 dropped; lax: lands one further)')
 
 if __name__ == '__main__':
     main()

@@ -63,12 +63,17 @@
 ;   EZ_PAIR_SEI = 1       ez_set_reg / ez_vram_addr_* mask IRQs around the
 ;                         two control bytes (for programs whose IRQ handler
 ;                         reads the status: it resets the byte flip-flop).
+;                         No help with JP2 on NMI: SEI does not mask it.
 ; ZP: ez_ptr (2), ez_count (2); each can be aliased (define it first).
 ;
-; IRQ: the VDP's /INT drives the slot IRQ when R1 bit 5 is set. A handler
-; must read the status ($C0n1, ez_status) to drop /INT; that read also
-; resets the control-port flip-flop, so a main-line control pair it splits
-; decodes wrong: keep IRQ off (poll EZ_WAIT_VBLANK) or use EZ_PAIR_SEI = 1.
+; Interrupt: with R1 bit 5 the VDP's /INT goes through jumper JP2 to NMI
+; (the published card) or IRQ (MAME, POM2), or nowhere (jumper open). A
+; handler must read the status ($C0n1, ez_status) to drop /INT; that read
+; also resets the control-port flip-flop, so a main-line control pair it
+; splits decodes wrong. Best: keep R1 bit 5 off and poll EZ_WAIT_VBLANK.
+; EZ_PAIR_SEI = 1 protects the pairs under IRQ only: SEI does not mask an
+; NMI (there, a handler that touches no port, or a "VDP busy" semaphore).
+; See README.md "Interrupt".
 ; ============================================================================
 
 .ifndef _EZCOLOR_ASM_LOADED_

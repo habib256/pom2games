@@ -264,8 +264,11 @@ it); the run ends with `vdp_dropped=N` (`Result.vdp_dropped`, must be 0).
 (a //e with mouse and Mockingboard). `--hdd[=N]` forces POM2's block card in
 slot N (default 7) for any size; volumes over 800 KB use it on their own
 (steps `hddinfo`, `hddflush`, `hddsave:F`, `hddprotect:0|1`). The full list
-of steps is in the header of `tools/a2shot/a2shot.cpp`. The VDP's frame is its own: 17,062
-cycles (a2run's model uses the same). `a2test.run(disk, steps,
+of steps is in the header of `tools/a2shot/a2shot.cpp`. The VDP's frame is its own: 17,067
+cycles, 342 × 262 clocks of its 10.7386 MHz crystal (POM2 1.2.1 and a2run;
+POM2 up to 1.2.0 used NTSC's 17,062). `a2run --ezcolor-int=irq|nmi|open`
+picks where jumper JP2 sends the VDP's `/INT` (default IRQ, as MAME and
+POM2 1.2.1; NMI is the published card). `a2test.run(disk, steps,
 emulator=a2test.A2SHOT, ezcolor=N)`.
 
 Test programs too large for a script link the same core in C++:
