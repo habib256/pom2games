@@ -265,7 +265,7 @@ magnétique, `LOOK WATCH`/`ALTIMETER` renvoient à STATUS, `USE MAP` (ou
 refusent (« INSUFFICIENT LIGHT »).
 
 Le [TODO](TODO.md) organise le travail restant en cinq directions, fidélité à l’original et image en priorité, avec leurs critères de fin.
-Le [README HGR hérité](README_HGR.md), le [backlog hérité](TODO_HGR.md)
+Le [README HGR hérité](README_HGR.md), le [backlog hérité](../wilderness/TODO.md) (celui de Wilderness HGR)
 et le [changelog](CHANGELOG.md) documentent le point de départ ; leurs
 mentions HGR/DOS décrivent la version de référence.
 

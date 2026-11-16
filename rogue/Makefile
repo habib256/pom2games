@@ -7,7 +7,9 @@
 #                      VRAM / registers, 18-cycle VDP rule over a scripted
 #                      game, sounds (a2run --ezcolor); the same on POM2's
 #                      card (a2shot --ezcolor: pictures, VRAM = a2run's, no
-#                      dropped VDP access); ROGUE.DHGR on a2shot //e and //c
+#                      dropped VDP access); ROGUE.DHGR on a2shot //e and //c;
+#                      ROGUE.TMS with a Mockingboard (a2shot --mockingboard:
+#                      its AYS songs on the 50 Hz interrupt, the way out)
 #   make clean / distclean
 #
 # The shared rules and tool variables come from ../dev/cc65/apple2.mk.
@@ -30,7 +32,8 @@ DHGR_CFG  := $(if $(wildcard src/rogue_dhgr.cfg),src/rogue_dhgr.cfg,src/launcher
 
 all: $(DISK)
 
-src/core/music.inc: tools/music.py $(DEV)/tools/audio/tune.py $(DEV)/tools/audio/notes.py
+src/core/music.inc: tools/music.py $(DEV)/tools/audio/tune.py $(DEV)/tools/audio/notes.py \
+                    $(DEV)/tools/audio/aysong.py
 	$(PYTHON) tools/music.py $@
 
 $(BUILD)/rogue_tms.o: $(TMS_SRCS) $(A2_ASM_DEPS)
@@ -83,6 +86,7 @@ test: all $(A2RUN)
 	$(PYTHON) tests/test_rogue.py
 	$(PYTHON) tests/test_dhgr.py
 	$(PYTHON) tests/test_rogue_pom2.py
+	$(PYTHON) tests/test_mockingboard.py
 
 # Long tier (convention of ../dev/cc65/apple2.mk): nothing slow yet.
 test-long:

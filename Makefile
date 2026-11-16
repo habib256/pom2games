@@ -44,10 +44,17 @@ DIRS += dev/examples/halfpipe
 DIRS += dev/examples/rope dev/examples/catapult
 # CUTROPE, a "Cut the Rope"-like on lib/physics ropes (its disk in dist/).
 DIRS += cutrope
+# NEOWILDERNESS XL (800 KB ProDOS, dist/NEOWILDERNESSXL.po); like wilderness it
+# fetches the 1985 originals from archive.org on its first build (sprites, GO3).
+DIRS += neowilderness
 # Programs whose own `make test` / `make test-long` belong to the root tiers.
 TESTED := pinball chromabreak arkabreakout chess micro-sokoban light3dball wilderness logo mbtracker dirtbike \
           wargalagaii snake robotspacestation rogue
 TESTED += cutrope maze3d
+# neowilderness: its XL suite, 74 tests in parallel (~1.5 min, ~2.5 min with a
+# cold LZ cache; 8 min in sequence). physics: smoke test on //e and //c,
+# NTSC and PAL (its disk stays in physics/build/, so it is not in DIRS).
+TESTED += neowilderness physics
 
 all:
 	@for d in $(DIRS); do $(MAKE) -C $$d || exit 1; done

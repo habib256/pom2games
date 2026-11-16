@@ -43,7 +43,7 @@ assembly and C; DIRTBIKE and ChromaBreak are tested on a real //e.
 | 🧱 | [**ARKABREAKOUT**](arkabreakout/README.md) — ChromaBreak squeezed into 48 KB HGR | II+ 48 KB | [▶ Play](https://habib256.github.io/pom2/wasm/?preset=ii%2B&url=https://raw.githubusercontent.com/habib256/pom2games/main/dist/ARKABREAKOUT.dsk) |
 | 💡 | [**LIGHT3DBALL**](light3dball/README.md) — keep the ball alive down a 3D corridor | II+ 48 KB | [▶ Play](https://habib256.github.io/pom2/wasm/?preset=ii%2B&url=https://raw.githubusercontent.com/habib256/pom2games/main/dist/LIGHT3DBALL.dsk) |
 | 🐉 | [**MAZE3D**](maze3d/README.md) — wire-frame dungeon crawler, a dragon at the bottom | II+ 48 KB | [▶ Play](https://habib256.github.io/pom2/wasm/?preset=ii%2B&url=https://raw.githubusercontent.com/habib256/pom2games/main/dist/MAZE3D.dsk) |
-| 🗡️ | [**ROGUE**](rogue/README.md) — roguelike from POM1: 13 floors, a demon, sounds; on the E-Z Color (TMS9918A) card in any slot, or in double hi-res | II+ 48 KB + E-Z Color, or //e //c 128 KB | [disk](dist/ROGUE.dsk) |
+| 🗡️ | [**ROGUE**](rogue/README.md) — roguelike from POM1: 13 floors, a demon, sounds (on a Mockingboard if present); on the E-Z Color (TMS9918A) card in any slot, or in double hi-res | II+ 48 KB + E-Z Color, or //e //c 128 KB | [disk](dist/ROGUE.dsk) |
 | 📦 | [**MICRO-SOKOBAN**](micro-sokoban/README.md) — 454 Microban puzzles and a tutorial | II+ 48 KB | [▶ Play](https://habib256.github.io/pom2/wasm/?preset=ii%2B&url=https://raw.githubusercontent.com/habib256/pom2games/main/dist/MICRO-SOKOBAN.dsk) |
 | ♟️ | [**CHESS**](chess/README.md) — play the computer, a friend, or watch | II+ 48 KB | [▶ Play](https://habib256.github.io/pom2/wasm/?preset=ii%2B&url=https://raw.githubusercontent.com/habib256/pom2games/main/dist/CHESS.dsk) |
 | 🎯 | [**PINBALL**](pinball/README.md) — Bill Budge's Pinball Construction Set, with mouse | II+ 48 KB or //c | [▶ Play](https://habib256.github.io/pom2/wasm/?preset=ii%2B&url=https://raw.githubusercontent.com/habib256/pom2games/main/dist/PINBALL.dsk) |
@@ -76,10 +76,15 @@ the shared libraries, the headless emulator `a2shot` and the test harness live
 in [`dev/`](dev/). Each game folder has its own `README.md`, most also a
 `TODO.md`.
 
-    make                 # every disk into dist/, except NEOWILDERNESSXL (make -C neowilderness)
+    make                 # every disk into dist/
     make -C chess run    # build one game and run it in POM2
     make test            # fast tests (make test-all: both tiers, about an hour)
     make check           # rebuild those disks, fail if dist/ does not match
+
+WILDERNESS and NEOWILDERNESS XL fetch the 1985 originals from archive.org on
+their first build (they reuse its sprites and texts, kept out of git). WILDERNESS,
+the II+ HGR reimplementation that NEOWILDERNESS XL grew from, builds into
+`wilderness/build/` only: the XL disk is the one in `dist/`.
 
 Builds are byte-for-byte reproducible on macOS and Linux; CI runs `make check`
 and `make test-all` on every push.

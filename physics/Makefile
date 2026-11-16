@@ -48,6 +48,10 @@ check-original: build/physics.dsk require-original
 check test: build/physics.dsk
 	$(PY) tests/test_smoke.py
 
+# Long tier (convention of ../dev/cc65/apple2.mk): nothing slow yet.
+test-long:
+	@echo "physics: no long tests"
+
 # Extract the original for analysis without rewriting the reconstructed sources.
 extract: require-original
 	mkdir -p work
@@ -70,4 +74,4 @@ regen: extract
 clean:
 	rm -rf $(B) build
 
-.PHONY: all build check test check-original extract require-original require-ram regen clean da65check ramcheck
+.PHONY: all build check test test-long check-original extract require-original require-ram regen clean da65check ramcheck

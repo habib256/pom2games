@@ -3271,3 +3271,126 @@ tirages pendant REST et sa cadence fixe ont depuis été remplacés.
 - Vérification explicite des budgets refusés, exacts et dépassés par le
   dernier pas admis, du retour à la cabane après repos et des lectures disque.
 - Documentation des déplacements mise à jour ; le moteur natif est conservé.
+
+
+## Sorti de TODO.md le 2026-11-16
+
+### Lot 6 — sites
+
+Fait le 15 octobre 2026 : le socle « sprite de site », le rondin ou le
+rocher de l'abri naturel trouvé sur carte native, le poste des rangers
+(CHANGELOG.md, MEMORY.md § 19). Reste :
+
+### Hors lots : interface et expérience de jeu
+
+- [x] Pages en MouseText sur NeoWildernessXL (15 octobre 2026,
+  [MENUS.md](docs/MENUS.md) § 9, MEMORY.md § 26) ; l'édition de 140 Ko
+  garde ses pages sans cadre (décision de l'utilisateur). Restent sans
+  cadre : HELP (onglets et pied de page seulement), l'écran H du menu de
+  départ et la fin de partie d'ADVENTURE (40 colonnes, chargeur et stock :
+  pas de place sans queue ni lecture) ; le stock de XL n'a plus que
+  315 octets.
+- [x] Bas sur TOPO ou MAP : les pages du haut (15 octobre 2026, les deux
+  éditions, MENUS.md § 5).
+
+## Marges historiques (avant EQUIPMENT ; mesures actuelles dans MEMORY.md)
+
+| Zone | Libre |
+|---|---:|
+| TEXT `$0A00-$0FFF` | 2 |
+| WILDLO `$1000-$1FFF` | 0 |
+| WILDGAME `$4000-$577F` | **0** |
+| WILDERNESS `$6000-$6FFF` | **0** (XL : et 1 dans `page_foot`, code mort de XL) |
+| RESIDENT `$B600-$B9FF` | 5 |
+| MENUCODE `$BA00-$BDFF` | 4 |
+| LOWPAGE `$0200-$03CF` / LOWTEXT | 0 / 0 (la table des messages de CAMP y est) |
+| HICODE / MENUSWAP / banque 2 principale | 3 / 0 / 24 |
+| SIM sous `$B500` | 107 |
+| Stock auxiliaire, place du tronc : XL / 140 Ko | 8 833 / **2 239** (sprites de la Sierra : 192) |
+| Disque occupé : XL / 140 Ko | 369 / 1 600 ; **280 / 280** blocs (`read_volume.py`) |
+| NEOWILD.DAT de 140 Ko avant un bloc de plus | **360** octets (122 blocs) |
+| PROJECT (fenêtre `$5800`, 2 048) : XL / 140 Ko | **46** / 166 (queue des abris coupée) |
+| CRAFT (fenêtre `$9600-$A6FF`, 9 blocs ; MAKE en lit 4 : 68 libres) / MEDICAL (`$5800`) | 167 / 25 |
+| STATUS partagé (`$9600-$B0FF`, sous STATX) / TOPOGEN (`$9600-$A1FF`, avant `TOPOBSS`) | 82 / 75 |
+| SUMMARY (`$5800`) / GRID (`$A300-$AFFF`) | 1 / 600 |
+| Queues de XL (MENUS.md § 9.1) : STATX (`$B100-$B5FF`) / CRAFTX (`$A700`, jusqu'à `$A7FF` pour 9 blocs) / MEDVX / ENDX | 64 / 108 / 361 / 320 |
+| STATUS de XL sur NEOWILD.BLK (`$9600-$B5FF`, 16 blocs au plus) | 64 octets (16 blocs) |
+
+
+## Retiré le 15 octobre 2026
+
+Décidé et fait, dans CHANGELOG.md (« feu jusqu'à DOUSE ») : alimenter le
+feu. Le feu brûle jusqu'à DOUSE comme dans l'original (durée de vie
+`FIRE_LIFE` retirée) ; il n'y a rien à entretenir, aucune commande n'est
+ajoutée (CAMP.md § 8, CRAFT.md § 8.6).
+
+Fait, dans CHANGELOG.md (« lot 3, étape 2 ») : la page CRAFT, l'arc, la
+lance, le gourdin, la pierre et l'attelle dans les listes GET, DROP, USE et
+la file de KILL de la grille, l'indice ITEMS du panneau (CRAFT.md § 8.6,
+MEMORY.md § 23). ATTACK sans arme en usage : la règle du port (hache ou
+couteau accessibles, sans USE) est gardée, écart voulu (décision du
+15 octobre 2026, CRAFT.md § 8.2).
+
+Fait, dans CHANGELOG.md (« lot 3, reste de l'étape 1 ») : GET, PACK, CARRY
+et DROP des armes fabriquées ; ROCK ; une case par objet fabriqué laissé
+au sol ; armes contre les animaux (avancé du lot 11) ; l'igloo à 35 °F des
+dangers. EXIT SHELTER d'un abri fabriqué : gardé, écart voulu (décision du
+15 octobre 2026, CRAFT.md § 8.2).
+
+Fait, dans CHANGELOG.md (« menu d'actions rationalisé ») : les décisions
+GET/TAKE, REST/WAIT, page OUTFIT (remplacée par la bascule WEAR), MAKE
+STICKS et BOIL avec un feu de la revue des verbes du 14 octobre.
+
+## Retiré le 14 octobre 2026
+
+Fait, déjà dans CHANGELOG.md : trajet crash → rangers résident ;
+géographie fine native résidente ; étoiles, constellations, ciel peuplé ;
+score et hall of fame ; anomalie « FREE JOURNEY: NOT RANKED » (`103bee3`) ;
+menu de démarrage simplifié ; auteurs sur la page de chargement ;
+SAVE/RESTORE (lot 9) ; surface de commande (lot 8 de MENUS.md, étape 2) ;
+réserves du § 12.8 (VOCAB et ADVENTURE en LZ, SCREENS supprimé, décodeur
+LZ en banque 2, NEOWILD.BLK) ; budget par région ; instrumentation ;
+garde-fous de `test_prodos.py` ; tirage commun de l'épave (lot 1) ; LOOK
+STARS de l'original (lot 7) ; lot 4 (chasse, pêche, cueillette, repas) ;
+le 15 octobre : messages collés (« AREAIT IS TOO DARK »), triangle des
+arbres, feu animé (CHANGELOG.md, MEMORY.md § 17).
+Fait : réserves de la direction 3
+(MEMORY.md § 12 ; CHANGELOG.md).
+
+Obsolète : politique disque « 140 Ko seulement » (800 Ko adoptée, deux
+éditions) ; suppression de la recopie de SIM (écartée, MEMORY.md § 12.6,
+au seuil de 5 %) ; « tout est encore non commité » ; fenêtres DHGR à la
+place des écrans 40 colonnes (étapes 3-4 de MENUS.md, remplacées par les
+pages 80 colonnes).
+
+Points de contrôle du lot suivant : enchaînements CRAFT/CATCH ; cohérence
+entre hydratation et traitement médical dans le lot de fidélité de l’eau.
+Le retour au même soin après lecture du résultat est réalisé (17 octobre).
+Le sens des trois états, la durée et les conditions des gestes sont affichés
+(17 octobre). Les refus de capacité cumulés et
+leurs chiffres besoin/disponible/manque sont réalisés (17 octobre). Le choix
+explicite FIT est réalisé pour les provisions locales du premier jeu et
+GET WATER ; examiner les autres classes de transfert. Sources précises, prérequis GET WATER,
+BACKPACK non transporté et contenants à vider réalisés (17 octobre).
+Le poids ajouté/retiré est affiché, les changements internes restent à zéro,
+et les dépassements simultanés poids/HANDS ou poids/PACK sont testés au
+joystick (17 octobre).
+Les instruments affichent leurs conditions de lumière, le remplacement
+de boussole/montre et les effets natifs de USE (17 octobre).
+Appât des dispositifs CATCH, lumière des premiers soins, combustible et
+allumage du réchaud, conditions météo/eau des allumettes, charge de la lampe
+et conditions de la loupe sont affichés (angle solaire exact vérifié sur USE) ;
+le filtre de position et les actions impossibles du sac
+sont réalisés (17 octobre),
+puis rejouer sur matériel réel le parcours
+joystick CRAFT → EQUIPMENT → CATCH → feu → COOK → repas → soins →
+sauvegarde/restauration → score. Il est automatisé sur XL avec une rencontre
+déterministe, refus de surcharge et de marche avant extinction du feu,
+annulations et restauration après redémarrage (17 octobre 2026).
+Les quantités rapides par doublement, le réglage fin et TOUT exact sont
+réalisés ; la consommation conserve une quantité explicite (17 octobre).
+Les doses médicales (un usage avec
+stock/durée affichés), LOWER FOOD depuis LOCAL HUNG, les quantités d’eau,
+le volume requis, les refus détaillés des objets fabriqués et EQUIPMENT
+ainsi que TASTE depuis la source sélectionnée et l’aperçu du sac entier sont réalisés (CHANGELOG,
+16 octobre).

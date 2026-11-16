@@ -24,6 +24,7 @@ entry:
         STA     snd_on          ; sounds on
         LDA     #0
         STA     sfx_req
+        STA     snd_mb          ; no Mockingboard yet (snd_exit: nothing)
         JSR     HOME
         JSR     ez_detect       ; A = slot 1..7, 0 = no card
         BNE     @found
@@ -44,6 +45,7 @@ entry:
         JSR     txt_page
         LDA     snd_on
         JSR     plat_sound_status
+        JSR     snd_init        ; a Mockingboard: sounds on its AY (sfx.inc)
         JMP     start           ; the Apple-1 game from here
 
 ; ----------------------------------------------------------------------------

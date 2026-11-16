@@ -16,6 +16,7 @@
 .include "ezcolor.inc"          ; dev/lib/apple2: ez_slot, ez_slotx, ez_ptr...
 .include "ezvdp.inc"            ; VSTA_* port macros (video_tms, boot)
 
+SND_MB = 1                      ; sounds on a Mockingboard when present
 .include "txtpage.inc"          ; txt_page
 .include "boot.inc"             ; STARTUP: entry = first byte of the file
 .include "core/rogue_core.inc"  ; the game
@@ -26,4 +27,5 @@ EZ_DETECT_BOOT_SLOT = DOS_IOB_SLOT ; DOS 3.3 IOB: slot * 16 of the last access
 
 .segment "LOWBSS"
 apple2_zp_buf:  .res 256        ; DOS's zero page while ROGUE runs
+APPLE2_EXIT_HOOK = snd_exit     ; ESC and Ctrl-RESET: the Mockingboard off
 .include "exit.asm"             ; apple2_zp_save / apple2_exit

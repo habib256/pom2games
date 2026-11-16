@@ -13,8 +13,14 @@ clair sans carte, sons et airs au haut-parleur, cœur séparé de l'affichage
   déchirer : l'interruption VBL de sa souris le permettrait) ; le sol
   éclairé est noir comme sur la TMS (une trame discrète montrerait la
   lumière de la torche) ; le HUD n'a pas les couleurs par ligne de ROGUE X2.
-- **Mockingboard** : sons et musique sur le AY (`mb_irq.asm`, `aysong.asm`)
-  quand une carte est présente, le haut-parleur sinon.
+- **Mockingboard** (fait pour `ROGUE.TMS`, 2026-11-16 : `mb_irq.asm` sur le
+  vecteur `$03FE`, `aysong.asm`, les sons et airs de `tools/music.py` en
+  morceaux AYS, `tests/test_mockingboard.py`). Restent : `ROGUE.DHGR` (sa
+  mémoire principale n'a que ~400 o libres : le code et les morceaux, ~3 Ko,
+  iraient en `$9E06-$BFFF` recopiés au démarrage, le fichier chargé plus bas
+  qu'en `$3C00` ; le vecteur `$03FE` convient aussi, le gestionnaire du //e
+  remettant la mémoire principale) ; des airs écrits pour trois voix ; un
+  essai sur une vraie carte (avec l'E-Z Color à côté).
 - **Partie sauvée** : écrire l'état (page zéro du jeu + LOWBSS, ~600 o) dans
   un fichier par RWTS (`rwts_sectors`, `dos33patch.py --sectors`).
 - **Vrai matériel** : essayer une E-Z Color (ou une réplique) sur II+ et //e,

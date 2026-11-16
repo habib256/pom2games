@@ -29,7 +29,9 @@ DISK = ROOT / 'dist/ROGUE.dsk'
 OUT = GAME / 'build/tests'
 L = a2test.labels(GAME / 'build/rogue_tms.lbl')
 LL = a2test.labels(GAME / 'build/launcher.lbl')
-BOOT = ['wait:1500']                          # DOS boot + launcher + ROGUE.TMS
+# DOS boot + launcher + ROGUE.TMS, until the title (its tune starts), then
+# its picture: no fixed wait, the file's load time follows its size.
+BOOT = [L.until('music_title', 3000), 'wait:30']
 # Title key, briefing key, then the seed pinned when the first level starts.
 SEEDED = BOOT + ['key:X', 'wait:30', 'press:X', L.until('gen_dungeon', 300),
                  L.poke('prng_lo', 0x5A), L.poke('prng_hi', 0x19), 'wait:60']
@@ -187,11 +189,11 @@ def main():
         r = pom2(BOOT + ['text', 'vregs'], slot=slot)
         check(f'E-Z COLOR CARD IN SLOT {slot}' in screen(r)[1] and r.vregs == GAME_REGS
               and r.vdp_dropped == 0, f'POM2 card in slot {slot}: found, game up, nothing dropped')
-    r = pom2(BOOT, slot=6, check=False)
+    r = pom2(['wait:1500'], slot=6, check=False)  # no title: the launcher's page
     check(r.vdp_dropped is None, 'card in slot 6: refused by POM2 (the Disk II boots from slot 6)')
 
     # --- no card -------------------------------------------------------------
-    r = a2test.run(DISK, BOOT + ['text'], emulator=a2test.A2SHOT)
+    r = a2test.run(DISK, ['wait:1500', 'text'], emulator=a2test.A2SHOT)  # the launcher's page
     check('ROGUE CANNOT RUN ON THIS APPLE' in screen(r)[0], 'no card, ][+ (POM2): "CANNOT RUN" page')
     r = a2test.run(DISK, ['wait:1', 'until:%04X:3000' % LL['chain'], 'text'], iie=True)
     check('NO E-Z COLOR CARD: DHGR' in screen(r)[0], 'no card, //e 128K (POM2): chains to ROGUE.DHGR')
