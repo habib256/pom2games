@@ -1,127 +1,131 @@
-# Wilderness — suite du développement
+# Wilderness — next development steps
 
-Le jeu dispose du moteur de terrain, des commandes de base, de la simulation,
-de la gestion des objets et de la charge, de la thermique sèche/immergée et
-des cinq sprites originaux de Sierra Nevada. La cabane est utilisable et
-TOPO affiche les sites ; les filtres et taux Sierra de la faune sont portés,
-mais ses déplacements, sa durée de présence et ses réactions restent provisoires.
+The game has the terrain engine, the basic commands, the simulation, object
+and load management, dry/immersed thermals and the five original Sierra
+Nevada sprites. The cabin is usable and TOPO shows the sites; the Sierra
+wildlife filters and rates are ported, but its movements, how long it stays
+and its reactions are still provisional.
 
-L'état actuel et ses limites sont décrits dans le [README](README.md).
-Les détails du portage et les tests sont dans
-[IMPLEMENTATION.md](docs/IMPLEMENTATION.md) ; les preuves sur l'original
-restent dans [ANALYSE.md](docs/ANALYSE.md) et [docs/logic/](docs/logic/ENGINE.md).
-L’historique des étapes est dans [CHANGELOG.md](CHANGELOG.md).
-Les lots ci-dessous donnent l'ordre de travail proposé.
+The current state and its limits are described in the [README](README.md).
+Porting details and tests are in
+[IMPLEMENTATION.md](docs/IMPLEMENTATION.md); the evidence on the original
+stays in [ANALYSE.md](docs/ANALYSE.md) and [docs/logic/](docs/logic/ENGINE.md).
+The history of the steps is in [CHANGELOG.md](CHANGELOG.md).
+The lots below give the proposed order of work.
 
-## Priorité : une aventure complète comparée à l'original
+## Priority: a complete adventure compared with the original
 
-Le pilote `make test-original` exécute l'original sur ROM et le port avec
-les mêmes commandes. Il conserve les observations et échoue sur chaque
-écart, sans ignorer une commande inachevée. Les cinq scénarios courts et la
-marche native jusqu’à x70/y86 concordent ; ils ne couvrent pas encore
-une arrivée aux rangers.
-Voir [ADVENTURE_TESTS.md](docs/ADVENTURE_TESTS.md).
+The `make test-original` driver runs the original on ROM and the port with
+the same commands. It keeps the observations and fails on every
+difference, without ignoring an unfinished command. The five short scenarios
+and the native walk to x70/y86 match; they do not yet cover
+an arrival at the rangers.
+See [ADVENTURE_TESTS.md](docs/ADVENTURE_TESTS.md).
 
-- [ ] Porter la précision aléatoire de la boussole, les pas et coûts de marche ;
-  distinguer réserve au sol mémorisée et quantités accessibles dans les rapports.
-- [ ] Conserver la géographie et les sites de la carte originale sans perte
-  des cellules impaires ; établir un itinéraire crash → rangers rejouable.
-- [ ] Comparer cet itinéraire jusqu'à la victoire, avec repas, hydratation,
-  nuits, cabane, rencontres et traversée à la nage avec retour sur la rive,
-  sans déplacement imposé en mémoire.
-- [ ] Ajouter des variantes de mort, blessures/soins et reprise de sauvegarde.
+- [ ] Port the compass's random accuracy, the walking steps and costs;
+  distinguish the remembered ground stock from the accessible quantities in
+  the reports.
+- [ ] Keep the geography and sites of the original map without losing
+  the odd cells; establish a replayable crash → rangers route.
+- [ ] Compare this route up to the victory, with meals, hydration,
+  nights, cabin, encounters and a swim crossing with a return to the bank,
+  without any movement forced in memory.
+- [ ] Add variants for death, injuries/treatment and resuming a save.
 
-La suite de modèles Python (`make test`) reste nécessaire, mais sa réussite
-ne valide pas l'identité des deux jeux.
+The Python model suite (`make test`) is still needed, but its passing
+does not validate that the two games are identical.
 
-## 3. Remplacer les rencontres provisoires par la faune originale
+## 3. Replace the provisional encounters with the original wildlife
 
-- [ ] Établir la position, la durée et les déplacements des animaux ;
-  remplacer leur expiration arbitraire à 60 minutes.
-- [ ] Compléter les réactions natives : mouvement, délais, autres moyens,
-  branche critique du cinquième degré, durée des morsures, chasse/carcasse
-  et contexte intérieur/recherche.
-- [ ] Relier les conséquences aux conditions de santé et aux soins :
-  FIRSTAID KIT, SNAKEBITE KIT et blessures concernées.
+- [ ] Establish the animals' position, duration and movements;
+  replace their arbitrary 60-minute expiry.
+- [ ] Complete the native reactions: movement, delays, other means,
+  critical fifth-degree branch, duration of bites, hunting/carcass
+  and indoor/search context.
+- [ ] Link the consequences to the health conditions and treatments:
+  FIRSTAID KIT, SNAKEBITE KIT and the injuries concerned.
 
-**Validation :** scénarios déterministes pour chaque espèce, absence de
-rencontre hors des critères, conservation de l'état lors des chargements,
-et transitions entre observation, action, blessure et soin.
-`re_fauna_probe.py` exécute 162 cas de filtrage et 45 probabilités dans le
-code original. `test_fauna.py` les vérifie dans le port et couvre les
-exclusions, la pente diagonale, les trois espèces et le réglage NATURE.
-`re_fauna_accept_probe.py` contrôle 36 conservations/remplacements et les
-drapeaux d'interruption originaux. `test_fauna_steps.py` vérifie les pas d'un
-repos sans tirage, les interruptions de marche, les refus de remplacement et l'abri.
+**Validation:** deterministic scenarios for each species, no
+encounter outside the criteria, state kept across loads,
+and transitions between observation, action, injury and treatment.
+`re_fauna_probe.py` runs 162 filtering cases and 45 probabilities in the
+original code. `test_fauna.py` checks them in the port and covers the
+exclusions, the diagonal slope, the three species and the NATURE setting.
+`re_fauna_accept_probe.py` checks 36 keeps/replacements and the original
+interruption flags. `test_fauna_steps.py` checks the steps of a
+rest without a draw, walking interruptions, replacement refusals and the shelter.
 
-## 4. Compléter le milieu thermique : météo, pluie et feu
+## 4. Complete the thermal environment: weather, rain and fire
 
-- [ ] Porter les fronts météo : ciel, pluie, neige, vent, tendance et gel.
-  Le vent ressenti est déjà intégré ; l'évolution complète des fronts manque.
-- [ ] Relier la pluie au sélecteur d'humidité et aux protections portées ;
-  établir les transitions hors pluie sans inventer un séchage progressif.
-- [ ] Porter l'allumage, le combustible, la durée et l'extinction du feu.
-- [ ] Combiner correctement air, vent, immersion, abri et feu ; compléter
-  les déclencheurs et les soins des conditions thermiques 20–21.
-- [ ] Adapter la visibilité de la vue à la météo et afficher le soleil
-  selon l'heure. Le budget de rayons météo, le masquage par nuages et le
-  soleil saisonnier sont présents ; leur fidélité complète à l'original
-  reste à comparer. La lune nocturne datée 1985 est une extension documentée.
+- [ ] Port the weather fronts: sky, rain, snow, wind, trend and frost.
+  The felt wind is already integrated; the full evolution of the fronts is
+  missing.
+- [ ] Link the rain to the wetness selector and to the protection worn;
+  establish the transitions out of the rain without inventing a gradual
+  drying.
+- [ ] Port the lighting, fuel, duration and extinction of the fire.
+- [ ] Combine air, wind, immersion, shelter and fire correctly; complete
+  the triggers and treatments of thermal conditions 20–21.
+- [ ] Adapt the view's visibility to the weather and show the sun
+  according to the time. The weather ray budget, the masking by clouds and
+  the seasonal sun are present; their full fidelity to the original
+  remains to be compared. The night-time moon dated 1985 is a documented
+  extension.
 
-**Validation :** mêmes scénarios secs, sous pluie, immergés, sous abri et près
-du feu ; comparer aux routines originales et conserver les tests froid/chaud,
-les calories des frissons et la récupération vers 98,6 °F.
+**Validation:** the same dry, rain, immersed, sheltered and near-fire
+scenarios; compare with the original routines and keep the cold/heat tests,
+the shivering calories and the recovery towards 98.6 °F.
 
-## 5. Compléter les actions et les risques de survie
+## 5. Complete the survival actions and risks
 
-- [ ] Terrain : forêts, rives, pente (`SLOPE`), chutes et déplacements dangereux.
-- [ ] Établir les vitesses et arrêts anticipés de marche de l'original,
-  les modificateurs de blessures/équipement en nage et la synchronisation
-  du recalcul de charge.
-- [ ] Établir la comptabilité exacte des conteneurs, les limites de charge
-  et leur effet sur la marche ; remplacer le modèle additif calibré.
-- [ ] Compléter les déclencheurs par blessures, contamination et malaria,
-  SPLINT, les soins thermiques et les transactions propres à USE
-  (placement des objets, stérilisation de la trousse).
-- [ ] Comparer collecte/contamination à l’original et porter le traitement
-  de l’eau ; ajouter chasse, pêche et cueillette.
-- [ ] Porter la fabrication par familles d'objets : abris, outils et armes
-  (HUT, IGLOO, TRENCH, BOW, SPEAR…), avec consommations et temps d'action.
-- [ ] Compléter HELP, les messages et les saisies propres aux nouvelles actions.
+- [ ] Terrain: forests, banks, slope (`SLOPE`), falls and dangerous moves.
+- [ ] Establish the original's walking speeds and early stops,
+  the injury/equipment modifiers when swimming and the timing
+  of the load recalculation.
+- [ ] Establish the exact accounting of containers, the load limits
+  and their effect on walking; replace the calibrated additive model.
+- [ ] Complete the triggers from injuries, contamination and malaria,
+  SPLINT, the thermal treatments and the transactions specific to USE
+  (placing objects, sterilising the kit).
+- [ ] Compare collection/contamination with the original and port water
+  treatment; add hunting, fishing and gathering.
+- [ ] Port crafting by object family: shelters, tools and weapons
+  (HUT, IGLOO, TRENCH, BOW, SPEAR…), with consumption and action times.
+- [ ] Complete HELP, the messages and the inputs specific to the new actions.
 
-**Validation :** chaque action respecte le temps, la charge, l'accessibilité
-et les quantités ; les refus conservent l'état et les effets de santé sont
-vérifiés avec et sans soin.
+**Validation:** each action respects time, load, accessibility
+and quantities; refusals keep the state and the health effects are
+checked with and without treatment.
 
-## 6. Permettre des parties longues et plusieurs régions
+## 6. Allow long games and several regions
 
-- [ ] SAVE / RESTORE : définir un format versionné comprenant carte, objets
-  au sol, simulation, météo, sites, faune et générateurs aléatoires.
-- [ ] Vérifier une reprise identique après sauvegarde et les erreurs de lecture.
-- [ ] Intégrer les six régions : paramètres climatiques, faune, sprites et cartes.
-- [ ] Compléter les effets des dix niveaux de difficulté.
-- [ ] Évaluer le second scénario et CLUE après stabilisation du parcours
-  crash → poste de rangers.
+- [ ] SAVE / RESTORE: define a versioned format including map, objects
+  on the ground, simulation, weather, sites, wildlife and random generators.
+- [ ] Check an identical resume after a save, and the read errors.
+- [ ] Integrate the six regions: climate parameters, wildlife, sprites and maps.
+- [ ] Complete the effects of the ten difficulty levels.
+- [ ] Evaluate the second scenario and CLUE once the
+  crash → ranger station route is stable.
 
-## Améliorations du rendu et de la carte
+## Rendering and map improvements
 
-Ces travaux peuvent accompagner les lots précédents après mesure du bénéfice.
+This work can go along with the previous lots once its benefit is measured.
 
-- [ ] Comparer la génération hydrologique au TMAKE original ; conserver
-  la finesse des rives avec un format de carte à résolution complète.
-- [ ] Étendre les sprites aux autres sites/objets et aux autres régions.
-- [ ] Afficher plusieurs sites dans la même vue et lisser les paliers de taille,
-  en mesurant la mémoire et les lectures disque nécessaires.
-- [ ] Profiler les vues et déplacements représentatifs avec `tools/profile.py`,
-  en distinguant rendu et lectures disque ; conserver le rendu au bit près.
-- [ ] Réévaluer la division déroulée appelée en sous-routine si une marge mémoire
-  devient disponible. Les mesures et pistes antérieures sont conservées dans
+- [ ] Compare the hydrological generation with the original TMAKE; keep
+  the fine detail of the banks with a full-resolution map format.
+- [ ] Extend the sprites to the other sites/objects and the other regions.
+- [ ] Show several sites in the same view and smooth the size steps,
+  measuring the memory and disk reads needed.
+- [ ] Profile representative views and moves with `tools/profile.py`,
+  separating rendering and disk reads; keep the rendering bit-exact.
+- [ ] Reassess the unrolled division called as a subroutine if a memory
+  margin becomes available. Earlier measurements and leads are kept in
   [IMPLEMENTATION.md](docs/IMPLEMENTATION.md#performance).
 
-## Vérifications à conserver
+## Checks to keep
 
-`make test` couvre les sprites, le terrain, les commandes aléatoires,
-la simulation, les objets, la charge, les modules disque et la thermique.
-Étendre les tests du sous-système modifié, puis exécuter la suite complète
-avant de considérer un lot terminé. Les règles reconstruites doivent rester
-identifiées comme telles jusqu'à leur comparaison avec l'original.
+`make test` covers the sprites, the terrain, the random commands,
+the simulation, the objects, the load, the disk modules and the thermals.
+Extend the tests of the modified subsystem, then run the full suite
+before considering a lot done. The reconstructed rules must stay
+identified as such until they are compared with the original.

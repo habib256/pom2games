@@ -1,62 +1,62 @@
-# MB TRACKER — historique
+# MB TRACKER — changelog
 
-Les lots terminés, sortis de [TODO.md](TODO.md) le 2026-11-16.
+Finished lots, moved out of [TODO.md](TODO.md) on 2026-11-16.
 
-## Lot 1 — l'éditeur (fait, 2026-10-31)
+## Lot 1 — the editor (done, 2026-10-31)
 
-- [x] Grille de motif : 3 voix affichées (grille prévue pour 6, colonnes 4-6
-  en allant à droite pour un fichier à 6 voix), 64 lignes, note /
-  instrument / effet + paramètre, piano deux rangées, octave, note coupée,
-  effacement, insertion / suppression de ligne, vitesse, lignes.
-- [x] Liste d'ordre : entrées, numéro de motif, nouveau motif / copie,
-  insertion / suppression, boucle ou arrêt en fin.
-- [x] Éditeur d'instrument : tics (volume, ton, bruit, enveloppe, période de
-  bruit), boucle, forme et période d'enveloppe, nom, écoute.
-- [x] Lecture : `mb_irq` 50 Hz + `ays_tick`, morceau / boucle de motif,
-  suivi du curseur, muets, réencodage pendant la lecture ; sans carte :
-  message, édition et fichiers seuls.
-- [x] Fichiers `.AYS` : catalogue, nom tapé, sauvegarde, `DEMO.AYS` livré ;
-  tests sur //e, //c et sans carte.
+- [x] Pattern grid: 3 voices shown (grid planned for 6, columns 4-6 by
+  moving right for a 6-voice file), 64 rows, note / instrument / effect +
+  parameter, two-row piano, octave, note off, clear, row insert / delete,
+  speed, rows.
+- [x] Order list: entries, pattern number, new pattern / copy, insert /
+  delete, loop or stop at the end.
+- [x] Instrument editor: ticks (volume, tone, noise, envelope, noise
+  period), loop, envelope shape and period, name, preview.
+- [x] Playback: `mb_irq` 50 Hz + `ays_tick`, song / pattern loop, cursor
+  follow, mutes, re-encoding during playback; without a card: a message,
+  editing and files only.
+- [x] `.AYS` files: catalog, typed name, save, `DEMO.AYS` shipped; tests on
+  //e, //c and without a card.
 
-## Lot M1 — souris (fait, 2026-10-31)
+## Lot M1 — mouse (done, 2026-10-31)
 
-- [x] Pointeur (cellule inversée, le texte se dessine dessous), clics dans
-  la grille (champ), les numéros de ligne (pages), la liste d'ordre, les
-  instruments (deux clics : l'éditeur), les noms de voix (muet), la barre
-  du bas, l'éditeur d'instrument, la liste des fichiers ; glisser = bloc.
-- [x] Mockingboard détectée **avant** la souris. Sur //c, la 4c réveillée
-  masque le firmware souris (POM2 et la vraie carte) : clavier seul avec
-  une 4c ; souris du //c sans carte.
-- [x] Mémoire : recouvrements OVL1 (éditeur d'instrument) et OVL2 (fichiers
-  + décodeur), gardés dans la LC auxiliaire ; noms de fichiers dans le
-  motif de travail ; aide paginée (en-tête d'offsets).
-- [x] a2shot `--mouse-slot=N` (carte souris hors du slot 4 de la Mockingboard).
+- [x] Pointer (inverted cell, the text is drawn under it), clicks in the
+  grid (field), the row numbers (pages), the order list, the instruments
+  (two clicks: the editor), the voice names (mute), the bottom bar, the
+  instrument editor, the file list; drag = block.
+- [x] Mockingboard detected **before** the mouse. On the //c, the 4c once
+  woken masks the mouse firmware (POM2 and the real card): keyboard only
+  with a 4c; the //c's mouse without a card.
+- [x] Memory: overlays OVL1 (instrument editor) and OVL2 (files + decoder),
+  kept in the auxiliary LC; file names in the work pattern; paged help
+  (offset header).
+- [x] a2shot `--mouse-slot=N` (mouse card outside the Mockingboard's slot 4).
 
-## Lot M2 — blocs (fait)
+## Lot M2 — blocks (done)
 
-- [x] `^B` marquer, `^C` `^X` `^V` (entre motifs, presse-papiers en aux),
-  `;` `'` `:` `"` transposer, `^Z` annuler / refaire (cellule ou motif).
-- [x] Liste d'ordre : `I` insérer un nouveau motif, `C` cloner, `D`
-  supprimer un motif (renumérotation).
+- [x] `^B` mark, `^C` `^X` `^V` (across patterns, clipboard in aux),
+  `;` `'` `:` `"` transpose, `^Z` undo / redo (cell or pattern).
+- [x] Order list: `I` insert a new pattern, `C` clone, `D` delete a
+  pattern (renumbering).
 
-## Lot M3 — 6 voix (fait)
+## Lot M3 — 6 voices (done)
 
-- [x] Lecteur `AYSONG_VOICES=6`, `MB_IRQ_HUSH_BOTH=1` (et la correction de
-  `mb_hush` dans ce mode : un `beq :++` qui visait la mauvaise étiquette) ;
-  tic ≤ 5 309 cycles.
-- [x] `^N` : 3 ou 6 voix ; grille de 6 colonnes de 8 caractères.
+- [x] Player `AYSONG_VOICES=6`, `MB_IRQ_HUSH_BOTH=1` (and the fix to
+  `mb_hush` in this mode: a `beq :++` that aimed at the wrong label);
+  tick ≤ 5,309 cycles.
+- [x] `^N`: 3 or 6 voices; grid of 6 columns of 8 characters.
 
-## Lot M4 — import PT3 (fait)
+## Lot M4 — PT3 import (done)
 
-- [x] `dev/tools/audio/pt3play.py` (= `pt3/` sous a2run, registre pour
-  registre), `pt3import.py` (rapport de ce qui se perd), `aysong.py
-  --import-pt3`, `--to-50hz` ; `WG.AYS` sur la disquette.
+- [x] `dev/tools/audio/pt3play.py` (= `pt3/` under a2run, register for
+  register), `pt3import.py` (report of what is lost), `aysong.py
+  --import-pt3`, `--to-50hz`; `WG.AYS` on the disk.
 
-## Lot M5 — conversion 3 ↔ 6 voix (fait, 2026-10-31)
+## Lot M5 — 3 ↔ 6 voice conversion (done, 2026-10-31)
 
-- [x] `^W` : 3 → 6 (voix 4-6 vides, refusé au-delà de 32 motifs), 6 → 3
-  (confirmation si les voix 4-6 servent) ; le magasin aux de motifs
-  retassé (vers le haut en partant du dernier, vers le bas du premier),
-  dans OVL1 (`voices.c`, `song_voices`) ; `^Z` oublié.
-- [x] `aysong.py` : `Song.with_voices(n)`, `--voices N` (et un `.AYS` en
-  entrée) ; tests `test_aysong.py` et `test_mbt.py`.
+- [x] `^W`: 3 → 6 (voices 4-6 empty, refused beyond 32 patterns), 6 → 3
+  (confirmation if voices 4-6 are in use); the aux pattern store
+  repacked (upwards starting from the last one, downwards from the first),
+  in OVL1 (`voices.c`, `song_voices`); `^Z` forgotten.
+- [x] `aysong.py`: `Song.with_voices(n)`, `--voices N` (and a `.AYS` as
+  input); tests `test_aysong.py` and `test_mbt.py`.
