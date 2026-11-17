@@ -25,7 +25,7 @@ TMS_SRCS := src/rogue_tms.s src/boot.inc src/ezvdp.inc src/video_tms.asm \
 APPLE2_RUN_FLAGS := --slot 4=ezcolor
 TMS_LOAD  := 0x4000
 # ROGUE.DHGR: src/rogue_dhgr.s (cfg src/rogue_dhgr.cfg, load address DHGR_LOAD).
-DHGR_LOAD ?= 0x3C00
+DHGR_LOAD ?= 0x2400
 DHGR_MAIN := src/rogue_dhgr.s
 DHGR_CFG  := $(if $(wildcard src/rogue_dhgr.cfg),src/rogue_dhgr.cfg,src/launcher.cfg)
 

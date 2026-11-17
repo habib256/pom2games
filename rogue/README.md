@@ -101,10 +101,10 @@ pages pleines (sac, aide…) sont dessinées sur la page montrée, octet par
 octet à leur valeur finale.
 
 **Mémoire.** Les deux pages DHGR prennent `$2000-$5FFF` (principale et
-auxiliaire) : DOS 3.3 charge `ROGUE.DHGR` à `$3C00`, puis le jeu le
+auxiliaire) : DOS 3.3 charge `ROGUE.DHGR` à `$2400`, puis le jeu le
 **libère** : le moteur d'affichage part dans la RAM de la carte langage
 (`$D000-$F23A`, la ROM du moniteur recopiée en `$F800-$FFFF`), `$9600-$BFFF`
-sert de BSS. Pour **sortir** (ESC au titre, ESC puis Y en jeu, Ctrl-RESET),
+reçoit la BSS, les constantes et les morceaux du Mockingboard. Pour **sortir** (ESC au titre, ESC puis Y en jeu, Ctrl-RESET),
 le jeu pose une marque et **redémarre la disquette** : son `HELLO` voit la
 marque, dit « ROGUE: BYE! » et s'arrête au prompt BASIC, DOS 3.3 revenu
 (la façon de DIRTBIKE). Détail dans [docs/PORT.md](docs/PORT.md) §3 et §6.
@@ -151,13 +151,13 @@ porté, monstre tué, dague lancée, bonus, soin, parchemin, morsure, fosse,
 escalier, niveau gagné, salle du démon ; un air au titre, un glas à la mort,
 une fanfare à la victoire. Le détail est dans [docs/PORT.md](docs/PORT.md).
 
-**Mockingboard** (`ROGUE.TMS`, depuis le 2026-11-16) : si une carte est dans un
+**Mockingboard** (depuis le 2026-11-16) : si une carte est dans un
 emplacement libre (l'E-Z Color dans un autre), les mêmes sons et les mêmes airs
 passent par son AY, joués sur l'interruption de son minuteur à 50 Hz : le jeu
 n'attend plus la fin d'un son (le suivant le remplace), les airs ont une
 seconde voix une octave plus bas, le haut-parleur se tait. `S` coupe aussi le
 Mockingboard ; ESC et Ctrl-RESET l'arrêtent avant de rendre la main à DOS.
-`ROGUE.DHGR` reste au haut-parleur pour l'instant.
+`ROGUE.DHGR` aussi (//e et //c, le 4c du //c dans l'emplacement 4).
 
 ## Dans POM2
 

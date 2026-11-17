@@ -6769,7 +6769,8 @@ MB_IRQ_PRODOS = 0               ; ROM's IRQ handler through $03FE
 MB_FAST_WRITE = 1
 MB_IRQ_TICK   = ays_tick
 MB_IRQ_GATE   = snd_gate
-.include "mb_irq.asm"
+mb_irq_ptr    = mb_ptr          ; mb_irq_start's scratch: mockingboard.asm's
+.include "mb_irq.asm"           ; pointer (one zero page pair, not two)
 .include "aysong.asm"
 .include "mockingboard.asm"
 .endif

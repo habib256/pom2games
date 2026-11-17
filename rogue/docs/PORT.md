@@ -369,7 +369,7 @@ médiane 63 060 → 40 510 (graine 0x1983) et 102 366 → 51 176 (0x5A3C),
    doivent garder deux valeurs différentes : `aux_detect`,
    `dev/lib/apple2/auxdetect.asm`, inclus à la place de l'ancien `has_128k`,
    octet pour octet) → « NO E-Z COLOR CARD: DHGR »,
-   `BRUN ROGUE.DHGR` (chargé en `$3C00`, par-dessus le lanceur ; il se passe
+   `BRUN ROGUE.DHGR` (chargé en `$2400`, par-dessus le lanceur ; il se passe
    ensuite du DOS, §6).
 5. Ni l'un ni l'autre → page « ROGUE CANNOT RUN ON THIS APPLE » : ce qu'il
    faut (la carte dans un emplacement libre sauf 3 avec son moniteur, ou un
@@ -428,35 +428,39 @@ l'écart entre deux accès VDP, jamais ne le raccourcit. Données générées pa
 ### ROGUE.DHGR (Apple //e 128 Ko ou //c, sans DOS pendant le jeu)
 
 Les deux pages DHGR (`$2000-$5FFF`, principale et auxiliaire) ne laissent
-pas la place au jeu sous le DOS. DOS 3.3 charge le fichier en `$3C00` (le
+pas la place au jeu sous le DOS. DOS 3.3 charge le fichier en `$2400` (le
 `BRUN` du lanceur, ou celui de `HELLO`), puis `STARTUP` :
 
 1. lit l'emplacement du lecteur de démarrage (`$B7E9`, pour la sortie :
-   `APPLE2_REBOOT_INIT`) et pointe le vecteur RESET sur `apple2_reboot`
-   (`APPLE2_SOFTEV`) ;
+   `APPLE2_REBOOT_INIT`) et pointe le vecteur RESET sur `rg_reset`
+   (`APPLE2_SOFTEV` : le Mockingboard arrêté, puis `apple2_reboot`) ;
 2. recopie la ROM du moniteur (`$F800-$FFFF`) dans la RAM de la carte
    langage (lecture ROM, écriture RAM), puis passe en lecture / écriture RAM
    banque 2 (`$C083` deux fois) : `tune.asm` appelle `WAIT` (`$FCA8`) ;
 3. recopie `LCCODE` + `LCDATA` (le back-end : moteur texte, vue X2, leurs
-   tables) de `$3CDC` à `$D000` ;
-4. `JMP start` : le DOS (`$9600-$BFFF`) n'est plus qu'une zone de BSS.
+   tables) de `$250F` à `$D000` ;
+4. recopie `RODATA` + `SNDDATA` (les constantes, les morceaux AYS du
+   Mockingboard) de `$474A` à `$9E8D`, après la BSS ;
+5. `snd_init` (un Mockingboard : son interruption à 50 Hz par `$03FE`), puis
+   `JMP start` : le DOS (`$9600-$BFFF`) n'est plus qu'une zone de données.
 
 | Zone | Contenu |
 |---|---|
-| `$0050-$00F6` | page zéro (167 o : le cœur, le moteur texte 43 o, la vue X2 24 o, `rg_ptr` 2 o) |
+| `$0050-$00FE` | page zéro (175 o : le cœur, le moteur texte 43 o, la vue X2 24 o, `rg_ptr` 2 o, le Mockingboard 8 o) |
 | `$0800-$0FFF` | `DGPAGE` : l'état du moteur texte pour la page 1 (`$0800` : `dg_shown` 768 o, `dg_drawn` 128 o, `dg_touch` 24 o) et la page 2 (`$0C00`) ; `QUIT_MARK` en `$0FFE` |
 | `$1000-$12F7` | `LOWBSS` : carte, visibilité, monstres, objets, sac, ombres de render_map et du HUD |
 | `$1400-$167F` | `X2LOW` : les masques des moitiés de 7 pixels (`x2_m`, 512 o), le tampon de composition d'une case (`x2_cbuf`, 128 o) |
 | `$1800-$1F0F` | `DHGRBSS` : l'écran TMS virtuel **à ses propres adresses** (`$1800` noms, `$1B00` sprites), le tampon de lignes du moteur texte (`$1C00-$1EFF`), drapeaux par page |
 | `$2000-$3FFF` | page DHGR 1 (principale ; et l'auxiliaire) |
-| `$4000-$5FFF` | page DHGR 2 (idem) ; au chargement : `STARTUP` (`$3C00-$3CDB`) puis `LCCODE` + `LCDATA` (8,6 Ko), complétés jusqu'à `$6000` |
-| `$6000-$9469` | le fichier : `CODE` (le cœur, `plat_quit`, `apple2_reboot`) 9 120 o, `RODATA` 4 264 o (le cœur, `video_dhgr_data.inc`), `DGFIX` 34 o ; `$946A-$95FF` libres (406 o) |
+| `$4000-$5FFF` | page DHGR 2 (idem) ; au chargement (dès `$2400`) : `STARTUP` (`$2400-$250E`), `LCCODE` + `LCDATA` (8,6 Ko), `RODATA` + `SNDDATA` (5,2 Ko), complétés jusqu'à `$6000` |
+| `$6000-$8AE7` | le fichier : `CODE` (le cœur, `plat_quit`, `apple2_reboot`, les bibliothèques du Mockingboard) 10 950 o, `DGFIX` 34 o ; `$8AE8-$95FF` libres (2 840 o) |
 | `$9600-$99FF` | (le DOS) `X2IMG` : les 8 images de tuiles (1 Ko) |
-| `$9A00-$9E05` | `BSS` : clés des cases des deux pages, image voulue, groupes sales du moteur texte ; `$9E06-$BFFF` libres (8,7 Ko) |
+| `$9A00-$9E8C` | `BSS` : clés des cases des deux pages, image voulue, groupes sales du moteur texte, l'état du Mockingboard |
+| `$9E8D-$B38C` | `RODATA` 4 264 o (le cœur, `video_dhgr_data.inc`), `SNDDATA` 1 112 o (les morceaux AYS) ; `$B38D-$BFFF` libres (3,1 Ko) |
 | `$D000-$F23A` | carte langage, RAM banque 2 et commune : le back-end (`LCCODE` 6,5 Ko, `LCDATA` 2,0 Ko) ; `$F23B-$F7FF` libres (1,4 Ko) |
 | `$F800-$FFFF` | carte langage : la copie de la ROM du moniteur |
 
-Fichier : 22 634 octets (89 secteurs, 233 octets de remplissage avant
+Fichier : 26 344 octets (103 secteurs, 950 octets de remplissage avant
 `$6000`). Mémoire auxiliaire : seulement ses moitiés des deux pages DHGR.
 
 **Sortie** (ESC au titre, ESC puis Y, Ctrl-RESET : `plat_quit` /
