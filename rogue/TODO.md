@@ -1,33 +1,19 @@
-# ROGUE — prochains lots
+# ROGUE — next lots
 
-Lot 1 (fait, 2026-10-31) : portage du TMS_Rogue de POM1 sur Apple II + carte
-E-Z Color, détection dans tout emplacement (sauf 3 et le lecteur), message
-clair sans carte, sons et airs au haut-parleur, cœur séparé de l'affichage
-(docs/VIDEO_API.md), lanceur TMS / DHGR / erreur, tests a2run --ezcolor.
+What is done is in [CHANGELOG.md](CHANGELOG.md).
 
-- **Version DHGR** (fait, 2026-10-31 ; vue de jeu à la ROGUE X2 le
-  2026-11-01 : fenêtre 9 × 5 de grandes cases centrée sur le héros, double
-  tampon). Restent : le parchemin ne montre que la fenêtre (comme ROGUE X2 ;
-  la carte entière en petit, le temps de la touche, serait plus utile) ; le
-  //c change de page sans attendre le balayage (une image peut se
-  déchirer : l'interruption VBL de sa souris le permettrait) ; le sol
-  éclairé est noir comme sur la TMS (une trame discrète montrerait la
-  lumière de la torche) ; le HUD n'a pas les couleurs par ligne de ROGUE X2.
-- **Mockingboard** (fait pour `ROGUE.TMS`, 2026-11-16 : `mb_irq.asm` sur le
-  vecteur `$03FE`, `aysong.asm`, les sons et airs de `tools/music.py` en
-  morceaux AYS, `tests/test_mockingboard.py`). Restent : `ROGUE.DHGR` (sa
-  mémoire principale n'a que ~400 o libres : le code et les morceaux, ~3 Ko,
-  iraient en `$9E06-$BFFF` recopiés au démarrage, le fichier chargé plus bas
-  qu'en `$3C00` ; le vecteur `$03FE` convient aussi, le gestionnaire du //e
-  remettant la mémoire principale) ; des airs écrits pour trois voix ; un
-  essai sur une vraie carte (avec l'E-Z Color à côté).
-- **Partie sauvée** : écrire l'état (page zéro du jeu + LOWBSS, ~600 o) dans
-  un fichier par RWTS (`rwts_sectors`, `dos33patch.py --sectors`).
-- **Vrai matériel** : essayer une E-Z Color (ou une réplique) sur II+ et //e,
-  emplacement 3 compris ; vérifier l'avis sur l'écran Apple.
-- Clic de pas optionnel (désactivé par défaut) ; touches ZQSD / HJKL en
-  option (aujourd'hui IJKL et flèches, H = aide comme dans POM1).
-- Sortie (fait, 2026-11-01) : ESC / Ctrl-RESET passent par `apple2_reboot` de
-  la bibliothèque, qui redémarre l'emplacement du lecteur de démarrage lu dans
-  `$B7E9` (plus de `$C600` fixe ; `tests/test_dhgr.py` : `$B7E9` = `$50` →
-  `JMP $C500`).
+- **DHGR version**, what remains: the scroll shows only the window (like
+  ROGUE X2; the whole map in small, while the key is held, would be more
+  useful); the //c flips pages without waiting for the beam (a picture can
+  tear: its mouse's VBL interrupt would allow it); the lit floor is black as
+  on the TMS (a discreet pattern would show the torch's light); the HUD does
+  not have ROGUE X2's per-line colours.
+- **Mockingboard**, what remains: tunes written for three voices (today the
+  melody and the same line an octave lower); a test on a real card (with the
+  E-Z Color next to it on a II+, the 4c on a //c).
+- **Saved game**: write the state (the game's zero page + LOWBSS, ~600 bytes)
+  to a file through RWTS (`rwts_sectors`, `dos33patch.py --sectors`).
+- **Real hardware**: try an E-Z Color (or a replica) on a II+ and a //e,
+  slot 3 included; check the notice on the Apple screen.
+- Optional step click (off by default); ZQSD / HJKL keys as an option (today
+  IJKL and the arrows, H = help as in POM1).

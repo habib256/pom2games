@@ -1,20 +1,20 @@
-# MB TRACKER — plan de travail
+# MB TRACKER — work plan
 
-Cible : Apple //e enhanced et //c 128 Ko, ProDOS 8, 80 colonnes, Mockingboard
-(4c sur //c). Format : AYS v1 ([AYSONG_FORMAT.md](../dev/lib/apple2/AYSONG_FORMAT.md)),
-celui que les jeux embarquent ; `dev/tools/audio/aysong.py` est l'oracle des
-tests (encodeur et `Player` au registre près).
+Target: Apple //e enhanced and //c with 128 KB, ProDOS 8, 80 columns, Mockingboard
+(4c on the //c). Format: AYS v1 ([AYSONG_FORMAT.md](../dev/lib/apple2/AYSONG_FORMAT.md)),
+the one the games embed; `dev/tools/audio/aysong.py` is the tests' oracle
+(encoder and `Player`, down to the register).
 
-Les lots terminés sont dans [CHANGELOG.md](CHANGELOG.md).
+Finished lots are in [CHANGELOG.md](CHANGELOG.md).
 
-## Ensuite
+## Next
 
-- [ ] Souris sur //c **avec** 4c : lire le matériel souris de l'IOU
-  (`$C015`/`$C017`, `$C066`/`$C067`, bouton) sans le firmware masqué.
-- [ ] Molette absente : défilement de la liste d'ordre par ses bords.
-- [ ] AYS : décalage de hauteur par tic dans les instruments, volume de
-  canal (récupérerait la plupart des pertes de l'import PT3).
-- [ ] Pas d'avance réglable après saisie ; transposition d'une piste entière.
-- [ ] Test sur vraies machines : //e enhanced + Mockingboard + AppleMouse,
-  //c + 4c (son, interruptions pendant les accès disque, `/RAM` rendu en
-  sortie, ALTZP des copies vers la LC auxiliaire).
+- [ ] Mouse on the //c **with** a 4c: read the IOU's mouse hardware
+  (`$C015`/`$C017`, `$C066`/`$C067`, button) without the masked firmware.
+- [ ] No mouse wheel: scroll the order list from its edges.
+- [ ] AYS: per-tick pitch offset in instruments, channel volume (would
+  recover most of the PT3 import's losses).
+- [ ] Adjustable step after entry; transposing a whole track.
+- [ ] Test on real machines: //e enhanced + Mockingboard + AppleMouse,
+  //c + 4c (sound, interrupts during disk accesses, `/RAM` given back on
+  exit, ALTZP for the copies to the auxiliary LC).

@@ -1,7 +1,7 @@
 # Score et hall of fame (lot 7, étape 6)
 
-Ce document prépare l'étape 6 du lot 7 ([TODO.md](../TODO.md), boîtes « Score
-16 bits », « Module `wildhof.bin` », « `NEOWILD.HOF` vide » et « Tests » ;
+Ce document prépare l'étape 6 du lot 7 ([CHANGELOG.md](../CHANGELOG.md),
+« Neowilderness: stars, score and hall of fame (lot 7, steps 5–6) » ;
 [SCENARIOS.md](SCENARIOS.md) § 7 et § 8).
 Tout ce qui est décrit ici existe et est testé **hors du jeu** : référence
 Python, module 6502 de fin de partie, fragment du chargeur, banc IIe
@@ -392,8 +392,8 @@ si les fichiers ont bougé).
    - `test_menu.py` : sur le volume construit, `NEOWILD.HOF` est vide et
      les `BEST -` restent.
 8. **Documents** : `SCENARIOS.md` § 7–8 (progression `DONE=`, santé
-   pondérée, score nul, module à `$9600` lu depuis `NEOWILD.END`), boîtes
-   de l'étape 6 du `TODO.md`, `MEMORY.md` § 9.
+   pondérée, score nul, module à `$9600` lu depuis `NEOWILD.END`), étape 6
+   dans `CHANGELOG.md` (« … steps 5–6 »), `MEMORY.md` § 9.
 
 ## 10. Intégrité du volume (rapport POM2 du 13 octobre 2026)
 

@@ -18,7 +18,7 @@ où le code devrait vivre et ce que chaque ajout coûte.
 
 ### 1.1 Comparaison
 
-- **État du port.** [README](../README.md), [TODO](../TODO.md) (direction 1),
+- **État du port.** [README](../README.md), [TODO](../TODO.md) (« Game lots »),
   [TODO de Wilderness](../../wilderness/TODO.md) (cases non cochées), [IMPLEMENTATION.md](IMPLEMENTATION.md)
   (« Règles provisoires et écarts », « Conditions médicales », « Arbres »),
   [SCENARIOS.md](SCENARIOS.md), [REGIONS.md](REGIONS.md) § 7,

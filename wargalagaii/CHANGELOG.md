@@ -1,789 +1,792 @@
-# WARGALAGA II — historique
+# WARGALAGA II — history
 
-Les lots finis et les chasses aux bugs, sortis de [TODO.md](TODO.md) le 2026-11-16.
+The finished lots and the bug hunts, moved out of [TODO.md](TODO.md) on 2026-11-16.
 
-## Lot 0 — préparation (fait, 2026-10-22)
+## Lot 0 — preparation (done, 2026-10-22)
 
-- [x] Dossier, README (machine, mémoire, cadence, son, commandes), TODO.
-- [x] Référence Warblade vérifiée, avec sources (`docs/warblade-reference.md`).
-- [x] Recherche d'un « WarGalaga » existant : aucun ; POM1 a un TMS Galaga
-      (TMS9918, sprites matériels), utile seulement pour les plongées.
-- [x] `Makefile` squelette (inclut `apple2.mk`, ne construit rien).
+- [x] Folder, README (machine, memory, timing, sound, controls), TODO.
+- [x] Warblade reference checked, with sources (`docs/warblade-reference.md`).
+- [x] Search for an existing "WarGalaga": none; POM1 has a TMS Galaga
+      (TMS9918, hardware sprites), useful only for the dives.
+- [x] Skeleton `Makefile` (includes `apple2.mk`, builds nothing).
 
-## Lot 1 — V0.1 : démarrage, horloge, vaisseau, tir (fait, 2026-10-23)
+## Lot 1 — V0.1: boot, clock, ship, shot (done, 2026-10-23)
 
-Jeu en assembleur 65C02 (`src/game.s`, `src/timing.s`) derrière le crt0
-ProDOS de cc65 ; `src/game.cfg` = `apple2_dhgr_prodos_c.cfg` + segment
-`SYSBSS` en `$0200-$03CF` (tables `hgr_lo/hi`).
+Game in 65C02 assembler (`src/game.s`, `src/timing.s`) behind cc65's ProDOS
+crt0; `src/game.cfg` = `apple2_dhgr_prodos_c.cfg` + segment
+`SYSBSS` at `$0200-$03CF` (tables `hgr_lo/hi`).
 
-- [x] `src/boot.s` / `boot.cfg` : `WG2.SYSTEM`, refus d'un 6502 NMOS (test
-      `INC A`), charge `WG2.SYS` ; `src/startup.s` le reloge à `$6000`.
-- [x] Lien `crt0_prodos.s` + `none.lib`, libs `mli.s`, `video.s`, `mouse.s`,
+- [x] `src/boot.s` / `boot.cfg`: `WG2.SYSTEM`, refuses an NMOS 6502 (test
+      `INC A`), loads `WG2.SYS`; `src/startup.s` relocates it to `$6000`.
+- [x] Link `crt0_prodos.s` + `none.lib`, libs `mli.s`, `video.s`, `mouse.s`,
       `apple2frame.s`.
-- [x] `/RAM` réclamé (`PD_VIDEO_DISCARD_RAM`) puis reformaté à la sortie ;
-      128 Ko vérifiés par MACHID (`$BF98`), sinon message.
-- [x] HGR double tampon : `hgr_scanline_ram.asm` (`$0200`), pages par
-      opérandes patchés (`hgr_pages.inc/.asm`), bascule `$C054/$C055`.
-- [x] Horloge `src/timing.s` (dérivée de `chromabreak/src/timing.s`) : //e =
-      fronts de `$C019` comptés par `timing_scan` (appelé entre les phases du
-      dessin), //c = interruption VBL du firmware souris (mode 9, ProDOS
-      `ALLOC_INTERRUPT`), sinon délais `a2_frame_wait`. Attente bornée, repli.
-      Manette (paddle 0) lue dans l'attente, jusqu'à l'échéance.
-- [x] Pas fixe : un pas logique par paire de rafraîchissements comptés entre
-      deux bascules (`timing_refreshes`), reste reporté, au plus 2 pas par image.
-- [x] 24 étoiles sur 3 vitesses, 1 point chacune ; effacées seulement si leur
-      octet n'a pas changé, posées seulement sur un octet noir.
-- [x] Vaisseau 7 cellules × 10 lignes, 7 prédécalages (`tools/sprites.py`),
-      redessiné sur une page seulement s'il a bougé depuis cette page.
-- [x] Clavier : ← → / J L (la direction tient tant qu'une touche est
-      enfoncée, `$C010` bit 7, donc ESPACE ne l'arrête pas), ESPACE et Pomme
-      ouverte / bouton 0 tirent (front). **TAB** bascule clavier / manette en
-      attendant le menu du lot 9.
-- [x] Tir simple, 5 au plus (jauge B de départ), listes d'effacement par page.
-- [x] `tools/model.py` (oracle de la logique, commencé dès ce lot) et
+- [x] `/RAM` claimed (`PD_VIDEO_DISCARD_RAM`) then reformatted on exit;
+      128 KB checked through MACHID (`$BF98`), otherwise a message.
+- [x] Double-buffered HGR: `hgr_scanline_ram.asm` (`$0200`), pages through
+      patched operands (`hgr_pages.inc/.asm`), flip `$C054/$C055`.
+- [x] Clock `src/timing.s` (derived from `chromabreak/src/timing.s`): //e =
+      edges of `$C019` counted by `timing_scan` (called between the drawing
+      phases), //c = VBL interrupt of the mouse firmware (mode 9, ProDOS
+      `ALLOC_INTERRUPT`), otherwise `a2_frame_wait` delays. Bounded wait,
+      fallback. Joystick (paddle 0) read during the wait, up to the deadline.
+- [x] Fixed step: one logic step per pair of refreshes counted between
+      two flips (`timing_refreshes`), remainder carried, at most 2 steps a frame.
+- [x] 24 stars at 3 speeds, 1 dot each; erased only if their byte has not
+      changed, set only on a black byte.
+- [x] Ship 7 cells × 10 rows, 7 pre-shifts (`tools/sprites.py`), redrawn on
+      a page only if it moved since that page.
+- [x] Keyboard: ← → / J L (the direction holds while a key is down,
+      `$C010` bit 7, so SPACE does not stop it), SPACE and Open
+      Apple / button 0 fire (edge). **TAB** toggles keyboard / joystick
+      until the lot 9 menu.
+- [x] Single shot, 5 at most (starting B gauge), erase lists per page.
+- [x] `tools/model.py` (logic oracle, started in this lot) and
       `tests/test_game.py` (`make test`, ~3 s).
-- **Acceptation** (`make test`) : volume ; 1 000 images en 2 000
-  rafraîchissements, aucune en retard, NTSC et PAL ; 300 pas identiques au
-  modèle ; flèches, ESPACE, Pomme ouverte, manette ; ESC et Ctrl-RESET →
-  texte, `/RAM` reconstruit, lanceur ProDOS ; II+ (NMOS) → message. Rendu
-  mesuré : ~8 400 cycles avec vaisseau mobile, 5 tirs, 24 étoiles (budget
-  28 060).
-- [x] **//c dans la batterie** (2026-10-24) : la façade POM2 a reçu le //c
-      (`Machine::AppleIIc`, livraison 0849ee51) ; `tests/iic_probe.cpp` y
-      est porté (`dev/tools/a2shot/probe.hpp`) et ses 13 variantes tournent
-      dans `make test` (~18 s), CI comprise. Reste la vraie machine.
-- [x] `[lib]` `dev/lib/apple2c/apple2vbl.s` (2026-10-24) : l'horloge
-      commune à `src/timing.s` et `chromabreak/src/timing.s` (choix du
-      mode, interruption VBL de la souris //c, comptage des fronts //e,
-      `A2_VBL_SCAN_SEI=1` ici) ; la bascule de page passe par un crochet,
-      la présentation et la manette restent dans chaque jeu. Avec elle :
-      `dev/lib/prodos/sysboot.s` (WG2.SYSTEM, octet pour octet) et
-      `dev/lib/prodos/file.asm` (HIGHSCORES, dans l'overlay ; WG2.AUX garde
-      son chargement résident : plus de place en mémoire principale).
-      Coût : +46 octets de mémoire principale (horloge générique), d'où
-      RODATA/DATA/BSS décalés de 46 octets ; `make test-iic` : //c
-      identique (109 images en retard sur ~1 600 à l'entrée), //e 91 au
-      lieu de 89 (manette 97 au lieu de 92), PAL 0. Pur effet
-      d'alignement des tables : 46 octets de bourrage de plus (décalage 92)
-      redonnent 89/92. Pas de bourrage gardé (≈120 octets libres).
+- **Acceptance** (`make test`): volume; 1,000 frames in 2,000 refreshes,
+  none late, NTSC and PAL; 300 steps identical to the model; arrows,
+  SPACE, Open Apple, joystick; ESC and Ctrl-RESET → text, `/RAM` rebuilt,
+  ProDOS launcher; II+ (NMOS) → message. Rendering measured: ~8,400 cycles
+  with a moving ship, 5 shots, 24 stars (budget 28,060).
+- [x] **//c in the test suite** (2026-10-24): the POM2 front end got the //c
+      (`Machine::AppleIIc`, delivery 0849ee51); `tests/iic_probe.cpp` is
+      ported to it (`dev/tools/a2shot/probe.hpp`) and its 13 variants run
+      in `make test` (~18 s), CI included. The real machine remains.
+- [x] `[lib]` `dev/lib/apple2c/apple2vbl.s` (2026-10-24): the clock shared
+      by `src/timing.s` and `chromabreak/src/timing.s` (mode choice, //c
+      mouse VBL interrupt, //e edge counting, `A2_VBL_SCAN_SEI=1` here);
+      the page flip goes through a hook, the presentation and the joystick
+      stay in each game. With it: `dev/lib/prodos/sysboot.s` (WG2.SYSTEM,
+      byte for byte) and `dev/lib/prodos/file.asm` (HIGHSCORES, in the
+      overlay; WG2.AUX keeps its resident loader: more room in main
+      memory). Cost: +46 bytes of main memory (generic clock), hence
+      RODATA/DATA/BSS shifted by 46 bytes; `make test-iic`: //c identical
+      (109 late frames out of ~1,600 at the entry), //e 91 instead of 89
+      (joystick 97 instead of 92), PAL 0. A pure table alignment effect:
+      46 more bytes of padding (shift 92) give back 89/92. No padding kept
+      (≈120 bytes free).
 
-## Lot 2 — V0.2 : sprites, formation, plongées (fait, 2026-10-23)
+## Lot 2 — V0.2: sprites, formation, dives (done, 2026-10-23)
 
-Code : `src/logic.s` (logique), `src/render.s` (dessin), `src/game.s`
-(boucle, entrées, tables). Tables de lignes alignées en `$1000-$12FF`
-(segment `ROWS`) : `hgr_hi+R,X` par ligne R du sprite, et `select_page`
-ne réécrit que l'octet fort de chaque opérande (`HI_LDA`) ; `hgr_pages`
-de la lib n'est plus utilisé (il réécrit les deux octets et ne gère pas
+Code: `src/logic.s` (logic), `src/render.s` (drawing), `src/game.s`
+(loop, inputs, tables). Row tables aligned at `$1000-$12FF`
+(segment `ROWS`): `hgr_hi+R,X` for sprite row R, and `select_page`
+rewrites only the high byte of each operand (`HI_LDA`); the lib's
+`hgr_pages` is no longer used (it rewrites both bytes and does not handle
 `+R`).
 
-- [x] `tools/sprites.py` : dessins par cellules de 2 points, `X` = point de
-      la teinte (violet, vert, bleu, orange), 7 prédécalages, entrée
-      `2*décalage+image`. **6 petits aliens en 7×8 cellules** (8 lignes et
-      non 10 : 20 % de moins par alien), 2 gros en 10×16, 2 images chacun ;
-      `--png F` donne la planche de tous les dessins et teintes. Écrit à
-      part de `dev/tools/assets/pack_hgr_sprites.py` (cellules et teintes
-      propres au jeu) ; à rapprocher si un second jeu en a besoin.
-      **Boss pas encore dessiné** (lot 6). Le jeu ne lie qu'un dessin et
-      une teinte (`GAME_SMALL`) : la réserve en mémoire aux est au lot 6.
-- [x] Dessin (`src/render.s`) : routines déroulées par macro
-      (`SPRITE_ROWS`). Mesures (`make test`) : alien posé **STA 470**
-      cycles, **EOR 593**, effacement **322** (objectifs 650 / 400 tenus).
-      Changement de méthode en cours de lot : effacer en zéros ce qui vole
-      abîmait la formation (redessin sur les deux pages : 47 000 cycles par
-      image) ; **ce qui vole (plongeurs, aliens en entrée, tirs) est tracé
-      et effacé en EOR**, dans l'ordre exactement inverse du tracé, ce qui
-      rend l'écran tel quel sans rien redessiner. Formation posée en STA,
-      vaisseau en STA. Tirs : un octet, motif identique sur 6 lignes.
-- [x] Formation 5 × 8, respiration d'une cellule ; **une rangée tous les
-      2 pas** (une par pas = 16 aliens redessinés par image, chaque
-      changement étant tracé sur les deux pages). Une rangée inchangée
-      depuis le dernier tracé de la page est sautée en quelques tests.
-- [x] `tools/paths.py` : tortue (cap, vitesse, virage) échantillonnée à
-      chaque pas, quantifiée en octets Δx (cellules) / Δy (lignes) signés
-      4 bits, `$80` = fin ; 1 entrée (boucle) en miroir à droite, 4 plongées
-      (demi-tour puis : dérive, zigzag, diagonale, boucle), en miroir sur la
-      moitié droite de la formation.
-- [x] Vagues : 5 vagues de 4 paires (une rangée chacune, du centre vers
-      les bords), puis retour à la place ; plongée toutes les 20 pas si
-      moins de 6 aliens volent ; sortie par le bas → retour par le haut.
-      Hasard : `dev/lib/math/random.asm`.
-- [x] `tools/model.py` : oracle au bit près ; `tests/test_game.py`
-      compare **2 000 pas** à chaque pas (état complet + hasard).
-- **Acceptation** (`make test`, ~8 s) : banc formation + plongeurs +
-  **10 tirs** tirés sans arrêt : **0 image en retard sur 300** ; formation
-  posée : 0 retard sur 1 000 images NTSC et PAL ; oracle vert. Profil
-  (`tools/profile.py`) : rendu moyen 17 300 / pire 23 200 cycles sans tirs,
-  22 000 / 28 000 avec 10 tirs ; logique ~3 000-3 600.
+- [x] `tools/sprites.py`: drawings in 2-dot cells, `X` = a dot of the
+      tint (violet, green, blue, orange), 7 pre-shifts, entry
+      `2*décalage+image` (2 × shift + frame). **6 small aliens in 7×8
+      cells** (8 rows and not 10: 20 % less per alien), 2 big ones in
+      10×16, 2 frames each; `--png F` gives the sheet of all the drawings
+      and tints. Written
+      apart from `dev/tools/assets/pack_hgr_sprites.py` (cells and tints
+      specific to the game); to merge if a second game needs it.
+      **Boss not drawn yet** (lot 6). The game links only one drawing and
+      one tint (`GAME_SMALL`): the aux memory reserve is in lot 6.
+- [x] Drawing (`src/render.s`): routines unrolled by macro
+      (`SPRITE_ROWS`). Measurements (`make test`): seated alien **STA 470**
+      cycles, **EOR 593**, erase **322** (targets 650 / 400 met).
+      Change of method during the lot: erasing what flies with zeros
+      damaged the formation (redrawn on both pages: 47,000 cycles a
+      frame); **what flies (divers, entering aliens, shots) is drawn
+      and erased in EOR**, in exactly the reverse order of the drawing,
+      which leaves the screen as it was without redrawing anything.
+      Formation set in STA, ship in STA. Shots: one byte, the same pattern
+      on 6 rows.
+- [x] Formation 5 × 8, breathing by one cell; **one row every
+      2 steps** (one a step = 16 aliens redrawn a frame, each change being
+      drawn on both pages). A row unchanged since the page's last drawing
+      is skipped in a few tests.
+- [x] `tools/paths.py`: turtle (heading, speed, turn) sampled at each
+      step, quantised into signed 4-bit Δx (cells) / Δy (rows) bytes,
+      `$80` = end; 1 entry (loop) mirrored on the right, 4 dives
+      (U-turn then: drift, zigzag, diagonal, loop), mirrored on the right
+      half of the formation.
+- [x] Waves: 5 waves of 4 pairs (one row each, from the centre toward
+      the edges), then back to the place; a dive every 20 steps if
+      fewer than 6 aliens fly; exit through the bottom → back from the top.
+      Randomness: `dev/lib/math/random.asm`.
+- [x] `tools/model.py`: bit-exact oracle; `tests/test_game.py`
+      compares **2,000 steps** at each step (full state + randomness).
+- **Acceptance** (`make test`, ~8 s): formation + divers bench +
+  **10 shots** fired nonstop: **0 late frames out of 300**; seated
+  formation: 0 late out of 1,000 frames NTSC and PAL; oracle green. Profile
+  (`tools/profile.py`): average render 17,300 / worst 23,200 cycles without
+  shots, 22,000 / 28,000 with 10 shots; logic ~3,000-3,600.
 
-## Lot 3 — collisions, tirs ennemis, vies, score, HUD (fait, 2026-10-23)
+## Lot 3 — collisions, enemy shots, lives, score, HUD (done, 2026-10-23)
 
-- [x] Collisions en coordonnées logiques, sans lire l'écran. Tir contre
-      aliens posés : `shot_frow` (ligne du tir → la seule rangée qu'il peut
-      toucher) puis `col_of` (cellule → colonne), un test ; puis la liste
-      des aliens en vol (`fly_list`, construite pendant la boucle des aliens,
-      dans l'ordre du modèle). Bombe et alien contre le vaisseau : boîte
-      réduite (cellules 1-5, lignes 2-9 du vaisseau). Premier touché
-      seulement, ordre fixé par le modèle.
-- [x] Bombes ennemies : 6 au plus, une tentative toutes les 12 pas par un
-      alien au hasard (posé ou en plongée, visible, au-dessus de la ligne 150),
-      4 lignes par pas, bleues, tracées en EOR comme les tirs.
-- [x] Aliens touchés : état `ST_BOOM` 8 pas (explosion en 2 images, tracée
-      comme un alien en vol), puis morts ; 50 points posés, 100 en vol.
-- [x] Vaisseau : 3 vies ; touché → explosion (24 pas visibles), réapparition
-      au centre au pas 45, 60 pas d'invulnérabilité (le vaisseau clignote).
-      Armure (0 au départ, max 2 au lot 5/7) : absorbe une bombe et donne
-      60 pas d'invulnérabilité ; une collision avec un alien tue quand même.
-      Plus de vies : `GAME OVER` au milieu du champ ; après 2 s, ESPACE ou
-      Pomme ouverte relancent une partie.
-- [x] Score BCD 6 chiffres (`SED`), crédits BCD 4 chiffres (0 jusqu'au
+- [x] Collisions in logical coordinates, without reading the screen. Shot
+      against seated aliens: `shot_frow` (the shot's row → the only
+      formation row it can hit) then `col_of` (cell → column), one test;
+      then the list of flying aliens (`fly_list`, built during the alien
+      loop, in the model's order). Bomb and alien against the ship: reduced
+      box (cells 1-5, rows 2-9 of the ship). First hit only, order set by
+      the model.
+- [x] Enemy bombs: 6 at most, one attempt every 12 steps by a random alien
+      (seated or diving, visible, above row 150), 4 rows a step, blue,
+      drawn in EOR like the shots.
+- [x] Aliens hit: state `ST_BOOM` 8 steps (explosion in 2 frames, drawn
+      like a flying alien), then dead; 50 points seated, 100 flying.
+- [x] Ship: 3 lives; hit → explosion (24 visible steps), respawn
+      in the centre at step 45, 60 steps of invulnerability (the ship
+      blinks). Armour (0 at the start, max 2 in lot 5/7): absorbs a bomb
+      and gives 60 steps of invulnerability; a collision with an alien
+      still kills. No lives left: `GAME OVER` in the middle of the field;
+      after 2 s, SPACE or Open Apple start a new game.
+- [x] 6-digit BCD score (`SED`), 4-digit BCD credits (0 until
       lot 5).
-- [x] HUD (lignes 0-7) : score, vies, armure, jauges S et B en barres de
-      segments, T, crédits. **Écart au plan** : pas de `hgr_hud8` ni de
-      `hgr_text8` ; un caractère = une colonne d'octets de 8 lignes tracée
-      par la même macro que les sprites (`glyph_sta`, ~230 cycles), police
-      `bbfont` $20-$5F suivie de 4 glyphes du jeu. Le HUD n'est recalculé
-      que si son état (8 octets) a changé depuis le dernier tracé de la
-      page, et seuls les caractères qui diffèrent sont réécrits.
-- **Acceptation** (`make test`, ~10 s) : oracle 2 000 pas avec collisions,
-  3 vies perdues aux pas 455, 923 et 1602 identiques au modèle puis
-  `GAME OVER` ; second oracle avec armure (1 500 pas) ; sans joueur :
-  `GAME OVER`, 0 vie dans le HUD des deux pages, ESPACE relance ; banc
-  (10 tirs qui traversent grâce au drapeau de test `nohit`, bombes) :
-  0 image en retard sur 300.
-- **À surveiller** : phase d'entrée, ~37 images en retard sur ~1 600 en
-  NTSC (1 en PAL ; chiffre corrigé par la chasse aux bugs, ~45 sur //c), vitesse exacte ; logique ~3 200-4 600 cycles. Gain du
-  lot : un alien posé qui change d'octet de départ ne fait plus effacer
-  que la colonne qu'il quitte.
+- [x] HUD (rows 0-7): score, lives, armour, S and B gauges as segment
+      bars, T, credits. **Deviation from the plan**: no `hgr_hud8` and no
+      `hgr_text8`; a character = an 8-row byte column drawn by the same
+      macro as the sprites (`glyph_sta`, ~230 cycles), `bbfont` font
+      $20-$5F followed by 4 game glyphs. The HUD is recomputed only if its
+      state (8 bytes) changed since the page's last drawing, and only the
+      characters that differ are rewritten.
+- **Acceptance** (`make test`, ~10 s): 2,000-step oracle with collisions,
+  3 lives lost at steps 455, 923 and 1602 identical to the model then
+  `GAME OVER`; second oracle with armour (1,500 steps); without a player:
+  `GAME OVER`, 0 lives in the HUD of both pages, SPACE restarts; bench
+  (10 shots that pass through thanks to the `nohit` test flag, bombs):
+  0 late frames out of 300.
+- **To watch**: entry phase, ~37 late frames out of ~1,600 in
+  NTSC (1 in PAL; figure corrected by the bug hunt, ~45 on //c), exact
+  speed; logic ~3,200-4,600 cycles. Gain of the
+  lot: a seated alien that changes its starting byte now erases
+  only the column it leaves.
 
-## Chasse aux bugs (2026-10-23, après le lot 3)
+## Bug hunt (2026-10-23, after lot 3)
 
-- [x] **Invariant d'écran** (`tests/test_screen.py`, dans `make test`) : la
-      page que le 6502 vient de dessiner est comparée octet par octet à un
-      dessin complet de l'état en Python (HUD, formation, GAME OVER,
-      vaisseau, vols en EOR, tirs, bombes, étoiles). 5 graines × 210 images
-      (jeu, bombes, explosions, fin de partie, relance) : identiques. Une
-      mutation (bombes ôtées de la référence) est bien détectée.
-- [x] **Écritures sauvages** (`storewatch` a2shot sur une partie avec fin et
-      relance) : rien en page zéro hors jeu, `$0200-$0FFF`, `$1300-$1FFF`,
-      RODATA, `$8F24-$BEFF`, page ProDOS `$BF00` ; dans le code, seules les
-      72 opérandes de `select_page`.
-- [x] **Fuzz logique** : 3 graines × 6 000 pas (armure 0, 1, 2) identiques
-      au modèle.
-- [x] **//c enfin exécutée** (`make test-iic`, optionnel : `tests/iic_probe.cpp`
-      sur les sources POM2, comme le `test-mouse` de CHROMABREAK) : ROM
-      //c 16 Ko et 32 Ko, NTSC et PAL, avec et sans manette (`$C070`
-      acquitte aussi le VBL du //c) : horloge par IRQ, vitesse exacte,
-      formation posée sans retard, ESC rend la main et l'IRQ. Pendant
-      l'entrée : ~43 images en retard sur //c contre ~21 sur //e (coût des
-      interruptions).
-- [x] **Corrigé** : chaque nouvelle partie rejouait la même suite au hasard
-      (graine fixe) ; la relance sème maintenant avec le compteur d'images.
-      La première partie garde `SEED` (tests) ; le titre du lot 9 sèmera
-      avec l'instant de la touche.
-- Défauts de banc corrigés en route (pas du jeu) : `until:X` deux fois de
-  suite n'avance pas ; une relance (effacement des deux pages, ~10
-  rafraîchissements) dépassait une limite de 10 images.
-- **Seconde passe** :
-  - **Corrigé — fronts VBL manqués sur //e** : `timing_scan` doit passer au
-    moins une fois par blanc (~4 550 cycles). `aliens_pass` (40 aliens
-    quand plusieurs rangées changent) et les effacements de colonne du
-    lot 3 tournaient jusqu'à ~6 200 cycles sans scruter : environ un
-    rafraîchissement perdu pour 3 000, donc un jeu un peu plus lent et des
-    images en retard **non comptées**. Scrutation ajoutée tous les
-    8 aliens, après chaque colonne effacée, entre tirs et bombes, dans le
-    message. Test permanent `vbl_edges` (chaque front compté ≤ 1,5
-    rafraîchissement après le précédent, entrée et banc de 10 tirs).
-    Conséquence : l'entrée NTSC montre maintenant ses vrais retards,
-    **~37 images sur ~1 600** (21 avant : les fronts manqués en cachaient).
-  - La page en cours de dessin n'est jamais affichée : 300 échantillons
-    dans le rendu sur //e (a2shot) et sur //c / //e (sonde).
-  - Ctrl-RESET avec l'IRQ VBL active sur //c : retour au lanceur ProDOS,
-    horloge rendue (`iic32-reset`, `iie-reset` dans `make test-iic`).
-  - Endurance : ~10 000 images de jeu au hasard (fin, relance, tous les
-    aliens morts), invariant d'écran vérifié toutes les 25 images.
-  - Manette en pleine phase d'entrée : répond en moins de 10
-    rafraîchissements (la lecture coupée par l'échéance garde la valeur
-    d'avant, sans gêne mesurable).
-- **Troisième passe** (relecture indépendante de l'assembleur + chemins
-  jamais exécutés) :
-  - **Corrigé — effacements qui débordaient** : `render_init` et
-    `game_init` effaçaient des pages entières (1 024 octets pour 773) et
-    remettaient à zéro, derrière leurs variables, l'horloge (après une
-    relance, la //e passait en délais ; la //c gardait son IRQ sans
-    gestionnaire valide), `ram_unit` (`/RAM` jamais reformaté à la
-    sortie) et la page zéro sauvée par le crt0 (restaurée à zéro en
-    quittant). `zero_block` efface exactement N octets ; test : horloge,
-    `/RAM` et page zéro intactes après une relance. Le test de sortie
-    « /RAM reconstruit » passait à tort : il ne regardait que la liste
-    des unités.
-  - **Corrigé — repli sans horloge à 57 % de vitesse** : deux `WAIT(80)`
-    en plus du dessin ; maintenant un `WAIT(60)` (88-101 %).
-  - **Corrigé — lecture manette sans borne sur //c** : sans manette et
-    sans interruption, `joy_read_irq` tournait pour toujours ; borne à
-    255 comptes (17 cycles le compte, seuils recalés : 45 / 124 sur 165).
-  - **Corrigé — amorce** : `WG2.SYS` introuvable bouclait pour toujours ;
-    message, une touche, QUIT (paramètres dans la page relogée).
-  - Testés désormais : 64 Ko (MACHID), volume sans `WG2.SYS`, interruption
-    //c qui cesse (avec et sans manette), repli sans horloge.
-- **Quatrième passe** (après le lot 5 ; relecture indépendante de
-  l'assembleur + tests) :
-  - **Corrigé — les bonus ne tombaient presque jamais** : la sorte venait
-    de l'octet faible d'un second tirage, qui n'est que le premier décalé
-    d'un bit ; après le test « < 40 », seules les pièces et S sortaient
-    (modèle et 6502 identiques : l'oracle ne pouvait pas le voir ; l'oracle
-    `bonus_effects` pose les objets lui-même). La sorte vient maintenant de
-    l'octet fort (uniforme à 3 %). Test : ≥ 15 sortes lâchées en 30 parties
-    du modèle (5 avant).
-  - **Corrigé — avec la Mockingboard, le haut-parleur jouait aussi** chaque
-    bruitage. Test : aucune bascule de `$C030` avec la carte.
-  - **Corrigé** : `objects_erase` sans `timing_scan` (6 objets + 6 bombes
-    pouvaient dépasser un blanc) ; le son du tir partait sans tir (places
-    toutes prises) ; le crâne « fin des bonus » épargnait bouclier et gel ;
-    ×2 ramassé sous ×5 faisait redescendre à ×2 (on garde le plus fort).
-  - **Garde ajoutée** : un objet lâché sous la ligne 184 serait dessiné
-    dans la page zéro (vérifié en le forçant) ; les règles ne peuvent pas le
-    produire (un tir ne touche rien sous la ligne 179) ; test permanent
-    `model_invariants` (tout ce que la logique donne au dessin reste
-    traçable, jauges dans leurs bornes).
-  - Ctrl-RESET et ESC en pleine musique (IRQ T1 active sur //e) : retour au
-    lanceur ProDOS, qui répond.
-- **Reste, hors lot 3** : quand les 40 aliens sont morts, rien ne se
-  passe (niveaux suivants : lot 6). Les tampons de fichier ProDOS (lot 6)
-  devront éviter `$1000-$12FF` (tables de lignes).
+- [x] **Screen invariant** (`tests/test_screen.py`, in `make test`): the
+      page the 6502 has just drawn is compared byte for byte with a full
+      drawing of the state in Python (HUD, formation, GAME OVER,
+      ship, flights in EOR, shots, bombs, stars). 5 seeds × 210 frames
+      (game, bombs, explosions, game over, restart): identical. A
+      mutation (bombs removed from the reference) is detected.
+- [x] **Stray writes** (a2shot `storewatch` on a game with an end and a
+      restart): nothing in zero page outside the game, `$0200-$0FFF`,
+      `$1300-$1FFF`, RODATA, `$8F24-$BEFF`, ProDOS page `$BF00`; in the
+      code, only the 72 operands of `select_page`.
+- [x] **Logic fuzz**: 3 seeds × 6,000 steps (armour 0, 1, 2) identical
+      to the model.
+- [x] **//c finally run** (`make test-iic`, optional: `tests/iic_probe.cpp`
+      on the POM2 sources, like CHROMABREAK's `test-mouse`): //c ROMs
+      16 KB and 32 KB, NTSC and PAL, with and without a joystick (`$C070`
+      also acknowledges the //c VBL): clock by IRQ, exact speed,
+      seated formation without delay, ESC returns control and the IRQ.
+      During the entry: ~43 late frames on //c against ~21 on //e (cost
+      of the interrupts).
+- [x] **Fixed**: each new game replayed the same random sequence
+      (fixed seed); the restart now seeds with the frame counter.
+      The first game keeps `SEED` (tests); the lot 9 title will seed
+      with the moment of the key press.
+- Bench defects fixed along the way (not the game's): `until:X` twice in
+  a row does not advance; a restart (clearing both pages, ~10
+  refreshes) exceeded a 10-frame limit.
+- **Second pass**:
+  - **Fixed — missed VBL edges on //e**: `timing_scan` must run at
+    least once per blank (~4,550 cycles). `aliens_pass` (40 aliens
+    when several rows change) and the column erases of
+    lot 3 ran up to ~6,200 cycles without scanning: about one
+    refresh lost in 3,000, hence a slightly slower game and late frames
+    **not counted**. Scan added every
+    8 aliens, after each erased column, between shots and bombs, in the
+    message. Permanent test `vbl_edges` (each counted edge ≤ 1.5
+    refreshes after the previous one, entry and 10-shot bench).
+    Consequence: the NTSC entry now shows its true late frames,
+    **~37 frames out of ~1,600** (21 before: the missed edges hid some).
+  - The page being drawn is never displayed: 300 samples
+    during rendering on //e (a2shot) and on //c / //e (probe).
+  - Ctrl-RESET with the VBL IRQ active on //c: back to the ProDOS launcher,
+    clock released (`iic32-reset`, `iie-reset` in `make test-iic`).
+  - Endurance: ~10,000 frames of random play (game over, restart, all the
+    aliens dead), screen invariant checked every 25 frames.
+  - Joystick in the middle of the entry phase: responds within 10
+    refreshes (the reading cut by the deadline keeps the previous
+    value, with no measurable harm).
+- **Third pass** (independent review of the assembler + paths
+  never run):
+  - **Fixed — erases that overflowed**: `render_init` and
+    `game_init` cleared whole pages (1,024 bytes for 773) and
+    zeroed, behind their variables, the clock (after a
+    restart, the //e fell back to delays; the //c kept its IRQ without a
+    valid handler), `ram_unit` (`/RAM` never reformatted on
+    exit) and the zero page saved by the crt0 (restored as zeros on
+    exit). `zero_block` clears exactly N bytes; test: clock,
+    `/RAM` and zero page intact after a restart. The exit test
+    "/RAM rebuilt" passed wrongly: it looked only at the list
+    of units.
+  - **Fixed — fallback without a clock at 57 % speed**: two `WAIT(80)`
+    on top of the drawing; now one `WAIT(60)` (88-101 %).
+  - **Fixed — unbounded joystick read on //c**: without a joystick and
+    without an interrupt, `joy_read_irq` spun forever; bound at
+    255 counts (17 cycles a count, thresholds re-set: 45 / 124 out of 165).
+  - **Fixed — boot**: `WG2.SYS` not found looped forever;
+    message, a key, QUIT (parameters in the relocated page).
+  - Now tested: 64 KB (MACHID), volume without `WG2.SYS`, //c interrupt
+    that stops (with and without a joystick), fallback without a clock.
+- **Fourth pass** (after lot 5; independent review of the
+  assembler + tests):
+  - **Fixed — bonuses almost never dropped**: the kind came
+    from the low byte of a second draw, which is only the first shifted
+    by one bit; after the "< 40" test, only coins and S came out
+    (model and 6502 identical: the oracle could not see it; the oracle
+    `bonus_effects` places the objects itself). The kind now comes from
+    the high byte (uniform to 3 %). Test: ≥ 15 kinds dropped in 30 model
+    games (5 before).
+  - **Fixed — with the Mockingboard, the speaker also played** each
+    sound effect. Test: no toggle of `$C030` with the card.
+  - **Fixed**: `objects_erase` without `timing_scan` (6 objects + 6 bombs
+    could exceed a blank); the shot sound went off without a shot (slots
+    all taken); the "end of bonuses" skull spared shield and freeze;
+    ×2 picked up under ×5 brought it back down to ×2 (the stronger is kept).
+  - **Guard added**: an object dropped below row 184 would be drawn
+    in the zero page (checked by forcing it); the rules cannot
+    produce it (a shot hits nothing below row 179); permanent test
+    `model_invariants` (everything the logic gives the drawing stays
+    drawable, gauges within their bounds).
+  - Ctrl-RESET and ESC in the middle of the music (T1 IRQ active on //e):
+    back to the ProDOS launcher, which responds.
+- **Remaining, outside lot 3**: when the 40 aliens are dead, nothing
+  happens (next levels: lot 6). The ProDOS file buffers (lot 6)
+  will have to avoid `$1000-$12FF` (row tables).
 
-## Lot 4 — son : Mockingboard ou haut-parleur (fait, 2026-10-23)
+## Lot 4 — sound: Mockingboard or speaker (done, 2026-10-23)
 
-`src/sound.s`, données `src/sound.inc` (`tools/sound.py`). `logic.s` ne fait
-que lever des bits d'événement (`snd_ev` : tir, alien abattu, vaisseau
-touché, armure, fin de partie), hors de l'état comparé au modèle.
+`src/sound.s`, data `src/sound.inc` (`tools/sound.py`). `logic.s` only
+raises event bits (`snd_ev`: shot, alien shot down, ship
+hit, armour, game over), outside the state compared with the model.
 
-- [x] Détection au démarrage (`mb_detect`), **avant** l'horloge //c ;
-      `audio_slot` (0 = haut-parleur).
-- [x] `[lib]` `mockingboard.asm` : option **`MB_FAST_WRITE = 1`** (opérandes
-      absolues patchées par `mb_init`, ~55 cycles l'écriture au lieu de
-      ~110) ; défaut 0 identique octet pour octet à l'ancien code ;
-      `dev/tests/test_rgb_mockingboard.py` passe sur les deux variantes.
-- [x] ~~Écart au plan — pas de PT3~~ : **PT3 fait au lot 6** (voir plus
-      bas). Le format maison à deux voix du lot 4 a été retiré ; le morceau
-      original en la mineur (`tools/sound.py`) est devenu un module PT3.
-- [x] Musique sur **l'IRQ du timer 1 de la VIA à 60 Hz** (gestionnaire
-      ProDOS `ALLOC_INTERRUPT`, `mus_irq`, page zéro propre `mptr`, `mb_chip`
-      gardé) : les notes partent à l'heure quel que soit le nombre d'images
-      par seconde, et au même tempo en PAL. Première version (avancée une
-      fois par image) : chaque attaque tombait sur une frontière d'image et
-      le rythme boitait avec la cadence — **entendu par l'utilisateur**
-      (2026-10-23) ; test `tempo` (60 tics par seconde de processeur en
-      entrée, formation posée et PAL). Puce 1 : musique (A mélodie, B basse,
-      volume qui décroît) ; puce 2 : bruitages (voix A, son ou bruit), écrits
-      par `sound_frame`. Registres écrits seulement s'ils changent.
-- [x] Haut-parleur : bruitages seulement (pas de musique en jeu), joués
-      **dans les boucles d'attente** de `timing.s` (//e : jusqu'au front VBL ;
-      //c : jusqu'à la bascule par l'IRQ), un `STA $C030` toutes les
-      `spk_period` tours de 63 cycles (les deux boucles ont la même durée :
-      `spk_pad` sur //c). Jamais d'image retardée : sans temps libre, l'effet
-      se tait. Bornes des attentes ramenées à 8 192 tours (~0,5 s) : le tour
-      plus long avait porté le repli //c à ~4 s.
-- [x] Priorités : mort > fin de partie > armure > alien abattu > tir ; un
-      effet de même rang repart du début. **S** coupe / remet le son.
-- [x] Musique haut-parleur hors jeu (`duet.asm`) : pas d'écran hors jeu
-      avant le lot 9 (titre, boutique).
-- [x] Silence AY avant un accès disque : pas d'accès disque en jeu avant le
+- [x] Detection at boot (`mb_detect`), **before** the //c clock;
+      `audio_slot` (0 = speaker).
+- [x] `[lib]` `mockingboard.asm`: option **`MB_FAST_WRITE = 1`** (absolute
+      operands patched by `mb_init`, ~55 cycles a write instead of
+      ~110); default 0 identical byte for byte to the old code;
+      `dev/tests/test_rgb_mockingboard.py` passes on both variants.
+- [x] ~~Deviation from the plan — no PT3~~: **PT3 done in lot 6** (see
+      below). The lot 4 home-made two-voice format was removed; the
+      original A minor song (`tools/sound.py`) became a PT3 module.
+- [x] Music on **the VIA's timer 1 IRQ at 60 Hz** (ProDOS handler
+      `ALLOC_INTERRUPT`, `mus_irq`, its own zero page `mptr`, `mb_chip`
+      kept): notes start on time whatever the number of frames
+      a second, and at the same tempo in PAL. First version (advanced once
+      a frame): each attack fell on a frame boundary and
+      the rhythm limped with the frame rate — **heard by the user**
+      (2026-10-23); test `tempo` (60 ticks per second of CPU during
+      the entry, seated formation and PAL). Chip 1: music (A melody, B bass,
+      decaying volume); chip 2: sound effects (voice A, tone or noise), written
+      by `sound_frame`. Registers written only if they change.
+- [x] Speaker: sound effects only (no music in the game), played
+      **in the wait loops** of `timing.s` (//e: up to the VBL edge;
+      //c: up to the flip by the IRQ), one `STA $C030` every
+      `spk_period` 63-cycle turns (both loops have the same length:
+      `spk_pad` on //c). Never a delayed frame: without free time, the effect
+      falls silent. Wait bounds brought down to 8,192 turns (~0.5 s): the
+      longer turn had taken the //c fallback to ~4 s.
+- [x] Priorities: death > game over > armour > alien shot down > shot; an
+      effect of the same rank restarts from the beginning. **S** turns the
+      sound off / on.
+- [x] Speaker music outside the game (`duet.asm`): no screen outside the game
+      before lot 9 (title, shop).
+- [x] AY silence before a disk access: no disk access in the game before
       lot 6.
-- **Acceptation** (`make test`, `tests/test_audio.py`) : haut-parleur — rien
-  sans effet, un tir = des bascules, toutes dans les boucles d'attente,
-  rien quand S coupe ; Mockingboard (a2shot `--mockingboard`, registres AY
-  décodés des écritures VIA) — slot 4 trouvé, musique sur la puce 1
-  (première note, mélodie qui avance), tir sur la puce 2, silence sur S et
-  ESC, retour de la musique sur S ; cadence avec la carte : 1 000 images en
-  2 000 rafraîchissements, aucune en retard. `make test-iic` : effets sur
-  //c et //e, depuis les boucles d'attente seulement.
-- **À surveiller** : entrée NTSC ~41-46 images en retard sur ~1 600 avec la
-  carte (son ~1 100 cycles par image). Lot 6 : musique PT3, voir plus bas.
+- **Acceptance** (`make test`, `tests/test_audio.py`): speaker — nothing
+  without an effect, a shot = toggles, all in the wait loops,
+  nothing when S mutes; Mockingboard (a2shot `--mockingboard`, AY registers
+  decoded from the VIA writes) — slot 4 found, music on chip 1
+  (first note, melody advancing), shot on chip 2, silence on S and
+  ESC, music back on S; frame rate with the card: 1,000 frames in
+  2,000 refreshes, none late. `make test-iic`: effects on
+  //c and //e, from the wait loops only.
+- **To watch**: NTSC entry ~41-46 late frames out of ~1,600 with the
+  card (sound ~1,100 cycles a frame). Lot 6: PT3 music, see below.
 
-## Lot 5 — bonus et jauges (fait, 2026-10-23)
+## Lot 5 — bonuses and gauges (done, 2026-10-23)
 
-Logique : `tools/model.py` (sortes, poids, effets) → `tools/bonus.py` →
-`src/bonus.inc` (constantes `K_*`, `drop_table`) ; 6502 : `drop`,
-`pickups`, `take` (table de sauts) dans `src/logic.s`.
+Logic: `tools/model.py` (kinds, weights, effects) → `tools/bonus.py` →
+`src/bonus.inc` (constants `K_*`, `drop_table`); 6502: `drop`,
+`pickups`, `take` (jump table) in `src/logic.s`.
 
-- [x] 32 sortes d'objets (≤ 6 à la fois, 2 lignes par pas) : pièces
-      10/50/100/200 (crédits BCD, plafond 9999), S, B, T, armes simple
-      (malus) / double / triple (tirs obliques ±1 cellule par pas), tir
-      automatique (une salve tous les 4 pas, tir **tenu** : Pomme ouverte ou
-      ESPACE gardé), armure, vie, crâne (au hasard : arme simple, S−1, B−1
-      ou fin des bonus temporisés), lettres E-X-T-R-A (les 5 : une vie),
-      ×2 / ×5 (sur le score), bouclier, gel (les aliens s'arrêtent et ne
-      tirent plus ; les explosions continuent), 6 marques de rang + marque
-      sombre (gardées pour le lot 7), icônes des 2 sous-jeux (gardées pour
-      le lot 8).
-- [x] Un alien abattu lâche un objet une fois sur ~6 (`DROP_RATE` 40/256),
-      sorte tirée dans une table de 64 (poids dans `model.py`).
-- [x] Jauges : S = vitesse (1..5 → 2..6 cellules par pas), B = tirs à
-      l'écran (5..10), T = durée des bonus (30..90 s, 300 pas par cran) ; au
-      maximum (et armure 2, 4 vies), l'icône rapporte 500 points (× le
-      multiplicateur).
-- [x] Objets dessinés sans prédécalage : ils tombent droit sur une colonne de
-      14 points (2 octets) ; icône = une lettre de `bbfont` + une barre de la
-      couleur de la catégorie (`tools/sprites.py`, 16 octets), EOR.
-- [x] HUD : jauges S et B en 5 segments, T en secondes, crédits, lettres
-      EXTRA ramassées (« - » sinon).
-- **Acceptation** (`make test`) : nouvel oracle `bonus_effects` — chaque
-  sorte tombe sur le vaisseau (posée à la fois dans le 6502 et le modèle),
-  jauges poussées au maximum, EXTRA deux fois, crânes, armes, tir automatique,
-  ×5, gel : 964 pas identiques au modèle, 32 sortes prises (77 ramassages) ;
-  oracle au hasard avec tir tenu ; invariant d'écran avec objets (69
-  échantillons sur 480).
-- **À surveiller** : entrée NTSC ~44 images en retard sur ~1 600.
+- [x] 32 kinds of objects (≤ 6 at a time, 2 rows a step): coins
+      10/50/100/200 (BCD credits, cap 9999), S, B, T, weapons single
+      (malus) / double / triple (oblique shots ±1 cell a step), autofire
+      (a volley every 4 steps, fire **held**: Open Apple or
+      SPACE kept down), armour, life, skull (at random: single weapon, S−1,
+      B−1 or end of the timed bonuses), letters E-X-T-R-A (all 5: a life),
+      ×2 / ×5 (on the score), shield, freeze (the aliens stop and no longer
+      fire; explosions go on), 6 rank marks + dark
+      mark (kept for lot 7), icons of the 2 sub-games (kept for
+      lot 8).
+- [x] An alien shot down drops an object about one time in 6 (`DROP_RATE` 40/256),
+      kind drawn from a table of 64 (weights in `model.py`).
+- [x] Gauges: S = speed (1..5 → 2..6 cells a step), B = shots on
+      screen (5..10), T = duration of the bonuses (30..90 s, 300 steps a notch); at
+      the maximum (and armour 2, 4 lives), the icon pays 500 points (× the
+      multiplier).
+- [x] Objects drawn without pre-shift: they fall straight on a column of
+      14 dots (2 bytes); icon = a `bbfont` letter + a bar in the
+      category's colour (`tools/sprites.py`, 16 bytes), EOR.
+- [x] HUD: S and B gauges in 5 segments, T in seconds, credits, EXTRA
+      letters picked up ("-" otherwise).
+- **Acceptance** (`make test`): new oracle `bonus_effects` — each
+  kind falls on the ship (placed at once in the 6502 and the model),
+  gauges pushed to the maximum, EXTRA twice, skulls, weapons, autofire,
+  ×5, freeze: 964 steps identical to the model, 32 kinds taken (77 pickups);
+  random oracle with fire held; screen invariant with objects (69
+  samples out of 480).
+- **To watch**: NTSC entry ~44 late frames out of ~1,600.
 
-## Lot 6 — 100 niveaux, paquets, boss (fait, 2026-10-23)
+## Lot 6 — 100 levels, packs, boss (done, 2026-10-23)
 
-Réalisé (modèle `tools/model.py` = oracle bit-exact, tables
-`tools/bonus.py` → `src/bonus.inc`) :
+Done (model `tools/model.py` = bit-exact oracle, tables
+`tools/bonus.py` → `src/bonus.inc`):
 
-- [x] Niveaux : sortes NORMAL / GROS / BONUS / KAMIKAZE / BOSS, paramètres
-      par tables (`lv_*`) + saturation par boucle, téléportation de 60 pas
-      avec « LEVEL n », boucle en miroir après le 100 ; `ESCAPE_Y = 224`.
-- [x] `WG2.AUX` : 24 petites + 8 grosses tables d'aliens à aux `$2000`,
-      chargées par blocs de 8 Ko (bitmap `$BF60-$BF63` libéré le temps du
-      READ), `pack_check` copie le paquet courant en `$1000-$1FFF`.
-- [x] Gros aliens (rang 0, cases paires, 2 PV, marque de rang) ; boss 16×24
-      qui saute de 7 cases tous les 8 pas, cœur cases 4-11, rosace et bombe
-      visée.
-- [x] Hurry-up : un niveau normal ou gros qui dure plus de 1 800 pas (60 s)
-      fait sortir une soucoupe en haut (y 10), 2 cases par pas, qui rebondit,
-      hors d'atteinte, et lâche une bombe visée tous les 12 pas ; elle part
-      à la fin du niveau. Testée : oracle bit-exact (niveau poussé à
-      `level_t` = 1 740), invariant d'écran.
-- [x] **PT3** (demandé en cours de lot) : lecteur de Vince Weaver
-      (pt3_lib 0.5, 0BSD) en `[lib]` **`dev/lib/apple2/pt3/`** (sources
-      inchangées + `pt3_zp.inc` relogeable + `pt3.s` : décodage seul, sans
-      IRQ ni écriture carte). Morceau : `tools/pt3.py` écrit
-      `build/song.pt3` depuis la mélodie et la basse de `tools/sound.py`
-      (table 1, notes une octave plus haut : la Mockingboard à 1 MHz joue
-      une octave et ~40 cents plus bas). Lecteur + morceau **en mémoire aux
-      à `$6000`** (zone `AUXM` de `game.cfg`, `build/game.bin.mus` collé à
-      `WG2.AUX` après les paquets) : la mémoire principale garde sa place
-      pour les lots 7-9. L'IRQ du timer 1 y entre par des **trampolines à
-      `$1FE0`** (mêmes octets en principal et en aux, RAMRD/RAMWRT) ; ZP du
-      lecteur `$D0-$EF` (hors `$FA-$FF` de ProDOS). Puce 1 : registres
-      écrits s'ils changent (R13 `$FF` = inchangé) ; puce 2 : bruitages.
-      Le lecteur GROUiK d'A2FileCmd (signalé par l'utilisateur) a été
-      écarté : 4,8 Ko + 613 octets, et son adaptation place moteur et
-      morceau en aux `$2000/$4000` (nos paquets).
-- [x] Tick ~1 450-2 400 cycles (moyenne 1 570) : l'IRQ fait un
-      `timing_scan` à l'entrée et à la sortie, rendu **atomique** (`sei`)
-      pour ne compter aucun front deux fois.
-- [x] `make test-long` : pilote automatique (niveaux 1, 25, 100 finis avec
-      3 vies) et pires niveaux (97, boss 25, boss 100) avec et sans carte.
+- [x] Levels: kinds NORMAL / BIG / BONUS / KAMIKAZE / BOSS, parameters
+      by tables (`lv_*`) + saturation by loop, 60-step teleport
+      with "LEVEL n", mirrored loop after 100; `ESCAPE_Y = 224`.
+- [x] `WG2.AUX`: 24 small + 8 big alien tables at aux `$2000`,
+      loaded in 8 KB blocks (bitmap `$BF60-$BF63` freed during the
+      READ), `pack_check` copies the current pack into `$1000-$1FFF`.
+- [x] Big aliens (row 0, even slots, 2 HP, rank mark); 16×24 boss
+      that jumps 7 cells every 8 steps, core cells 4-11, rosette and aimed
+      bomb.
+- [x] Hurry-up: a normal or big level that lasts more than 1,800 steps (60 s)
+      brings out a saucer at the top (y 10), 2 cells a step, which bounces,
+      out of reach, and drops an aimed bomb every 12 steps; it leaves
+      at the end of the level. Tested: bit-exact oracle (level pushed to
+      `level_t` = 1 740), screen invariant.
+- [x] **PT3** (requested during the lot): Vince Weaver's player
+      (pt3_lib 0.5, 0BSD) as `[lib]` **`dev/lib/apple2/pt3/`** (sources
+      unchanged + relocatable `pt3_zp.inc` + `pt3.s`: decoding only, without
+      IRQ or card writes). Song: `tools/pt3.py` writes
+      `build/song.pt3` from the melody and bass of `tools/sound.py`
+      (table 1, notes an octave higher: the Mockingboard at 1 MHz plays
+      an octave and ~40 cents lower). Player + song **in aux memory
+      at `$6000`** (zone `AUXM` of `game.cfg`, `build/game.bin.mus` appended to
+      `WG2.AUX` after the packs): main memory keeps its room
+      for lots 7-9. The timer 1 IRQ enters it through **trampolines at
+      `$1FE0`** (same bytes in main and aux, RAMRD/RAMWRT); player ZP
+      `$D0-$EF` (outside ProDOS's `$FA-$FF`). Chip 1: registers
+      written if they change (R13 `$FF` = unchanged); chip 2: sound effects.
+      The GROUiK player of A2FileCmd (pointed out by the user) was
+      set aside: 4.8 KB + 613 bytes, and its adaptation puts engine and
+      song at aux `$2000/$4000` (our packs).
+- [x] Tick ~1,450-2,400 cycles (average 1,570): the IRQ does a
+      `timing_scan` on entry and on exit, made **atomic** (`sei`)
+      so as to count no edge twice.
+- [x] `make test-long`: autopilot (levels 1, 25, 100 finished with
+      3 lives) and worst levels (97, boss 25, boss 100) with and without a card.
 
-## Chasse aux bugs 5 (2026-10-23, après le lot 6 et le PT3)
+## Bug hunt 5 (2026-10-23, after lot 6 and the PT3)
 
-Relecture indépendante (sous-agent) + vérifications ; chaque bug a son test,
-vérifié en échec avant le correctif.
+Independent review (subagent) + checks; each bug has its test,
+checked failing before the fix.
 
-- [x] **Haut-parleur ~13 % trop grave sur //e** (introduit par le PT3) :
-      `timing_scan` atomique (`php/sei/plp`, +9 cycles) portait le tour de
-      la boucle d'attente à 72 cycles, `SPK_TURN` restait à 63 et le //c
-      (`spk_pad`) n'était plus pareil. `SPK_TURN = 72`, `spk_pad` +9 ; test
-      de hauteur dans `test_audio.py` (demi-périodes = n × `SPK_TURN`).
-- [x] **Manche faussé par la musique** (//e et //c avec carte) : un tick PT3
-      au milieu du comptage du paddle arrêtait X mais pas le timer, lecture
-      trop basse (à droite lu « gauche » ~1 image sur 15). La lecture est
-      abandonnée si `mus_ticks` a bougé (pas de `sei` : sur //c il
-      bloquerait la bascule). Test `joystick` avec la carte (droite,
-      centre : valeurs constantes).
-- [x] **Changement de paquet** : un seul `AUXMOVE` de 1 232 octets sous
-      `sei`, ~50 000 cycles sans IRQ ni `timing_scan` : un tick de musique
-      et des fronts VBL perdus à chaque paquet. `aux_fetch` copie 64 octets
-      à la fois (`sei` par bloc, scan entre deux). Scène « level changes,
-      Mockingboard » de `vbl_edges` (échoue avec des blocs de 255).
-- [x] **Manche mort sans horloge vidéo** (délais : //c dont l'IRQ s'arrête,
-      pas de firmware souris) : lu avant le WAIT (`joy_read_delay`, 17
-      cycles par compte comme les autres boucles). Test `joystick_delay`.
-- Vérifié sans défaut : IRQ et état mémoire (RAMRD/RAMWRT/ALTZP/80STORE),
-  trampolines, ZP (crt0 sauve les 256 octets), taille de `WG2.AUX`, module
-  PT3 (en-tête, motifs, samples, boucle), états partagés du son, soucoupe
-  (ordre EOR/STA, y compris au-dessus des gros aliens), boss.
+- [x] **Speaker ~13 % too low on //e** (introduced by the PT3):
+      atomic `timing_scan` (`php/sei/plp`, +9 cycles) took the turn of
+      the wait loop to 72 cycles, `SPK_TURN` stayed at 63 and the //c
+      (`spk_pad`) no longer matched. `SPK_TURN = 72`, `spk_pad` +9; pitch
+      test in `test_audio.py` (half-periods = n × `SPK_TURN`).
+- [x] **Stick skewed by the music** (//e and //c with a card): a PT3 tick
+      in the middle of the paddle count stopped X but not the timer, reading
+      too low (right read as "left" ~1 frame in 15). The reading is
+      dropped if `mus_ticks` moved (no `sei`: on //c it
+      would block the flip). Test `joystick` with the card (right,
+      centre: constant values).
+- [x] **Pack change**: a single `AUXMOVE` of 1,232 bytes under
+      `sei`, ~50,000 cycles without IRQ or `timing_scan`: a music tick
+      and VBL edges lost at each pack. `aux_fetch` copies 64 bytes
+      at a time (`sei` per block, scan between two). Scene "level changes,
+      Mockingboard" of `vbl_edges` (fails with blocks of 255).
+- [x] **Dead stick without a video clock** (delays: //c whose IRQ stops,
+      no mouse firmware): read before the WAIT (`joy_read_delay`, 17
+      cycles a count like the other loops). Test `joystick_delay`.
+- Checked without defect: IRQ and memory state (RAMRD/RAMWRT/ALTZP/80STORE),
+  trampolines, ZP (crt0 saves the 256 bytes), size of `WG2.AUX`, PT3
+  module (header, patterns, samples, loop), shared sound states, saucer
+  (EOR/STA order, including above the big aliens), boss.
 
-## Chasse aux bugs 6 (2026-10-23)
+## Bug hunt 6 (2026-10-23)
 
-Seconde relecture indépendante (bornes, branches rares, modèle = 6502) ;
-oracle long en boucles 1, 5, 250 et 255 (boss du 100) : identique.
+Second independent review (bounds, rare branches, model = 6502);
+long oracle on loops 1, 5, 250 and 255 (boss of level 100): identical.
 
-- [x] **Les cadeaux du boss perdus** (règle du modèle aussi) : vie et pièce
-      de 200 tombent de la ligne 32, la fin du niveau venait 40 pas après
-      le boss et les effaçait à mi-chemin. Des objets qui tombent
-      retiennent maintenant la fin. Test du modèle (vaisseau dessous : la
-      vie prise), échoue sur l'ancien modèle.
-- [x] **Gel (FREEZE) sur un niveau à gros aliens** : la boucle gelée ne
-      listait pas les gros aliens posés, les tirs les traversaient (le
-      modèle les touchait). Oracle « frozen big aliens » (gel au pas 140
-      du niveau 3), échoue sans le correctif.
-- [x] Gros alien qui se pose : absent de la liste des cibles ce pas-là
-      (`home`), le modèle le comptait. Corrigé (`fly_add`).
-- [x] « LEVEL n » juste jusqu'au bout : n sur 16 bits, 5 chiffres
-      (message de 11 caractères, GAME OVER centré dedans) ; avant, les
-      centaines valaient boucle mod 10 (faux après le niveau 1 000). Test
+- [x] **The boss's gifts lost** (a model rule too): life and 200
+      coin fall from row 32, the end of the level came 40 steps after
+      the boss and wiped them half-way. Falling objects
+      now hold the end. Model test (ship underneath: the
+      life taken), fails on the old model.
+- [x] **Freeze (FREEZE) on a big-alien level**: the frozen loop did not
+      list the seated big aliens, shots went through them (the
+      model hit them). Oracle "frozen big aliens" (freeze at step 140
+      of level 3), fails without the fix.
+- [x] Big alien settling: missing from the list of targets that step
+      (`home`), the model counted it. Fixed (`fly_add`).
+- [x] "LEVEL n" right to the end: n on 16 bits, 5 digits
+      (11-character message, GAME OVER centred in it); before, the
+      hundreds were loop mod 10 (wrong after level 1,000). Test
       `messages` (2 … 25 601).
-- [x] La boucle sature à 255 (255 + 1 donnait 0 : le jeu redevenait
-      facile) ; oracle « loop 255 » dans `make test-long`.
-- [x] Le score s'arrête à 999 999 (il repassait à 0) ; test `score_cap`.
-- [x] Plus de niveaux qui avancent derrière GAME OVER (bonus / kamikaze se
-      vidaient seuls et chargeaient le paquet suivant).
+- [x] The loop saturates at 255 (255 + 1 gave 0: the game became
+      easy again); oracle "loop 255" in `make test-long`.
+- [x] The score stops at 999,999 (it went back to 0); test `score_cap`.
+- [x] No more levels advancing behind GAME OVER (bonus / kamikaze emptied
+      by themselves and loaded the next pack).
 
-## Lot 7 — boutique et rangs (fait, 2026-10-23)
+## Lot 7 — shop and ranks (done, 2026-10-23)
 
-Réalisé :
+Done:
 
-- [x] Règles dans le modèle (`ITEMS`, `buy`, `shop_exit`) et dans
+- [x] Rules in the model (`ITEMS`, `buy`, `shop_exit`) and in
       `logic.s` (`shop_room`, `shop_can`, `shop_buy`, `shop_exit`), tables
-      par `tools/bonus.py` (prix BCD, noms). La boutique s'ouvre à la fin de
-      la téléportation qui suit le 4e niveau de chaque paquet (4, 8 … 100)
-      si l'on a ≥ 50 crédits ; la logique attend (`shop`), le niveau
-      suivant vient à la sortie. Crochet de test `noshop` (fermée aussitôt,
-      rien d'acheté) pour les scènes qui traversent une fin de paquet.
-- [x] Écran (`src/shop.s`) : overlay lié pour `$4000` (zone `SHOPM`,
-      `build/game.bin.shop`, 1,4 Ko avec le duet), rangé en fin de
-      `WG2.AUX` (aux `$7000`) et copié sur la page 2 quand la boutique
-      s'ouvre (page 1 affichée) : **pas d'accès disque en jeu**. Crédits,
-      rang, 10 objets avec prix et « MAX » à la limite, jauges, marques
-      (icônes du jeu), curseur ; ← ↑ / → ↓ déplacent, RETURN ou ESPACE
-      achète (carillon ; refus : petit son), ESC ou LEAVE sort ; manette
-      (mode TAB) : paddle 1 haut / bas, bouton 0.
-- [x] Musique : Mockingboard, le PT3 continue ; **haut-parleur : le duet**
-      (`dev/lib/apple2/duet.asm`, aligné sur une page dans l'overlay) joue
-      la mélodie et la basse du jeu par tranches de 4 (~33 ms), une touche
-      coupe la tranche (le point du lot 4 « musique haut-parleur hors jeu »
-      est fait pour la boutique ; le titre au lot 9).
-- [x] Rangs : 6 marques → rang + 1 à la sortie (marques remises à 0) ;
-      marque sombre → rang − 1 ; RANK MARKER donne la première marque qui
-      manque. Rang 0-99.
-- [x] Tests (`tests/test_shop.py`, `make test`) : achats au clavier avec
-      la carte (dont un refus), marque achetée → rang + 1 par LEAVE, marque
-      sombre → rang − 1 par ESC, achats à la manette, musique haut-parleur
-      (voix qui basculent, un événement toutes les 0,233 s, curseur qui
-      répond), pas de boutique sous 50 crédits ; chaque état final ==
-      modèle.
+      by `tools/bonus.py` (BCD prices, names). The shop opens at the end of
+      the teleport that follows the 4th level of each pack (4, 8 … 100)
+      if one has ≥ 50 credits; the logic waits (`shop`), the next level
+      comes on leaving. Test hook `noshop` (closed at once,
+      nothing bought) for the scenes that cross a pack's end.
+- [x] Screen (`src/shop.s`): overlay linked for `$4000` (zone `SHOPM`,
+      `build/game.bin.shop`, 1.4 KB with the duet), stored at the end of
+      `WG2.AUX` (aux `$7000`) and copied to page 2 when the shop
+      opens (page 1 displayed): **no disk access in the game**. Credits,
+      rank, 10 items with prices and "MAX" at the limit, gauges, marks
+      (game icons), cursor; ← ↑ / → ↓ move, RETURN or SPACE
+      buys (chime; refusal: small sound), ESC or LEAVE leaves; joystick
+      (TAB mode): paddle 1 up / down, button 0.
+- [x] Music: Mockingboard, the PT3 goes on; **speaker: the duet**
+      (`dev/lib/apple2/duet.asm`, page-aligned in the overlay) plays
+      the game's melody and bass in slices of 4 (~33 ms), a key
+      cuts the slice (the lot 4 point "speaker music outside the game"
+      is done for the shop; the title in lot 9).
+- [x] Ranks: 6 marks → rank + 1 on leaving (marks reset to 0);
+      dark mark → rank − 1; RANK MARKER gives the first missing
+      mark. Rank 0-99.
+- [x] Tests (`tests/test_shop.py`, `make test`): purchases by keyboard with
+      the card (including a refusal), mark bought → rank + 1 through LEAVE, dark
+      mark → rank − 1 through ESC, purchases by joystick, speaker music
+      (voices toggling, an event every 0.233 s, cursor that
+      responds), no shop under 50 credits; each final state ==
+      model.
 
-## Lot 8 — sous-jeux (fait, 2026-10-23)
+## Lot 8 — sub-games (done, 2026-10-23)
 
-Réalisé :
+Done:
 
-- [x] Entrée : l'icône attrapée (`subgame`) lance le sous-jeu **à la fin de
-      la téléportation** qui suit le niveau ; ensuite la boutique (si c'est
-      un 4e niveau et ≥ 50 crédits), puis le niveau suivant (`teleported`
-      dans `logic.s` et le modèle).
-- [x] **Meteor Storm** (`src/storm.s`, règles dans `storm_step` du modèle,
-      oracle au pas près) : dans le moteur du jeu, mêmes sprites, même
-      cadence. Les rochers sont des aliens (emplacements 0-11, état
-      `ST_ROCK`), dessinés comme des aliens qui volent, avec un dessin de
-      rocher (2 images, `WG2.AUX` après les gros aliens, copié dans
-      `cur_alien` par `pack_check`). Tir tenu = plus vite (+1 par pas, 0-63),
-      relâché = plus lent (−2 : on ralentit plus vite qu'on accélère) ; le
-      champ descend de 2 + vitesse / 8 lignes par pas (rochers, pièces, et
-      les étoiles en plus de leur propre vitesse). Un rocher ou une pièce
-      toutes les 28 lignes ; 4 096 lignes à parcourir ; « METEOR STORM »
-      pendant les 60 premiers pas. HUD propre : SPEED et DIST en 8 segments,
-      crédits. Choc : le vaisseau explose, **aucune vie perdue**, fin quand
-      l'explosion finit. Traversée : une prime selon le temps mis (par
-      tranches de 128 pas, ~4 s : 32 000 → 2 000 points), multiplicateur
-      compris. Puis téléportation (LEVEL n).
-      Code **résident en `$0800-$0FFF`** (zone `LOWM`, protégée par le
-      crt0) : copié de `WG2.AUX` (aux `$8000`) au démarrage, 601 octets.
-      Aucune image en retard à pleine vitesse (avec et sans carte).
-- [x] **Memory Station** (`src/memory.s`, dans l'overlay de la boutique) :
-      grilles 3×3, 5×3, 5×5 puis 7×5 ; des paires de bonus (pièces, S, B, T,
-      vie, armure, armes 2-3, lettres EXTRA, ×2) et **un crâne** (le
-      pavillon pirate) qui termine la station. Une paire : son bonus (`take`,
-      comme une icône attrapée) ; la grille finie : **+25 000** et la grille
-      suivante ; deux cartes différentes restent visibles ~1 s. Temps : jauge
-      T (10 s par niveau de T) par grille, horloge de l'écran (la logique du
-      jeu attend). Cartes = icônes du jeu (`?` face cachée). Flèches ou
-      I J K L, RETURN ou ESPACE, ESC sort ; manette : paddles 0/1, bouton 0.
-      Musique : PT3 ou duet, comme la boutique. Règles (`mem_deal`,
-      `mem_turn`) contre le modèle.
-- [x] Tests (`tests/test_subgames.py`, `make test`) : modèle (20 tempêtes,
-      donnes de toutes tailles) ; **oracle Meteor Storm** au pas près depuis
-      le niveau 4 (traversée à pleine vitesse ; choc sans perte de vie) ;
-      Memory Station au clavier (une erreur, 4 paires, grille finie +25 000,
-      crâne sur la grille 5×3), à la manette (une paire, ESC, puis la
-      boutique), temps écoulé. `test_screen` : écran de la tempête == redessin
-      complet (HUD, rochers, message). Message central passé à 12 caractères.
+- [x] Entry: the icon caught (`subgame`) starts the sub-game **at the end of
+      the teleport** that follows the level; then the shop (if it is
+      a 4th level and ≥ 50 credits), then the next level (`teleported`
+      in `logic.s` and the model).
+- [x] **Meteor Storm** (`src/storm.s`, rules in the model's `storm_step`,
+      step-exact oracle): in the game engine, same sprites, same
+      frame rate. The rocks are aliens (slots 0-11, state
+      `ST_ROCK`), drawn like flying aliens, with a
+      rock drawing (2 frames, `WG2.AUX` after the big aliens, copied into
+      `cur_alien` by `pack_check`). Fire held = faster (+1 a step, 0-63),
+      released = slower (−2: slowing down is faster than speeding up); the
+      field comes down 2 + speed / 8 rows a step (rocks, coins, and
+      the stars on top of their own speed). A rock or a coin
+      every 28 rows; 4,096 rows to cover; "METEOR STORM"
+      during the first 60 steps. Its own HUD: SPEED and DIST in 8 segments,
+      credits. Crash: the ship explodes, **no life lost**, end when
+      the explosion ends. Crossing: a prize by the time taken (in
+      slices of 128 steps, ~4 s: 32,000 → 2,000 points), multiplier
+      included. Then teleport (LEVEL n).
+      Code **resident at `$0800-$0FFF`** (zone `LOWM`, protected by the
+      crt0): copied from `WG2.AUX` (aux `$8000`) at boot, 601 bytes.
+      No late frames at full speed (with and without a card).
+- [x] **Memory Station** (`src/memory.s`, in the shop's overlay):
+      grids 3×3, 5×3, 5×5 then 7×5; pairs of bonuses (coins, S, B, T,
+      life, armour, weapons 2-3, EXTRA letters, ×2) and **a skull** (the
+      pirate flag) that ends the station. A pair: its bonus (`take`,
+      like a caught icon); the grid finished: **+25,000** and the next
+      grid; two different cards stay visible ~1 s. Time: T
+      gauge (10 s per T level) per grid, the screen's clock (the game's
+      logic waits). Cards = game icons (`?` face down). Arrows or
+      I J K L, RETURN or SPACE, ESC leaves; joystick: paddles 0/1, button 0.
+      Music: PT3 or duet, like the shop. Rules (`mem_deal`,
+      `mem_turn`) against the model.
+- [x] Tests (`tests/test_subgames.py`, `make test`): model (20 storms,
+      deals of all sizes); **Meteor Storm oracle** step-exact from
+      level 4 (crossing at full speed; crash without losing a life);
+      Memory Station by keyboard (a mistake, 4 pairs, grid finished +25,000,
+      skull on the 5×3 grid), by joystick (a pair, ESC, then the
+      shop), time out. `test_screen`: storm screen == full redraw
+      (HUD, rocks, message). Central message raised to 12 characters.
 
-## Lot 9 — titre, démo, records, intégration (fait, 2026-10-23)
+## Lot 9 — title, demo, records, integration (done, 2026-10-23)
 
-Réalisé :
+Done:
 
-- [x] **Écran titre** (`src/front.s`, dans l'overlay de la boutique : segment
-      `FRONT` après `DUET`, overlay porté à 8 Ko, aux `$7000-$8FFF` ; la
-      boutique ne copie que sa part). Image `tools/title.py` (WARGALAGA en
-      lettres de la police ×2 cellules × 3 lignes, II, les petits aliens,
-      étoiles) → `fhpack -c -9 -h` → **792 octets**, décodée en page 1 par
-      `lz4fh.asm` assemblé dans l'overlay (`[lib]` : option `LZ4FH_HERE=1`,
-      défaut identique). Sous l'image, un panneau (lignes 11-23) : menu
-      (jouer, J clavier / manette, S son, H aide, ESC quitter, meilleur
-      score), records, aide. Musique : PT3 ou `duet` (`sh_tick` de la
-      boutique).
-- [x] **Mode démo** (`src/demo.s`, résident en `$0A59` après Meteor Storm) :
-      une vraie partie (niveau 1, `SEED`), `logic_step` prend chaque pas
-      dans `src/demo.inc` (`tools/demo.py` : les déplacements de
-      l'autopilote sur le modèle, tir pressé et tenu, plages d'un octet,
-      ~320 octets pour 1 800 pas : niveaux 1 à 3, début du 4) ; boutique et
-      station fermées (`noshop`) ; « DEMO » au centre (message 4) ; une
-      touche, un bouton, la fin du script ou GAME OVER : le titre. Cycle au
-      repos : menu ~10 s, records ~8 s, démo.
-- [x] **Records** `HIGHSCORES` (`tools/records.py` : format, règles, fichier
-      neuf ; 8 entrées : initiales, score BCD, niveau atteint ; la manette) :
-      lu une fois (défauts s'il manque ou est invalide), écrit après un
-      record ou un changement de manette (créé s'il manque) ; disquette
-      protégée : « SCORES NOT SAVED », la table reste en mémoire. Initiales
-      au clavier (lettres, chiffres, `.`, ← / DELETE, RETURN) ou à la
-      manette (Y choisit, bouton valide) ; 30 s sans rien : ce qui est tapé.
-- [x] **Choix du périphérique** au titre (J ou TAB), retenu dans
-      `HIGHSCORES` ; TAB reste en jeu.
-- [x] Flux : démarrage → titre ; ESC en jeu → titre (record possible),
-      ESC au titre → ProDOS ; GAME OVER → titre après le tir (passé
-      `OVER_WAIT`) ou `OVER_END` = 240 images.
-- [x] Construction : `HIGHSCORES` sur le volume, `fhpack` (`dev/cc65/fhpack.mk`),
-      `make test` y compris `tools/demo.py --check`. Racine : `wargalagaii`
-      dans `IIE_PRODOS_GAMES` (`all`, `profile-iie-prodos` qui parcourt la
-      liste) et dans `TESTED` (`test-wargalagaii`), ligne et section du
-      README racine, captures `screenshots/`.
-- [x] Tests : `tests/test_front.py` (règles des records ; titre = image +
-      menu, J, H ; cycle au repos ; **démo entière == modèle** au pas près,
-      1 801 pas ; démo arrêtée par une touche, par le bouton, sans record ;
-      record au clavier, fichier écrit puis relu ; record à la manette sur
-      disquette protégée, erreur `$2B` via `POM2_MEDIA_WRITE_DEFAULT`) ;
-      `test_screen` : écran de la démo == redessin complet. Les autres tests
-      démarrent par `tests/boot.py` (`front_skip` posé en `_main` : la partie
-      tout de suite, `SEED`) ; ceux qui laissent la partie finir tiennent
-      `over_wait` à 0 ou donnent 9 vies.
-- [x] Banc (`tools/profile.py`, //e NTSC) : formation + plongeurs + 10 tirs :
-      rendu moyen 21 145 (pire 27 672) + logique 3 759 (pire 4 493) ; boss
-      (niveau 25) : rendu 18 417 (pire 26 348) + logique 4 522 (pire 5 617),
-      contre 28 060 ; aucune image en retard sur ces scènes, ni en Meteor
-      Storm (lot 8). Rien n'est passé en lib : pas d'entrée `bench-check`.
-      Entrée des vagues (déjà au-delà du budget) : 88 images en retard sur
-      1 600, contre 78 avant le lot ; le seul placement du code (octets de
-      remplissage devant `_main`) fait varier ce nombre de 80 à 90 : bruit
-      d'alignement, pas le coût des nouveaux tests.
-- [x] Relecture indépendante (sous-agent, code seul) : rien qui plante,
-      bloque, écrase ou désynchronise la démo ; six défauts corrigés :
-      DELETE effacé en majuscule (`$7F` → `$5F`, n'effaçait rien), bouton
-      encore tenu après la dernière initiale à la manette = « jouer »
-      (`fr_btn` relu après la saisie), délai des initiales compté depuis la
-      dernière saisie, ESPACE tenu à GAME OVER sautait le titre (touches
-      verrouillées jusqu'à leur relâche), le message « NOT SAVED » abrégé
-      par une touche (haut-parleur), un `HIGHSCORES` court gardait des
-      octets périmés (défauts si moins de 64 octets lus).
+- [x] **Title screen** (`src/front.s`, in the shop's overlay: segment
+      `FRONT` after `DUET`, overlay raised to 8 KB, aux `$7000-$8FFF`; the
+      shop copies only its part). Picture `tools/title.py` (WARGALAGA in
+      font letters ×2 cells × 3 rows, II, the small aliens,
+      stars) → `fhpack -c -9 -h` → **792 bytes**, decoded to page 1 by
+      `lz4fh.asm` assembled in the overlay (`[lib]`: option `LZ4FH_HERE=1`,
+      default identical). Under the picture, a panel (rows 11-23): menu
+      (play, J keyboard / joystick, S sound, H help, ESC quit, best
+      score), records, help. Music: PT3 or `duet` (the shop's
+      `sh_tick`).
+- [x] **Demo mode** (`src/demo.s`, resident at `$0A59` after Meteor Storm):
+      a real game (level 1, `SEED`), `logic_step` takes each step
+      from `src/demo.inc` (`tools/demo.py`: the autopilot's moves
+      on the model, fire pressed and held, one-byte runs,
+      ~320 bytes for 1,800 steps: levels 1 to 3, start of the 4th); shop and
+      station closed (`noshop`); "DEMO" in the centre (message 4); a
+      key, a button, the end of the script or GAME OVER: the title. Idle
+      cycle: menu ~10 s, records ~8 s, demo.
+- [x] **Records** `HIGHSCORES` (`tools/records.py`: format, rules, new
+      file; 8 entries: initials, BCD score, level reached; the joystick):
+      read once (defaults if it is missing or invalid), written after a
+      record or a joystick change (created if missing); write-protected
+      disk: "SCORES NOT SAVED", the table stays in memory. Initials
+      by keyboard (letters, digits, `.`, ← / DELETE, RETURN) or by
+      joystick (Y chooses, button confirms); 30 s without anything: what was typed.
+- [x] **Choice of input device** at the title (J or TAB), kept in
+      `HIGHSCORES`; TAB stays in the game.
+- [x] Flow: boot → title; ESC in the game → title (record possible),
+      ESC at the title → ProDOS; GAME OVER → title after the shot (past
+      `OVER_WAIT`) or `OVER_END` = 240 frames.
+- [x] Build: `HIGHSCORES` on the volume, `fhpack` (`dev/cc65/fhpack.mk`),
+      `make test` including `tools/demo.py --check`. Root: `wargalagaii`
+      in `IIE_PRODOS_GAMES` (`all`, `profile-iie-prodos` which walks the
+      list) and in `TESTED` (`test-wargalagaii`), line and section of the
+      root README, screenshots `screenshots/`.
+- [x] Tests: `tests/test_front.py` (records rules; title = picture +
+      menu, J, H; idle cycle; **whole demo == model** step-exact,
+      1,801 steps; demo stopped by a key, by the button, without a record;
+      record by keyboard, file written then read back; record by joystick on
+      a write-protected disk, error `$2B` via `POM2_MEDIA_WRITE_DEFAULT`);
+      `test_screen`: demo screen == full redraw. The other tests
+      start through `tests/boot.py` (`front_skip` set in `_main`: the game
+      at once, `SEED`); those that let the game end hold
+      `over_wait` at 0 or give 9 lives.
+- [x] Bench (`tools/profile.py`, //e NTSC): formation + divers + 10 shots:
+      average render 21,145 (worst 27,672) + logic 3,759 (worst 4,493); boss
+      (level 25): render 18,417 (worst 26,348) + logic 4,522 (worst 5,617),
+      against 28,060; no late frames on these scenes, nor in Meteor
+      Storm (lot 8). Nothing moved into a lib: no `bench-check` entry.
+      Wave entry (already over the budget): 88 late frames out of
+      1,600, against 78 before the lot; the code placement alone (padding
+      bytes before `_main`) makes this number vary from 80 to 90: alignment
+      noise, not the cost of the new tests.
+- [x] Independent review (subagent, code only): nothing that crashes,
+      blocks, overwrites or desynchronises the demo; six defects fixed:
+      DELETE erased as uppercase (`$7F` → `$5F`, erased nothing), button
+      still held after the last initial by joystick = "play"
+      (`fr_btn` read again after the entry), initials timeout counted from the
+      last input, SPACE held at GAME OVER skipped the title (keys
+      locked until released), the "NOT SAVED" message cut short
+      by a key (speaker), a short `HIGHSCORES` kept stale
+      bytes (defaults if fewer than 64 bytes read).
 
-## Lisibilité des bonus (2026-10-23)
+## Bonus readability (2026-10-23)
 
-Demande : « l'affichage des bonus doit être fortement amélioré en pensant à
-la lisibilité ». Avant : une lettre de la police (traits d'un point, franges
-de couleur) et un carré de couleur, 2 × 8 ; deux T, deux A, des chiffres
-pour les armes comme pour les marques.
+Request: "the display of the bonuses must be greatly improved with
+readability in mind". Before: a font letter (one-dot strokes, colour
+fringes) and a colour square, 2 × 8; two T, two A, digits
+for the weapons as for the marks.
 
-- [x] Icônes redessinées dans `tools/sprites.py` (`ICON_SHAPES`), **7 cellules
-      × 13 lignes** (`ICON_H` = `OBJ_H`, 8 avant), tracées en cellules de 2
-      points : traits blancs sans franges. Une forme par famille, la couleur
-      dit laquelle : pièces = disque à `$` découpé (vert 10, orange 50, bleu
-      100, violet 200) ; jauges = pilule bleue S B T ; armes = pilule violette
-      (1, 2, 3 tirs ; tir auto : tirets) ; multiplicateurs = pilule orange
-      2, 5 ; EXTRA = pilule blanche ; bouclier = bulle verte autour du
-      vaisseau ; armure = écu bleu ; vie = cœur orange ; crâne ; gel = flocon ;
-      marques = médaille (ruban, disque de la couleur, numéro découpé),
-      marque sombre = médaille vide ; sous-jeux = le rocher, la carte verte `?`.
-- [x] `icon_src` par table (`icon_lo/hi`) ; la boîte de ramassage suit
-      `OBJ_H` (modèle et 6502) ; script de la démo régénéré ; aide du titre.
-- [x] Bug trouvé en passant (lot 7) : les marques de la boutique étaient
-      posées toutes les 3 colonnes, une sur deux sur une colonne impaire, où
-      les couleurs s'échangent (orange affiché bleu) : pas de 4 (test
-      `marks_screen` de `tests/test_shop.py`).
-- Coût : 5 lignes de plus par objet, à l'effacement et au tracé ; environ
-  520 cycles par objet visible et par image, compte fait sur le code (pas
-  mesuré), soit ~3 100 au pire avec 6 objets à l'écran. Aucune image en
-  retard au banc, cadence inchangée (90 images en retard à l'entrée des
-  vagues, dans le bruit 80-90 mesuré au lot 9).
-- Aperçu : `screenshots/bonus.png` (les 32, dans l'ordre de `model.KINDS`).
+- [x] Icons redrawn in `tools/sprites.py` (`ICON_SHAPES`), **7 cells
+      × 13 rows** (`ICON_H` = `OBJ_H`, 8 before), drawn in 2-dot
+      cells: white strokes without fringes. One shape per family, the colour
+      says which: coins = disc with a cut-out `$` (green 10, orange 50, blue
+      100, violet 200); gauges = blue pill S B T; weapons = violet pill
+      (1, 2, 3 shots; autofire: dashes); multipliers = orange pill
+      2, 5; EXTRA = white pill; shield = green bubble around the
+      ship; armour = blue shield; life = orange heart; skull; freeze = snowflake;
+      marks = medal (ribbon, disc of the colour, cut-out number),
+      dark mark = empty medal; sub-games = the rock, the green `?` card.
+- [x] `icon_src` by table (`icon_lo/hi`); the pickup box follows
+      `OBJ_H` (model and 6502); demo script regenerated; title help.
+- [x] Bug found along the way (lot 7): the shop's marks were
+      placed every 3 columns, every other one on an odd column, where
+      the colours swap (orange shown blue): step of 4 (test
+      `marks_screen` of `tests/test_shop.py`).
+- Cost: 5 more rows per object, on erase and draw; about
+  520 cycles per visible object and per frame, counted on the code (not
+  measured), so ~3,100 at worst with 6 objects on screen. No late
+  frames on the bench, frame rate unchanged (90 late frames at the wave
+  entry, within the 80-90 noise measured in lot 9).
+- Preview: `screenshots/bonus.png` (all 32, in the order of `model.KINDS`).
 
-## Effets des bonus et malus perçus (2026-10-23)
+## Bonus and malus effects made visible (2026-10-23)
 
-Demande : « implémente les actions de tous les bonus et malus ». Les 32
-effets existaient déjà depuis le lot 5 (modèle et 6502, oracle
-`bonus_effects`) mais un ramassage était muet et invisible : rien ne disait
-ce qu'on avait pris, ni quel malus le crâne avait tiré.
+Request: "implement the actions of all the bonuses and maluses". The 32
+effects had existed since lot 5 (model and 6502, oracle
+`bonus_effects`) but a pickup was silent and invisible: nothing said
+what had been taken, nor which malus the skull had drawn.
 
-- [x] **Nom au ramassage** : le message du milieu du terrain (ligne 96)
-      affiche ce que le ramassage a fait pendant `PICK_T` = 45 pas (1,5 s) :
-      « +50 CREDITS », « TRIPLE SHOT », « SCORE X5 », « RANK MARK 3 »… ; une
-      jauge, l'armure ou les vies déjà au maximum : « BONUS POINTS » ; le
-      crâne dit son malus (« SINGLE SHOT », « LESS SPEED », « LESS BULLET »,
-      « BONUS LOST ») ; la cinquième lettre : « EXTRA LIFE ». Priorité :
-      GAME OVER, LEVEL n, METEOR STORM, puis le ramassage, puis DEMO.
-- [x] État de logique `pick_msg` / `pick_t` (modèle = oracle, `take` pose
-      `pick_msg`, `pickups` arme `pick_t`) ; 36 textes de `model.PICK_TEXT`
-      générés par `tools/bonus.py` dans le segment `PICK` de LOWM ($0BCE,
-      504 octets : la mémoire principale n'en a plus que ~380).
-- [x] **Deux bruitages** : `bonus` (arpège montant do-mi-sol-do) et `malus`
-      (chromatique descendante) pour arme simple, marque sombre et crâne ;
-      priorité entre l'armure et l'explosion.
-- **Acceptation** : `bonus_effects` étendu (988 pas == modèle, les 36 textes
-      vus) ; `pickup_feedback` (SHIELD + son bonus, DARK MARK + son malus, le
-      message s'efface) ; l'invariant d'écran connaît le message.
-- Coût : un changement de message réécrit 12 caractères sur chaque page (au
-  ramassage et 1,5 s plus tard), pas chaque image.
+- [x] **Name on pickup**: the message in the middle of the field (row 96)
+      shows what the pickup did for `PICK_T` = 45 steps (1.5 s):
+      "+50 CREDITS", "TRIPLE SHOT", "SCORE X5", "RANK MARK 3"…; a
+      gauge, the armour or the lives already at the maximum: "BONUS POINTS"; the
+      skull tells its malus ("SINGLE SHOT", "LESS SPEED", "LESS BULLET",
+      "BONUS LOST"); the fifth letter: "EXTRA LIFE". Priority:
+      GAME OVER, LEVEL n, METEOR STORM, then the pickup, then DEMO.
+- [x] Logic state `pick_msg` / `pick_t` (model = oracle, `take` sets
+      `pick_msg`, `pickups` arms `pick_t`); 36 texts of `model.PICK_TEXT`
+      generated by `tools/bonus.py` in the `PICK` segment of LOWM ($0BCE,
+      504 bytes: main memory has only ~380 left).
+- [x] **Two sound effects**: `bonus` (rising arpeggio C-E-G-C) and `malus`
+      (descending chromatic) for single weapon, dark mark and skull;
+      priority between the armour and the explosion.
+- **Acceptance**: `bonus_effects` extended (988 steps == model, the 36 texts
+      seen); `pickup_feedback` (SHIELD + bonus sound, DARK MARK + malus sound, the
+      message clears); the screen invariant knows the message.
+- Cost: a message change rewrites 12 characters on each page (at
+  pickup and 1.5 s later), not every frame.
 
-## Chasse aux bugs 7 — chargement auxiliaire et build (2026-10-25)
+## Bug hunt 7 — aux loading and build (2026-10-25)
 
-- [x] `aux_load` vérifie désormais la taille cumulée **avant** chaque
-      `AUXMOVE`. Un `WG2.AUX` trop long était rejeté seulement après avoir
-      écrit au-delà de sa zone auxiliaire. Reproduction : 64 octets ajoutés
-      écrasaient la sentinelle placée juste après le fichier attendu.
-      `tests/test_game.py` couvre le fichier vide, tronqué, trop long d'un
-      octet ou d'un bloc de 8 Ko : sentinelles et bitmap conservés, message
-      d'erreur et retour au lanceur ProDOS.
-- [x] La génération de `song.pt3` accepte un `BUILD` absolu : le changement
-      de dossier vers `tools/` préfixait auparavant sa destination par
-      `../`, ce qui cassait les compilations isolées dans `/tmp`.
-- Validation : build isolé, `make test` et `tests/test_long.py` (boucle 255,
-      niveaux les plus chargés avec et sans Mockingboard). Les images de
-      `dist/` restent intactes.
+- [x] `aux_load` now checks the cumulative size **before** each
+      `AUXMOVE`. A `WG2.AUX` that was too long was rejected only after having
+      written past its aux zone. Reproduction: 64 added bytes
+      overwrote the sentinel placed just after the expected file.
+      `tests/test_game.py` covers the empty file, truncated, too long by one
+      byte or by an 8 KB block: sentinels and bitmap preserved, error
+      message and return to the ProDOS launcher.
+- [x] The generation of `song.pt3` accepts an absolute `BUILD`: the change
+      of directory to `tools/` used to prefix its destination with
+      `../`, which broke the isolated builds in `/tmp`.
+- Validation: isolated build, `make test` and `tests/test_long.py` (loop 255,
+      busiest levels with and without a Mockingboard). The images in
+      `dist/` stay untouched.
 
-## Lot 10 — l'allure de Warblade (2026-10-30)
+## Lot 10 — the look of Warblade (2026-10-30)
 
-Demande : « Améliore wargalaga » (boss, fluidité, minuteries des bonus, rang
-en jeu), puis « wargalaga doit ressembler beaucoup plus à warblade ».
-Références : captures du site officiel archivé (warblade.as/bilder) — murs
-texturés, HUD sur les côtés, formations mixtes. Maquettes validées avant code.
+Request: "Improve wargalaga" (boss, smoothness, bonus timers, rank
+in the game), then "wargalaga must look much more like warblade".
+References: screenshots from the archived official site
+(warblade.as/bilder) — textured walls, HUD on the sides, mixed formations.
+Mock-ups approved before code.
 
-- [x] **10a cadre** : terrain de 112 cellules entre deux murs de 4 octets
-      (`model.FIELD_COL`, la table `cell_byte` décale tout le rendu sans
-      cycle) ; murs `tools/walls.py` (tuile de 64 rangées par quart, en aux
-      à $A200, via `iobuf`, une page par image au changement de quart, sans
-      toucher aux rangées du HUD : `hud_cover`). HUD de 128 caractères à
-      leur place (`tools/hud.py`, copie Python pour les tests) ; HI = meilleur
-      record puis le score. Mémoire : `icons` à $1C40 (LOWHI), noms de la
-      boutique dans l'overlay, fiches de niveau en aux (14 octets).
-- [x] **10b formations** : 9 formes (`model.SHAPES`), masques par rangée,
-      quinconce d'un demi-pas, deuxième espèce (`alien_combo2`, entrées 28-41,
-      `cur_alien2` dans `iobuf`), aliens bicolores (`sprites.two_tone`).
-- [x] **10c boss** : 24 × 28 cellules bicolore, 7 décalages en aux ($AA00)
-      copiés au niveau du boss dans `iobuf` et `cur_big` ; dessiné en STA avec
-      une marge d'une cellule (une copie, pas d'effacement) ; une cellule tous
-      les 8 pas entre les cellules 1 et 80 ; points de vie doublés.
-- [x] **Rang** : écran GAME BONUSES (overlay du titre) : crédits × 100,
-      rang × 10 000, `perfects` × 5 000, ajoutés avant les records.
-- [x] **10d fluidité** : HUD — comparaison des clés sans écriture, et seul
-      le score réécrit quand lui seul change (le remplissage complet coûte
-      ~4 000 cycles). `test-long` : niveau 97 70 retards / 564 (77 avant),
-      boss 25 : 21 / 589, boss 100 : 46 / 576.
+- [x] **10a frame**: field of 112 cells between two 4-byte walls
+      (`model.FIELD_COL`, the `cell_byte` table shifts all the rendering at no
+      cycle cost); walls `tools/walls.py` (a 64-row tile per quarter, in aux
+      at $A200, via `iobuf`, one page a frame at the quarter change, without
+      touching the HUD rows: `hud_cover`). 128-character HUD in
+      their place (`tools/hud.py`, Python copy for the tests); HI = best
+      record then the score. Memory: `icons` at $1C40 (LOWHI), shop
+      names in the overlay, level records in aux (14 bytes).
+- [x] **10b formations**: 9 shapes (`model.SHAPES`), masks per row,
+      staggered by half a pitch, second species (`alien_combo2`, entries 28-41,
+      `cur_alien2` in `iobuf`), two-tone aliens (`sprites.two_tone`).
+- [x] **10c boss**: 24 × 28 cells two-tone, 7 shifts in aux ($AA00)
+      copied on the boss level into `iobuf` and `cur_big`; drawn in STA with
+      a one-cell margin (a copy, no erase); one cell every
+      8 steps between cells 1 and 80; hit points doubled.
+- [x] **Rank**: GAME BONUSES screen (title overlay): credits × 100,
+      rank × 10,000, `perfects` × 5,000, added before the records.
+- [x] **10d smoothness**: HUD — key comparison without writes, and only
+      the score rewritten when it alone changes (the full fill costs
+      ~4,000 cycles). `test-long`: level 97 70 late / 564 (77 before),
+      boss 25: 21 / 589, boss 100: 46 / 576.
 
-## Lot 11 — le Meteor Storm de Warblade (2026-10-30)
+## Lot 11 — Warblade's Meteor Storm (2026-10-30)
 
-Demande : « On arrivait facilement à un meteor storm dans le warblade
-d'origine », puis « c'est pas ça le mode meteor storm dans warblade.
-Renseigne toi » (option 2 : refonte complète). Source : wiki Warblade
-(pages Meteor Storm, Bonuses), consignée dans `docs/warblade-reference.md`.
+Request: "In the original warblade you easily got to a meteor storm",
+then "that's not what the meteor storm mode is in warblade.
+Look it up" (option 2: complete rework). Source: Warblade wiki
+(pages Meteor Storm, Bonuses), recorded in `docs/warblade-reference.md`.
 
-- [x] **Entrée** : l'icône (poids 4/64, mémoire 3/64, pièce de 10 : 5/64 ;
-      avant 1, 1 et 10 : une icône tous les ~16 niveaux) **termine le niveau
-      sur-le-champ** (`tk_meteor` → `ls_over`), sauf sur un niveau de boss
-      (la tempête attend sa fin).
-- [x] **Tempête** (`storm.s`, modèle `storm_step`, oracle au pas près) :
-      rochers de trois tailles (petit : `cur_alien2`, rangée 1 ; moyen ;
-      gros : `cur_big`), chacun un peu plus rapide que le champ (2, 1, 0) ;
-      le champ accélère aux tiers de la distance (+1, +2) et avec la jauge
-      (+3/16 de la vitesse au-delà des 8 barres rouges) ; 4 608 rangées.
-- [x] **Jauge** à droite du vaisseau : 26 barres (8 rouges, 18 vertes), STA
-      comme le vaisseau ; **barre de distance** verticale dans l'octet 35 du
-      terrain (rochers, objets et vaisseau restent à gauche).
-- [x] **Objets** : argent 50/100/200, pastilles 1 000/5 000/10 000 points
-      (trois nouvelles sortes, `p1k p5k p10k`).
-- [x] **Pourcentage** = pas tir tenu / pas volés, arrondi ; 101 % tant que le
-      tir n'a jamais été lâché. Prime (× multiplicateur) : MEGA (101 %)
-      500 000 + 5 000 crédits ; XTREME (100 %) 250 000 + 5 000 ; SUPER
-      (95-99 %) 100 000 + 1 000 ; EXTRA 50 000 ; son nom 60 pas. Choc :
-      500 points par 256 rangées volées, aucune vie perdue.
-- [x] Mémoire : textes des ramassages en aux (`pick_fetch`), trajectoires
-      et routines en `$0200-$03CF` (`LOW2`), rochers en aux `$B100`. Reste :
-      LOWM 12 octets, LOW2 94, code principal ~150.
-- [x] Fluidité : HUD — quand seul le score diffère pour la page, seule la
-      ligne 0 est comparée (~1 900 cycles par tir au but) et un balayage du
-      VBL tous les 32 caractères (le banc ratait un front). Tempête à
-      pleine vitesse : 8 retards sur ~600 images (2 au départ : le cadre de
-      la barre). `test-long` mesure chaque scène sur trois départs (une
-      seule : 93 à 157 retards avec la carte, avant comme après ce lot).
+- [x] **Entry**: the icon (weight 4/64, memory 3/64, 10 coin: 5/64;
+      before 1, 1 and 10: an icon every ~16 levels) **ends the level
+      on the spot** (`tk_meteor` → `ls_over`), except on a boss level
+      (the storm waits for its end).
+- [x] **Storm** (`storm.s`, model `storm_step`, step-exact oracle):
+      rocks of three sizes (small: `cur_alien2`, row 1; medium;
+      big: `cur_big`), each a little faster than the field (2, 1, 0);
+      the field speeds up at the thirds of the distance (+1, +2) and with the gauge
+      (+3/16 of the speed beyond the 8 red bars); 4,608 rows.
+- [x] **Gauge** right of the ship: 26 bars (8 red, 18 green), STA
+      like the ship; vertical **distance bar** in byte 35 of the
+      field (rocks, objects and ship stay to the left).
+- [x] **Objects**: silver 50/100/200, tablets 1,000/5,000/10,000 points
+      (three new kinds, `p1k p5k p10k`).
+- [x] **Percentage** = steps with fire held / steps flown, rounded; 101 %
+      as long as the fire was never released. Prize (× multiplier): MEGA (101 %)
+      500,000 + 5,000 credits; XTREME (100 %) 250,000 + 5,000; SUPER
+      (95-99 %) 100,000 + 1,000; EXTRA 50,000; its name 60 steps. Crash:
+      500 points per 256 rows flown, no life lost.
+- [x] Memory: pickup texts in aux (`pick_fetch`), paths
+      and routines at `$0200-$03CF` (`LOW2`), rocks at aux `$B100`. Remaining:
+      LOWM 12 bytes, LOW2 94, main code ~150.
+- [x] Smoothness: HUD — when only the score differs for the page, only
+      row 0 is compared (~1,900 cycles per hit) and a VBL
+      scan every 32 characters (the bench missed an edge). Storm at
+      full speed: 8 late out of ~600 frames (2 at the start: the frame of
+      the bar). `test-long` measures each scene from three starts (a
+      single one: 93 to 157 late with the card, before as after this lot).
 
-## Modes et tirs blancs (2026-10-30)
+## Modes and white shots (2026-10-30)
 
-Demande : « Les balles des ennemis et mes balles doivent etre blanches sinon
-on va les confondre avec les etoiles colorés !!! Le jeu est trop dur. Il
-démarre en mode easy pour commencer, les modes plus durs se méritent ».
+Request: "The enemies' bullets and my bullets must be white otherwise
+they will be mistaken for the coloured stars!!! The game is too hard. It
+starts in easy mode to begin with, the harder modes must be earned".
 
-- [x] Tirs et bombes : deux points voisins sur les 7 décalages (blancs ;
-      au décalage 3 le tir n'avait plus qu'un point coloré, la bombe était
-      un point bleu).
-- [x] Modes (`model.MODES`, `mode` dans game.s) : NORMAL = le jeu d'avant ;
-      HARD, ACE = un, deux crans de boucle en plus ; EASY = plongées et
-      bombes 1,5 fois plus espacées, deux plongeurs de moins (1 au moins),
-      bombes et kamikazes une rangée plus lents (2 au moins). La démo joue
-      NORMAL (son script).
-- [x] Titre : ligne M MODE ; un nouveau joueur n'a qu'EASY ; une partie qui
-      a battu le boss du niveau 25 (niveau 26 atteint) dans le mode le plus
-      dur ouvert ouvre le suivant (« NOW OPEN: »). `HIGHSCORES` octet 2 :
-      bit 0 commandes, bits 1-2 modes ouverts, bits 3-4 mode choisi.
+- [x] Shots and bombs: two neighbouring dots on the 7 shifts (white;
+      at shift 3 the shot had only one coloured dot left, the bomb was
+      a blue dot).
+- [x] Modes (`model.MODES`, `mode` in game.s): NORMAL = the game as before;
+      HARD, ACE = one, two loop notches more; EASY = dives and
+      bombs 1.5 times further apart, two divers fewer (1 at least),
+      bombs and kamikazes one row slower (2 at least). The demo plays
+      NORMAL (its script).
+- [x] Title: line M MODE; a new player has only EASY; a game that
+      beat the boss of level 25 (level 26 reached) in the hardest
+      open mode opens the next one ("NOW OPEN:"). `HIGHSCORES` byte 2:
+      bit 0 controls, bits 1-2 open modes, bits 3-4 chosen mode.
 
-## Bonus, manette, vagues (2026-10-30, suite)
+## Bonuses, joystick, waves (2026-10-30, continued)
 
-Demandes : « Améliore les sprites des bonus », « Il faut une dead zone pour
-le centre du joystick », « Pourquoi il y a des moments beaucoup trop longs
-sans ennemis ».
+Requests: "Improve the bonus sprites", "The joystick centre needs a dead
+zone", "Why are there moments far too long
+without enemies".
 
-- [x] Bonus : silhouettes pleines, signe découpé en noir. Jauges = tuile
-      bleue lettre blanche (la lettre découpée se confondait avec la pièce
-      bleue), lettres EXTRA = tuile blanche, ×2/×5 = gemme orange, armes =
-      canon violet sous ses tirs blancs ; pièces, médailles, etc. inchangées.
-- [x] Manette : centre = repos lu par PREAD (×5/8) au début de la partie et
-      au TAB, borné 50..115, zone morte ±40 (`joy_calib`, en LOW2 : la RAM
-      principale était pleine). Test `stick_off_centre`.
-- [x] Vagues : entre deux vagues, terrain vide → la suivante dans
-      ENTRY_FIRST pas (le trou montait à 90 pas, 3 s, avant le niveau 12).
-      Restent : la téléportation (60 pas) et l'attente des bonus qui tombent.
-- [x] Boucles d'attente du haut-parleur : elles avaient glissé à cheval sur
-      une page (2 cycles de plus par tour : sons plus graves) ; réordonnées,
-      `.assert` au lien.
+- [x] Bonuses: solid silhouettes, sign cut out in black. Gauges = blue
+      tile with a white letter (the cut-out letter was mistaken for the blue
+      coin), EXTRA letters = white tile, ×2/×5 = orange gem, weapons =
+      violet cannon under its white shots; coins, medals, etc. unchanged.
+- [x] Joystick: centre = rest position read by PREAD (×5/8) at the start
+      of the game and on TAB, bounded 50..115, dead zone ±40 (`joy_calib`, in LOW2: main
+      RAM was full). Test `stick_off_centre`.
+- [x] Waves: between two waves, empty field → the next one within
+      ENTRY_FIRST steps (the gap rose to 90 steps, 3 s, before level 12).
+      Remaining: the teleport (60 steps) and the wait for falling bonuses.
+- [x] Speaker wait loops: they had slipped across
+      a page boundary (2 more cycles a turn: lower sounds); reordered,
+      `.assert` at link time.
 
-## Mémoire réorganisée, musique (2026-10-30, suite)
+## Memory reorganised, music (2026-10-30, continued)
 
-Demandes : « Réorganise le programme pour optimiser l'utilisation de la
-mémoire et exploiter toutes les réserves de mémoire accessibles », puis
-« vérifie la stabilité de la lecture de la musique. La touche S désactive la
-musique mais laisse les bruitages ».
+Requests: "Reorganise the program to optimise the use of memory
+and exploit all the accessible memory reserves", then
+"check the stability of the music playback. The S key turns off the
+music but leaves the sound effects".
 
-RAM principale libre : 13 octets → 1 945 (`$B657-$BDE4`).
+Free main RAM: 13 bytes → 1,945 (`$B657-$BDE4`).
 
-- [x] Page texte 1 (`$0400-$07FF`, jamais affichée en jeu) : les fiches de
-      dessin de `render.s` dans 8 fenêtres de 120 octets entre les trous des
-      cartes (`TXT0-7`), remises à zéro par `render_init` ; `fail` fait HOME
-      avant d'écrire (−~750 octets de BSS).
-- [x] Page `$BE00` (pile C, inutilisée : pas de C) : la sauvegarde de page
-      zéro du crt0 (−256).
-- [x] Page zéro `$83-$BA` : 25 octets de variables chaudes hors état et 24
-      octets d'état (niveau, vies, vaisseau, boutique…) : un octet et un
-      cycle de moins par accès (−346 de code). Les tests lisent l'état par
+- [x] Text page 1 (`$0400-$07FF`, never displayed in the game): the
+      drawing records of `render.s` in 8 windows of 120 bytes between the
+      card holes (`TXT0-7`), zeroed by `render_init`; `fail` does HOME
+      before writing (−~750 bytes of BSS).
+- [x] Page `$BE00` (C stack, unused: no C): the crt0's
+      zero page save (−256).
+- [x] Zero page `$83-$BA`: 25 bytes of hot variables outside the state and 24
+      bytes of state (level, lives, ship, shop…): one byte and one
+      cycle less per access (−346 of code). The tests read the state by
       zone (`tests/block.py`).
-- [x] Code de démarrage (`BOOT` : vérifications, chargement de `WG2.AUX`,
-      trampolines, tables de lignes, messages) exécuté depuis `$1700`, où
-      `LOWBSS` sera ensuite ; `WG2.SYS` l'y copie (−~540).
-- [x] `timing.s` lié en premier : ses boucles d'attente ne bougent plus (le
-      code ajouté les avait mises à cheval sur une page : sons faux).
-- [x] Lecteur PT3 en aux `$2000` (paquets en `$3000`) : face à la page HGR 1,
-      jamais d'adresse de code principal ; un `until` de test tombait dans
-      l'interruption musicale et lisait l'aux.
-- [x] Musique mesurée tick par tick : en jeu ±0,7 ms ; au titre, la lecture
-      de `HIGHSCORES` masque les interruptions ~0,8 s (pilote Disk II) : la
-      note restait tenue → `mus_hush` coupe la puce avant chaque accès
-      disque. Test `steadiness`.
-- [x] S : musique seule (puce 1, duo du titre et de la boutique) ; les
-      bruitages restent. Menu « S  MUSIC ».
+- [x] Startup code (`BOOT`: checks, loading of `WG2.AUX`,
+      trampolines, row tables, messages) run from `$1700`, where
+      `LOWBSS` will be afterwards; `WG2.SYS` copies it there (−~540).
+- [x] `timing.s` linked first: its wait loops no longer move (the
+      added code had put them across a page boundary: wrong sounds).
+- [x] PT3 player at aux `$2000` (packs at `$3000`): facing HGR page 1,
+      never a main code address; a test `until` landed in
+      the music interrupt and read aux.
+- [x] Music measured tick by tick: in the game ±0.7 ms; at the title, reading
+      `HIGHSCORES` masks the interrupts ~0.8 s (Disk II driver): the
+      note stayed held → `mus_hush` silences the chip before each disk
+      access. Test `steadiness`.
+- [x] S: music only (chip 1, the title and shop duet); the
+      sound effects remain. Menu "S  MUSIC".

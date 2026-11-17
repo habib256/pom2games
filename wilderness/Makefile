@@ -94,25 +94,76 @@ $(DISK): $(BIN) $(MAPBIN) $(BUILD)/boot.bin $(SPRITE_BINS) $(DOS33_DEPS) tools/b
 	@mkdir -p $(BUILD)
 	$(PYTHON) -I tools/build_disk.py --out $(DISK) --build $(BUILD) --master $(SYSTEM)
 
+# Both tiers run their scripts in parallel (dev/tools/run_tests.py: one a2shot
+# each, longest first from build/test_times.json); TEST_JOBS=1 runs them in
+# sequence. The scripts share no output file (build/boot-packages is
+# rewritten only when it changes, through a rename).
+TEST_JOBS ?=
+FAST_TESTS := \
+	'tests/test_boot.py' \
+	'tests/test_mapgen.py' \
+	'tests/test_transitions.py' \
+	'tests/test_render_memory.py' \
+	'tests/test_view.py' \
+	'tests/test_overlays.py' \
+	'tests/test_memory_cache.py' \
+	'tests/test_exposure.py' \
+	'tests/test_temperature_wave.py' \
+	'tests/test_weather_cycle.py' \
+	'tests/test_weather_frequency.py' \
+	'tests/test_swim_energy.py' \
+	'tests/test_swim_raster.py'
+LONG_TESTS := \
+	'tests/test_journey.py' \
+	'tests/test_pack_boot.py' \
+	'tests/test_overlay_codec.py' \
+	'tests/test_optimizations.py' \
+	'tests/test_fast_duration.py' \
+	'tests/test_input.py' \
+	'tests/test_sleep.py' \
+	'tests/test_clock.py' \
+	'tests/test_feedback.py' \
+	'tests/test_forest.py' \
+	'tests/test_tree.py' \
+	'tests/test_fauna.py' \
+	'tests/test_fauna_steps.py' \
+	'tests/test_boundary.py' \
+	'tests/test_walk.py' \
+	'tests/test_compass.py' \
+	'tests/test_hud.py' \
+	'tests/test_interface.py' \
+	'tests/test_sky.py' \
+	'tests/test_moonlight.py' \
+	'tests/test_site_directions.py' \
+	'tests/test_projection.py' \
+	'tests/test_graphical_topo.py' \
+	'tests/test_sites.py' \
+	'tests/test_scene_render.py' \
+	'tests/test_sprites.py' \
+	'tests/test_pan.py' \
+	'tests/test_fuzz.py 1 3 8' \
+	'tests/test_play.py 1 30' \
+	'tests/test_play.py 2 30' \
+	'tests/test_sim.py' \
+	'tests/test_items.py' \
+	'tests/test_load.py' \
+	'tests/test_thermal.py' \
+	'tests/test_medical.py' \
+	'tests/test_care.py' \
+	'tests/test_wind_energy.py' \
+	'tests/test_weather_front.py' \
+	'tests/test_swim_cadence.py' \
+	'tests/test_shore.py' \
+	'tests/test_wet.py'
+
 # Fast tier (about a minute): boot, map generation, the view bit for bit,
 # overlays, render memory, transitions, weather and swimming arithmetic.
 test: all $(if $(A2SHOT_HOST),$(A2SHOT))
 ifeq ($(A2SHOT_HOST),)
 	@echo "wilderness: SKIP tests, they need a2shot (macOS arm64 or Linux x86_64)"
 else
-	$(PYTHON) tests/test_boot.py
-	$(PYTHON) tests/test_mapgen.py
-	$(PYTHON) tests/test_transitions.py
-	$(PYTHON) tests/test_render_memory.py
-	$(PYTHON) tests/test_view.py
-	$(PYTHON) tests/test_overlays.py
-	$(PYTHON) tests/test_memory_cache.py
-	$(PYTHON) tests/test_exposure.py
-	$(PYTHON) tests/test_temperature_wave.py
-	$(PYTHON) tests/test_weather_cycle.py
-	$(PYTHON) tests/test_weather_frequency.py
-	$(PYTHON) tests/test_swim_energy.py
-	$(PYTHON) tests/test_swim_raster.py
+	$(PYTHON) $(DEV)/tools/run_tests.py $(if $(TEST_JOBS),-j $(TEST_JOBS)) --python $(PYTHON) \
+	    --times $(BUILD)/test_times.json $(FAST_TESTS)
 endif
 
 # Long tier: every other emulator scenario (journey, inventory, sites,
@@ -121,47 +172,8 @@ test-long: all $(if $(A2SHOT_HOST),$(A2SHOT))
 ifeq ($(A2SHOT_HOST),)
 	@echo "wilderness: SKIP long tests, they need a2shot (macOS arm64 or Linux x86_64)"
 else
-	$(PYTHON) tests/test_journey.py
-	$(PYTHON) tests/test_pack_boot.py
-	$(PYTHON) tests/test_overlay_codec.py
-	$(PYTHON) tests/test_optimizations.py
-	$(PYTHON) tests/test_fast_duration.py
-	$(PYTHON) tests/test_input.py
-	$(PYTHON) tests/test_sleep.py
-	$(PYTHON) tests/test_clock.py
-	$(PYTHON) tests/test_feedback.py
-	$(PYTHON) tests/test_forest.py
-	$(PYTHON) tests/test_tree.py
-	$(PYTHON) tests/test_fauna.py
-	$(PYTHON) tests/test_fauna_steps.py
-	$(PYTHON) tests/test_boundary.py
-	$(PYTHON) tests/test_walk.py
-	$(PYTHON) tests/test_compass.py
-	$(PYTHON) tests/test_hud.py
-	$(PYTHON) tests/test_interface.py
-	$(PYTHON) tests/test_sky.py
-	$(PYTHON) tests/test_moonlight.py
-	$(PYTHON) tests/test_site_directions.py
-	$(PYTHON) tests/test_projection.py
-	$(PYTHON) tests/test_graphical_topo.py
-	$(PYTHON) tests/test_sites.py
-	$(PYTHON) tests/test_scene_render.py
-	$(PYTHON) tests/test_sprites.py
-	$(PYTHON) tests/test_pan.py
-	$(PYTHON) tests/test_fuzz.py 1 3 8
-	$(PYTHON) tests/test_play.py 1 30
-	$(PYTHON) tests/test_play.py 2 30
-	$(PYTHON) tests/test_sim.py
-	$(PYTHON) tests/test_items.py
-	$(PYTHON) tests/test_load.py
-	$(PYTHON) tests/test_thermal.py
-	$(PYTHON) tests/test_medical.py
-	$(PYTHON) tests/test_care.py
-	$(PYTHON) tests/test_wind_energy.py
-	$(PYTHON) tests/test_weather_front.py
-	$(PYTHON) tests/test_swim_cadence.py
-	$(PYTHON) tests/test_shore.py
-	$(PYTHON) tests/test_wet.py
+	$(PYTHON) $(DEV)/tools/run_tests.py $(if $(TEST_JOBS),-j $(TEST_JOBS)) --python $(PYTHON) \
+	    --times $(BUILD)/test_times.json $(LONG_TESTS)
 endif
 
 # longer differential fuzz: make fuzz FUZZ_SEED=7

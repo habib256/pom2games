@@ -1,7 +1,9 @@
 # Ciel nocturne : étoiles (lot 7, étape 5 ; ciel peuplé)
 
-Étape 5 du lot 7 ([TODO.md](../TODO.md), boîtes « Dessiner les étoiles la
-nuit », « Ciel plus peuplé » et « LOOK STARS » ; [SCENARIOS.md](SCENARIOS.md)
+Étape 5 du lot 7 ([CHANGELOG.md](../CHANGELOG.md), « Neowilderness: stars,
+score and hall of fame (lot 7, steps 5–6) » et « Neowilderness: more populated sky
+(lot 7) » ; LOOK STARS enrichi : [TODO.md](../TODO.md), « Outside the lots:
+picture and atmosphere » ; [SCENARIOS.md](SCENARIOS.md)
 § 6). Tout ce qui est décrit ici existe et est testé hors du jeu (catalogue,
 référence Python bit à bit, module 6502 horaire, routine de tracé, banc IIe
 autonome) **et dans le jeu** (section 10, `tests/test_stars_game.py`).

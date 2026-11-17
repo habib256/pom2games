@@ -500,9 +500,11 @@ ailleurs. Mémoire : [MEMORY.md](MEMORY.md) § 21.
 
 ### 8.5 Suite de l'étape 1 : second jeu, pierre, armes, igloo (15 octobre 2026)
 
-Les quatre restes de l'étape 1 (TODO.md), fidèles à la ROM (§ 3.3, § 4.1,
-partie 3 de la sonde ; seuils d'ATTACK de `build/regions/fauna.json`, mesurés
-par `tools/re_region_fauna_probe.py`). Mémoire : [MEMORY.md](MEMORY.md) § 22.
+Les quatre restes de l'étape 1 ([CHANGELOG.md](../CHANGELOG.md),
+« Neowilderness: crafting, rest of step 1 (lot 3) »), fidèles à la
+ROM (§ 3.3, § 4.1, partie 3 de la sonde ; seuils d'ATTACK de
+`build/regions/fauna.json`, mesurés par `tools/re_region_fauna_probe.py`).
+Mémoire : [MEMORY.md](MEMORY.md) § 22.
 
 1. **GET, PACK, CARRY, DROP, REMOVE, WEAR** de 89 à 93 (BOW, SPEAR, CLUB,
    ROCK, SPLINT) : `item_noun` (ITEMS) lit CRAFT dans la fenêtre SIM et
@@ -539,8 +541,9 @@ par `tools/re_region_fauna_probe.py`). Mémoire : [MEMORY.md](MEMORY.md) § 22.
 
 ### 8.6 Étape 2 : la page CRAFT, la grille, le panneau (15 octobre 2026)
 
-Le « livre de recettes » de TODO.md, sans grille 3 × 3 ni recette
-inventée : les MAKE de l'original que CRAFT exécute, rien d'autre.
+Le « livre de recettes » ([CHANGELOG.md](../CHANGELOG.md), « Neowilderness:
+CRAFT page, second set in the grid (lot 3, step 2) »), sans grille 3 × 3
+ni recette inventée : les MAKE de l'original que CRAFT exécute, rien d'autre.
 Mémoire : [MEMORY.md](MEMORY.md) § 23 et § 25 ; navigation : [MENUS.md](MENUS.md)
 § 5.
 

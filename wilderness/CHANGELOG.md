@@ -1,973 +1,1006 @@
-# Wilderness — historique
+# Wilderness — history
 
-Les étapes ci-dessous décrivent les travaux présents dans l'arbre de travail.
-Elles ne correspondent pas à des versions publiées. Les tâches à venir sont
-suivies dans [TODO.md](TODO.md) et les limites du portage dans
+The steps below describe the work present in the working tree.
+They do not correspond to released versions. Upcoming tasks are
+tracked in [TODO.md](TODO.md) and the limits of the port in
 [IMPLEMENTATION.md](docs/IMPLEMENTATION.md).
 
-## Non publié
-
-### Transitions texte et HGR
-
-- Le texte d’explication HELLO reste affiché pendant la décompression,
-  l’initialisation et le premier rendu. DOS ne peut plus faire défiler
-  les vingt lignes d’accueil ; le rideau vide commence après cette première vue.
-
-- Le démarrage, VIEW, les changements complets de scène et le retour de TOPO
-  masquent le dessin jusqu’à la dernière colonne ; les rotations partielles
-  conservent leur défilement progressif.
-- Avant un chargement SIM ou TOPO, les vingt lignes supérieures sont nettoyées
-  avant la bascule texte. Les anciennes pages STATUS/HELP ne réapparaissent
-  plus pendant les calculs ; la commande, les résultats et le curseur restent.
-- STATUS, le détail médical, INVENTORY, HELP et le bilan final préparent leur
-  première page derrière le paysage. Le clavier révèle la page terminée.
-- Les menus partagent les écritures différentielles de MAP, avec effacement
-  des fins de ligne, espaces de tabulation et lignes inutilisées. Une page
-  identique n’écrit aucun caractère ; une page courte ne garde aucun ancien objet.
-- Le retour des menus nettoie les quatre lignes texte avant de montrer HGR.
-  La restauration après simulation partage le rendu jour/nuit/cabane et
-  préserve les résultats d’action, sans confirmation ni délai supplémentaire.
-- L’initialisation vidéo et le cache de projection sont déplacés dans ADV ;
-  les données et le retour d’écran inutilisés sont retirés pour tenir en 48 Ko.
-- `test_transitions.py` vérifie les captures des étapes intermédiaires,
-  la conservation de l’état et les écritures exactes des menus. Les points
-  d’arrêt des tests attendent maintenant le clavier après préparation de page.
-- Le contrat disque de SLEEP est corrigé à quatorze lectures, mesurées aussi
-  sur la référence locale avant ces changements ; les transitions n’en ajoutent pas.
-
-- SWIM charge SIM avant sa première sonde de rive, y compris sans déplacement ;
-  lancer ou répéter SWIM sur terre ferme ne saute plus dans la mémoire HGR.
-- Les fixtures de parcours, de faune et de poids utilisent le raster, le
-  générateur de hasard et les charges natifs déjà présents.
-
-### Premières minutes et aide intégrée
-
-- L’accueil propose INVENTORY, STATUS, TOPO et HELP pour rejoindre les rangers.
-- HELP sépare déplacement, équipement et survie en trois pages : exemples
-  de commandes, emplacements et avertissement sur DROP des provisions.
-- Sélection 1/2/3, navigation circulaire N/Espace/B et retour Échap/Entrée,
-  dans le module d’écran de 2 Ko sans modifier les règles de simulation.
-
-
-### Visibilité à la pleine lune
-
-- Les nuits où le disque lunaire est entièrement éclairé conservent un ciel
-  noir, avec relief, arbres, épave, cabane et animaux visibles. Les autres
-  phases gardent l'obscurité. Les calculs de survie conservent la nuit.
-- Régression indépendante des pixels du terrain et des sprites, sous ciel
-  clair ou nuageux ; les bois restent visibles à la pleine lune.
-
-### Direction des sites cohérente avec TOPO
-
-- Projection distante de la cabane et de l’épave : axe nord/sud corrigé
-  pour suivre le terrain, la marche et les repères de la carte TOPO.
-- Régression indépendante du modèle de projection : huit directions par
-  site, repères TOPO lus à l’écran, boussole, pixels visibles devant
-  et absence du sprite quand on regarde derrière.
-
-
-### Réactions animales inspirées du moteur original
-
-- Seuils Sierra de bruit, blessure et combat vérifiés sur ROM : bruit inefficace
-  sur le crotale, ours/couguar sensibles au bruit, hache/couteau regroupés comme
-  dans le choix d’arme natif.
-- Gravité ours/couguar vérifiée sur ROM : coupures, bras/jambe cassés et choc,
-  reliés aux courbes de santé et aux soins ; issue supérieure regroupée en choc.
-- Tirage de contamination corrigé : l’état évolue à chaque consommation
-  d’eau non traitée, sans utiliser le hasard animal.
-- SCARE et ATTACK peuvent échouer ; deux tirages de combat permettent une
-  défense réussie avec blessure. IGNORE peut laisser l’animal présent.
-- Ours/couguar peuvent voler la nourriture exposée : stocks suspendus, eau,
-  équipement et piles éloignées conservés ; charge et totaux recalculés.
-- Risques de blessure selon la posture vérifiés sur ROM : attente/repos/repas
-  au sol, IGNORE et arbre. Grimper n’empêche plus les blessures ; avertissement
-  affiché, provisions suspendues conservées et soins possibles dans l’arbre.
-- Cabane protectrice pour joueur/provisions ;
-  réaction signalée et action interrompue après une heure sans décision.
-- Sondes `re_animal_reactions_probe.py`, scénarios clavier
-  `test_animal_reactions.py` ; adaptations et limites dans `docs/logic/animals.md`.
-
-### Aventure, ravitaillement et bilan
-
-- `DONE` et distance restante remplacent l’ambigu `GOAL` dans STATUS ;
-  distances avec fractions de case, progression bornée et score natif conservé.
-- `FILL/REFILL CANTEEN`, berge voisine, capacité 64 OZ, coût 10 minutes et
-  refus atomique de surcharge ; contamination de l’eau bue et hasard séparé.
-- Réactions SCARE/IGNORE/ATTACK, ciblage par espèce, outils, coupures/morsures
-  et attaque après une heure sans réaction ; provisions suspendues et protection par cabane.
-  Ces réactions et la contamination sont des règles documentées du port.
-- Bandeau pour faible réserve d’eau et réaction à une rencontre ; HELP enrichi.
-- Écran d’arrivée/mort dédié : durée, pas, rencontres, santé, provisions et
-  score d’efficacité natif, conservé jusqu’à une touche.
-- Deux modules disque supplémentaires, WILDADV et WILDOUT ; simulation et
-  commandes existantes restent dans leurs fenêtres et le démarrage en deux paquets.
-- Palette violet/vert confirmée comme choix du moteur, couleurs des sprites
-  et rendu de terrain conservés.
-
-
-### Réduction des transferts de modules
-
-- Simulation et sprites épave/ours/cabane compressés, décompression LZ
-  résidente en place : 32→22, 8→6, 4→2 et 5→3 secteurs de données lus.
-- Allocations conservées, longueurs BLOAD réduites : placement des fichiers
-  suivants préservé. Petits modules gardés bruts après mesure du coût natif.
-- Tables de projection réduites à une table stockée et un cache reconstruit
-  au démarrage ; 24 976 octets résidents, paquet de 16 303 octets en deux fichiers.
-- LOOK R à 7,26 s ; repos/sommeil presque inchangés à 21,11/22,70 s,
-  marche à 26,96 s. La décompression absorbe presque tout le gain disque.
-- 20 chargements natifs vérifiés octet par octet, avec texte, page zéro/FAC
-  et bornes mémoire conservés ; états et images de six commandes identiques.
-- Durées directes 1–255 H/MIN de REST/SLEEP/WALK/SWIM validées en résident ;
-  lecteur complet conservé pour saisie au clavier, autres formes et erreurs.
-- Une lecture WILDINP évitée : REST 1 H à 21,12 s, SLEEP 8 H à 22,71 s,
-  WALK 1 H à 26,95 s ; états et images identiques.
-- Deux tables graphiques redondantes retirées (280 octets) pour loger la
-  saisie résidente ; coût du rendu supplémentaire de 0,004 s.
-- Dictionnaire de compression partagé entre régions voisines : démarrage
-  maintenu dans deux fichiers (16 369 octets) ; résident réduit de huit octets.
-- 799 durées natives et les 140 paires de pixels vérifiées ; zéro, erreurs,
-  annulation, saisie générale, mémoire DOS et restitution intégrale conservés.
-
-### Audit des coûts et copies natives
-
-- Copies LZ du chargeur par index Y ; mise à jour des pointeurs et compteurs
-  une fois par séquence. Moteur prêt à 19,42 s ; première invite à 40,91 s.
-- Division de pente nulle immédiate ; suppression du double effacement et
-  du second bandeau lors de la restauration nocturne extérieure.
-- VIEW à 5,62 s ; DRINK nocturne gagne 0,14 s. Résident : 25 261 octets,
-  comprimés en 16 276 octets dans deux fichiers ; quatre octets nets ajoutés.
-- Profilage des commandes par zone mémoire : DOS absorbe encore 68 % du
-  sommeil et 77 % de la marche. États et pixels comparés sans différence.
-- 8 256 divisions et 40 copies testées nativement, ainsi que l'effacement
-  nocturne unique ; franchissements de page et chevauchements couverts.
-
-### Chargement Disk II
-
-- Compression LZ optimisée par bloc avec prise en compte des drapeaux,
-  fenêtre complète de 4 095 octets et suppression des coupures de sortie
-  arbitraires à 4 Ko. Décompresseur et mémoire Apple II identiques.
-- Démarrage compacté en 16 272 octets dans deux fichiers au lieu de trois ;
-  entrelacement de neuf secteurs avec décalage physique d'un secteur entre pistes.
-- Arrivée dans le moteur : 23,48 → 20,83 secondes ; première invite :
-  45,89 → 43,26. LOOK R : 8,08 → 7,36 ; sommeil de huit heures : 25,83 → 25,30.
-- Mesures Disk II corrigées pour arrêter la saisie avant le premier BLOAD.
-  1 023 cas de compression comparés à une recherche exhaustive, limites
-  de format et fenêtre, intégrité DOS et restitution native vérifiées.
-
-### Parcours mémoire du rendu
-
-- Recherche des arbres arrêtée pour le reste du rayon après sa limite de
-  distance ou la sélection d'une couronne ; réactivation au rayon suivant.
-- Effacement par lignes contiguës, avec adresses HGR calculées une fois
-  par ligne ; bandeau, cache, trous mémoire et colonnes conservées protégés.
-- 32 octets de pointeurs redondants supprimés, sans nouveau calcul d'indice
-  dans le remplissage déroulé ; résident total réduit de 14 octets.
-- VIEW : 6,20 → 5,64 secondes, LOOK R : 8,28 → 8,08, sommeil de huit heures :
-  26,39 → 25,83. États et pixels identiques, lectures DOS inchangées.
-- Régressions sur chaque octet d'une page HGR, effacements partiels/complets,
-  budget de recherche des arbres et réactivation entre les images.
-
-### Vitesse et durée de vie des données en mémoire
-
-- 170 octets d'une table de rendu hors écran récupérés pour LOOK résident
-  et les raccourcis d'écran, avec conservation des pixels. VIEW ne recharge
-  plus le vocabulaire et le sprite : 12,47 → 6,20 secondes. LOOK R passe
-  de 10,43 à 8,28 ; STATUS au départ de 12,27 à 3,76.
-- Temporaires astronomiques réutilisant 68 octets du tampon DOS en dehors
-  des chargements ; sorties du ciel toujours résidentes. Cache d'isolation
-  de cinq octets, invalidé par les vêtements portés ou le mode d'humidité.
-- Mesures reproductibles en cycles et lectures avec profile_actions.py,
-  comparaison des états et pixels avant/après, 76 transitions thermiques
-  et tests de conservation à travers les chargements.
-- L'Apple II+ 48 Ko reste la cible ; les routines flottantes et les arrondis
-  de la simulation sont conservés. Le sommeil reste proche de 26,4 secondes.
-
-### Bandeau de survie et accès direct aux écrans
-
-- Alertes de danger, faim/soif VERY et santé sous 40 % en vidéo inverse ;
-  améliorations en texte normal pour distinguer leur importance sans couleur.
-- Indications TOPO/HELP de jour, REST/HELP la nuit et LOWER FOOD près du sac
-  suspendu, après les dangers et les indications d'abri ou d'arbre.
-- Raccourcis affichés pour passer directement entre HELP, INVENTORY,
-  STATUS et TOPO. Navigation de STATUS fixée aux deux dernières lignes.
-- Vérification des pixels d'alerte et des neuf transitions directes,
-  avec conservation du temps, des réserves et de l'image visible.
-
-### Aide et inventaire plus lisibles
-
-- HELP affiche deux pages, déplacements et survie, avec exemples de commandes,
-  unités et touches de navigation. Les touches 1/2 sélectionnent une page,
-  N/Espace et B changent de page, Échap/Entrée réaffichent le paysage.
-- Titres d'aide et groupe d'inventaire en vidéo inverse ; nombre d'objets,
-  capacités FREE et commandes de pagination affichés explicitement.
-- Consultation vérifiée au clavier, sans avancer le temps ni modifier
-  les réserves, la santé ou le paysage.
-
-### Alertes rétablies avant affichage
-
-- Une amélioration remplace désormais l'alerte d'aggravation encore en
-  attente pour la même catégorie, au lieu d'afficher un avertissement périmé.
-- Régressions pour faim, soif, santé, température et immersion ; les alertes
-  encore actives d'autres catégories gardent leur priorité. Le classement
-  reste sans effet sur la simulation.
-
-### Résultat des commandes d'attente
-
-- WAIT et PAUSE annoncent « YOU WAITED » en heures ou minutes, au lieu de
-  « YOU RESTED » ; leur absence de crédit de repos est conservée.
-- Régressions sur les deux unités, les effets identiques de WAIT/PAUSE,
-  le crédit distinct de REST et l'annulation d'une durée nulle.
-- Réorganisation des textes en mémoire sans lecture disque supplémentaire
-  pour le sommeil ; ses cinq lectures et son état final restent vérifiés.
-
-### Limite des forêts dans les écrans d'information
-
-- TOPO et STATUS utilisent la limite d'altitude des arbres de la carte,
-  comme la vue 3D et CLIMB TREE, au lieu d'une constante de 11 000 pieds.
-- La valeur zéro conserve la limite historique de 11 000 pieds.
-  Régressions sous la limite et exactement à celle-ci, pour trois limites,
-  en vérifiant les symboles T/t, WOODS/SCRUB et l'accès aux arbres.
-
-### Valeur directe de NATURE
-
-- `NATURE 0` désactive désormais les nouvelles rencontres, comme la valeur
-  zéro saisie à l'invite ; la commande directe était refusée par la liste
-  des actions numériques et conservait la fréquence précédente.
-- Valeurs 0–100, espaces et saisie à l'invite vérifiés. Les nombres hors
-  limites, décimales et unités sont refusés sans changer l'état du joueur,
-  la fréquence, le paysage ou le hasard.
-
-### Objets au sol dans le bandeau
-
-- « ITEMS: INV » disparaît après récupération du dernier objet ou
-  consommation de la dernière réserve au sol, comme dans l'inventaire.
-- Le résumé ne prend plus les compteurs de corde et d'autres équipements
-  pour des réserves au sol ; les aliments épuisés ne comptent plus non plus.
-- Régressions par commandes réelles sur corde, hache, œufs et eau.
-
-### Projection des sites au pied des falaises
-
-- Une cabane très en dessous de la vue ne réapparaît plus à l'écran
-  lorsque le calcul de sa hauteur dépasse 16 bits.
-- Régression sur neuf hauteurs de falaise et trois orientations, comparées
-  pixel par pixel au modèle de projection indépendant.
-
-### Durée des rencontres pendant les actions immobiles
-
-- Les rencontres déjà présentes vieillissent aussi pendant WAIT, les
-  repas et le sommeil ; elles expirent à 60 minutes, même sans déplacement.
-- Aucun nouveau tirage de faune pendant ces actions. Régression sur une
-  attente, un repas et deux repos, avec présence à 59 minutes, disparition
-  à 60 minutes et générateur de hasard inchangé.
-- NATURE rejoint le module de saisie ; cela libère la place nécessaire
-  dans le module de simulation et évite son chargement pour ce réglage.
-
-### Alertes après une boisson
-
-- DRINK actualise immédiatement l'état de soif et de déshydratation utilisé
-  par le bandeau, sans attendre une action qui avance le temps.
-- Une déshydratation effacée par la boisson ne reste plus affichée ; tests
-  de guérison, d'amélioration de la soif et de déshydratation persistante,
-  avec stocks débités une seule fois et heure/santé conservées.
-
-### Retour entre groupes de l'inventaire
-
-- Depuis la première page d'un groupe, B revient à la dernière page du
-  groupe précédent, au lieu de sauter directement à sa première page.
-- Régression sur le passage sac → sol → retour au sac, avec deux pages
-  d'objets dans chaque groupe ; heure et stocks conservés.
-
-### Alerte de maladie devenue périmée
-
-- Une maladie disparue avant le rafraîchissement du bandeau affiche
-  « ILL IMPROVED », au lieu de provoquer une fausse alerte « EXHAUSTION ».
-- Régressions sur les trois guérisons, une déshydratation persistante et
-  les remplacements de maladie entre deux affichages.
-
-### Minute de l'horloge
-
-- Le bandeau et STATUS arrondissent le total des minutes avant d'extraire
-  heure/minute : WALK 19 MIN depuis 7 h affiche désormais 7:19, au lieu
-  de 7:18 quand le flottant est légèrement inférieur à la minute entière.
-- Retenues vers l'heure suivante, midi et minuit gérées ensemble, sans
-  modifier le temps simulé. Régression sur une marche réelle et sept
-  valeurs proches des limites de minute et d'heure.
-- Minuit s'affiche 12:00A dans STATUS ; le format 12 heures affichait
-  auparavant 0:00A à cause du drapeau zéro laissé par la comparaison à 12.
-
-### Fin exacte de la durée de voyage
-
-- Après le dernier pas demandé, WALK/SWIM s'arrêtent sans tester un pas
-  supplémentaire. Le résultat indique la fin de la durée plutôt qu'un
-  obstacle (eau, falaise ou bord de carte) situé au-delà du voyage terminé.
-- Les interruptions du pas accompli (animal, nuit, rive, décès, arrivée)
-  conservent leur priorité. Régressions sur trois obstacles après exactement
-  19 minutes, sur une fin de nage au bord de carte, sur l'eau rencontrée
-  avec une minute restante et sur animal/nuit au dernier pas demandé.
-
-### Arguments numériques des médicaments
-
-- `EAT FLAGYL 0 OZ` ne consomme plus une dose malgré la quantité nulle.
-  Les médicaments refusent désormais les nombres et unités ajoutés à
-  EAT/DRINK, au lieu de les ignorer et d'appliquer une dose unique.
-- Le refus conserve stocks, heure et état médical ; il explique de retirer
-  le nombre et l'unité. Une prise normale reste disponible après le refus.
-
-### Chasse aux bugs : saisie et lancement des tests
-
-- Les commandes numériques acceptent les espaces en tête comme l'analyse
-  ordinaire : `  SLEEP 1 MIN` ne produit plus un refus de valeur invalide.
-  Régressions sur repos, marche trop courte et DRINK WATER qualifié.
-- `make test` reconstruit a2shot avec son Makefile et ses chemins SDK,
-  au lieu d'utiliser la règle C++ implicite qui échouait sur `pom2/core.hpp`.
-
-### Attente réduite pendant SLEEP
-
-- Suppression du détour par le vocabulaire et du rechargement de l'analyse
-  numérique pour les commandes de repos avec durée, ainsi que SLEEP seul.
-- Sommeil de huit heures sur la scène initiale : 32,1 → 26,8 secondes à
-  1,023 MHz, avec cinq lectures de disquette au lieu de sept.
-- Santé, météo et durée simulée conservées ; comparaison de l'état et du
-  paysage avec REST, et vérification des six verbes de repos et d'attente.
-
-### Corrections sur falaises et entrée dans la cabane
-
-- Rejet du débordement du quotient de pente multiplié par trois : les
-  arbres situés très bas sous une falaise ne réapparaissent plus dans le ciel.
-- ENTER SHELTER refuse l'entrée depuis un arbre ; il faut CLIMB DOWN avant
-  d'entrer dans la cabane. Le refus conserve heure, position et inventaire.
-- Message de refus dans l'arbre corrigé : son point d'exclamation était
-  interprété comme une substitution du motif d'arrêt de voyage. Même
-  correction pour le rapport de victoire sans déplacement.
-- Régressions sur cinq falaises ascendantes/descendantes et sur la chaîne
-  grimper → entrée refusée → descendre → entrer → sortir.
-
-### Doses et gestes de soin
-
-- Décompte signé des utilisations des produits médicaux, sans débordement
-  des stocks nuls ou négatifs ; quantités affichées dans INVENTORY.
-- Prises orales de FLAGYL, SALT TABLETS et QUININE par EAT/DRINK ;
-  refus de l'oxygène, du savon, des crèmes, lunettes et trousses.
-- SHIELD EYES et LOWER HEAD sans durée ; SUCK VENOM exige une morsure
-  active et prend 15 minutes. LOWER FOOD/BACKPACK conserve la récupération
-  du sac suspendu.
-- Commandes déplacées dans WILDMVI, avec retour résident avant le calcul
-  des soins et du temps ; les progressions restent dans WILDMED.
-- 130 cas supplémentaires sur ROM : 90 compteurs signés, 12 gestes de soin,
-  22 prises orales et 6 chaînes USE/inventaire/soins sur la dernière dose
-  ou un stock vide. Le prérequis natif reste sélectionné même sans dose
-  positive ; ce comportement est conservé.
-- L'oxygène dépend du drapeau d'utilisation distinct : la dernière dose
-  protège, mais réutiliser une bouteille vide désactive cette protection.
-- Restent à porter : SPLINT, soins thermiques, placement/stérilisation
-  propre à USE et les déclencheurs de blessures/maladies.
-
-### Conditions médicales et expositions
-
-- État résident des 15 conditions Journey : incubation, santé, guérison
-  avec/sans soin et produit des pourcentages entiers.
-- Prérequis de prévention et de traitement, protection vestimentaire,
-  réinitialisation quotidienne des soins temporaires.
-- Compteurs sel/froid, seuils stricts et décroissance protégée ; exposition
-  solaire et neige raccordées aux données du port.
-- Mal d'altitude, oxygène et plafond de 30 minutes en santé critique ou
-  pendant les huit premières heures des conditions 6–11.
-- USE médical, STOP BLEEDING et page médicale de STATUS.
-- WILDTRV pour la nage, WILDMED pour les soins/expositions, WILDMVI pour
-  l'état médical, calcul de charge déplacé dans WILDSIM.
-- Comparaisons sur ROM : 160 progressions, 66 combinaisons de soins,
-  60 cas d'altitude, 80 cadences, 84 protections vestimentaires et
-  59 expositions sel/froid, soit 509 cas.
-- Restent à porter : soins complémentaires, déclencheurs par
-  attaques/chutes/contamination et sélecteurs solaires/neige exacts.
-- TOPO : légende raccourcie pour préserver la progression en marche.
-- Bandeau invalidé quand WILDSIM emprunte HGR ; retour de STATUS restaure
-  les pixels affichés et le cache du terrain. Les tests distinguent ce dessin
-  des octets graphiques inutilisés servant aux calculs temporaires.
-- Pilote d'aventures : acquittement du temps de marche natif pris en charge,
-  quatre scénarios terminés avec écarts toujours signalés ; 112 évolutions
-  bornées du vent comparées au moteur original.
-
-### Correction du rendu des arbres
-
-- Dessous du premier profil ramené à la hauteur du feuillage central :
-  suppression des pointes noires latérales qui descendaient vers le sol.
-- Couronnes séparées, centrées dans leurs cases : le profil natif de
-  32 colonnes ne couvre plus deux cases entières.
-- Motif de feuillage vert/noir rétabli, avec pixels opaques et occlusion
-  des astres ; les profils ne sont plus remplis entièrement en noir.
-- Troncs noirs sous le centre du feuillage, ancrés au terrain ; couronnes
-  relevées de 18 pixels divisés par la distance pour les arbres proches.
-- Contour supérieur noir continu et liseré inférieur du feuillage pour
-  détacher les couronnes du ciel violet et du terrain vert.
-- Limite du feuillage conservée quand la base projetée dépasse l'écran,
-  sans débordement vers un remplissage noir sur les pentes descendantes.
-- Stockage de cette limite hors de l'octet d'arrondi Applesoft, pour
-  conserver les calculs exacts de durée après l'affichage des arbres.
-- Contrôle visuel en émulateur et régression contre les bandes noires
-  continues, en plus des comparaisons de pixels et des rotations.
-
-### Grimper et suspendre la nourriture
-
-- `CLIMB TREE` / `CLIMB DOWN` : arbre proche, santé > 2,5 pour monter,
-  marche et nage refusées dans l’arbre ; aucun temps ajouté.
-- `HANG FOOD` suspend le sac et son contenu pendant 30 minutes, avec
-  le coût natif de 1,65 + 0,02 × poids corporel kcal/min.
-- `GET BACKPACK`, `LOWER FOOD` et `LOWER BACKPACK` récupèrent le sac à sa
-  case ; charge vérifiée et restauration atomique en cas de refus.
-- INVENTORY affiche `HUNG HERE` ; STATUS signale l’arbre et le sac suspendu.
-- Sonde de 24 cas CLIMB et 16 cas HANG dans le code original sur ROM ;
-  tests du port sur les stocks partagés, les conteneurs, les écrans et les refus.
-
-### Arbres et forêts
-
-- Zones boisées issues des contours TMAKE et profils d’arbres Sierra portés.
-- Projection attachée au monde, clipping par le relief, priorité aux sprites proches.
-- TOPO, STATUS et filtres de faune reconnaissent bois et maquis d’altitude.
-- Extension MAP de 294 octets, import des forêts TOPO, compatibilité des cartes anciennes.
-- Tests du dessin, des rotations et du chargement.
-
-
-### Neowilderness lots 4 et 5 Survie, inventaire et orientation
-
-- Compas encadré sur toute sa hauteur, conservé pendant les rotations.
-- Résumé monochrome autour de la boussole : heure/période, santé, faim, soif,
-  alerte de transition ou état thermique ; abri et objets récupérables ici.
-- Alertes aux seuils existants, sans répétition à classe inchangée ni changement
-  des règles ; les activités longues conservent une alerte prioritaire.
-- STATUS réorganisé, avec conditions avant besoins/environnement et réserves
-  CARRIED/HERE distinctes ; cas maximal lisible sans couper un nom de condition.
-- INVENTORY regroupé par emplacement, douze objets/page, réserves réparties
-  affichées séparément, capacités permanentes et navigation explicite.
-- TOPO : C pour recentrer, huit caps magnétiques et site sous le joueur nommé.
-- WILDHUD/WILDSTA dans la fenêtre de 2 Ko ; bandeau conservé pendant rendu
-  et rotations, faune traitée avant sa composition au démarrage.
-- `test_interface.py` vérifie affichage, transitions, groupes/pages/quantités,
-  STATUS maximal, orientation/recentrage et consultations sans dépense.
-- Validation : suite complète `make -C wilderness test` réussie après le cadre ;
-  disquette reconstruite, contrôles de rendu et mémoire inclus.
-
-
-### Soleil et lune comme repères géographiques
-
-- Soleil calculé selon latitude, saison et heure solaire, indépendant de
-  la déclinaison magnétique ; projection dans les axes du terrain.
-- Lune nocturne à partir d'une éphéméride de référence 1985, avec phase
-  stylisée et correction moyenne de parallaxe ; extension identifiée du port.
-- Masquage par nuages, relief et sprites ; conservation du panorama partiel
-  de jour et de la vue sombre la nuit, qui ne révèle pas le terrain.
-- Initialisation déplacée dans WILDSIM pour respecter la mémoire résidente.
-- `test_sky.py` vérifie positions, hémisphères/saisons, masquage et rotations.
-
-
-### Neowilderness lot 2 Refus et résultats lisibles
-
-- Suppression des confirmations cachées entre messages : la commande suivante
-  conserve sa première touche. Le résultat reste lisible au retour à la vue,
-  pendant la saisie, après Échap et après une ligne vide.
-- Déplacement : durée effective et arrêt par eau, rive, nuit, limite, animal,
-  Échap, manque de temps ou terrain/rythme réunis. Mort, victoire et faiblesse
-  gardent la priorité ; les résultats de voyage conservent leur durée.
-- Verbe inconnu signalé avec HELP ; objet manquant accompagné d'exemples
-  disponibles ; objet inaccessible distingué d'une commande non implémentée.
-- Consommation : stock accessible avant la réponse, puis quantité réellement
-  consommée et stock initial. Les transferts nomment l'objet comme dans
-  INVENTORY et son nouvel emplacement, y compris les objets qualifiés.
-- Refus de charge : poids, volume ou les deux, excédent et capacité après
-  annulation en OZ/IN3 ; distinction des volumes portés, du sac et de la main.
-  Dépassement arithmétique distingué d'une capacité simplement insuffisante.
-  Sac/gourde absents, conteneurs non vides et sac rangé dans lui-même séparés.
-- WILDITM regroupe les transferts dans 2 Ko pour libérer la mémoire résidente.
-  Le moteur garde les textes dans trois lignes, sans défilement provoqué par
-  un nom long. `test_feedback.py` couvre la matrice de refus, les valeurs
-  maximales, la persistance, le stock et les arrêts pour animal/nuit.
-- Validation : `make -C wilderness test` complet réussi, avec préservation
-  des optimisations de rotation, des écritures TOPO et des traversées de rives.
-
-### Traversée des rives WALK / SWIM
-
-- WALK indiquait l'eau une case avant celle-ci, puis SWIM refusait son premier
-  demi-pas encore sur terre. Deux SWIM successifs restaient donc sur place.
-  Ce demi-pas est désormais autorisé si le suivant entre dans l'eau, avec
-  vérification du trajet sans déplacement ni dépense pendant la vérification.
-- SWIM réalise le dernier demi-pas vers la terre et s'arrête sur la rive,
-  avec le bilan du temps réellement passé et la fin de l'immersion. WALK
-  permet ensuite de poursuivre. SWIM sans eau devant reste sans effet.
-- `test_shore.py` couvre les quatre directions, une position fractionnaire,
-  un trajet diagonal et deux SWIM successifs jusqu'à la rive opposée.
-- Validation : suite complète `make -C wilderness test` réussie, y compris
-  trajectoires et durées de nage, bilan thermique, Échap, TOPO et rotations.
-
-### Neowilderness lot 1 Commandes et annulation
-
-- Échap efface la commande ou annule une saisie numérique, sans quitter le
-  jeu ; QUIT exige Y après avertissement de perte de progression.
-- La flèche gauche supprime un seul caractère dans les quantités et durées.
-  Une saisie vide ou zéro annule l'action ; NATURE conserve son réglage zéro.
-- Arguments directs et unités : WALK 10 MIN, REST 1 H, DRINK WATER 4 OZ et
-  EAT CHEESE 8 OZ. Les anciennes questions restent utilisables ; absence
-  d'unité = heures ou onces. Les unités, plages et dépassements sont vérifiés.
-- Échap interrompt WALK et SWIM après un pas terminé, avec position, santé,
-  réserves et temps effectif conservés. Le repos accepte les minutes ; son
-  interruption pendant l'activité reste une suite facultative.
-- Échap quitte immédiatement chaque page d'inventaire, sans attendre une
-  seconde touche. STATUS et TOPO conservent leur retour à la vue.
-- Module WILDINP à $5800 ; déplacement du parcours des mots dans WILDVOC et
-  du texte HELP dans WILDSCR pour rester dans les 48 Ko, sans lecture ajoutée
-  au chemin des rotations par flèches.
-- `test_input.py` couvre les annulations, refus atomiques, unités, correction
-  de chiffres, sorties des écrans, confirmation de QUIT et arrêts marche/nage.
-- Validation : `make -C wilderness test` complet réussi.
-
-### TOPO écrit seulement les caractères modifiés
-
-- Suppression de HOME et de la réécriture systématique de la carte à chaque
-  pas ou défilement. Comparaison directe avec la RAM texte avant chaque écriture,
-  pour le relief, les repères, les coordonnées, les légendes et les espaces.
-- Retrait des anciens caractères en fin de ligne sans réécrire les espaces
-  déjà présents ; conservation des messages et du curseur pendant la marche.
-- Tests des écritures réellement exécutées : une écriture par caractère modifié
-  sur douze pas de WALK et les défilements ; zéro écriture si la carte ne change pas.
-
-### Présentation pendant le chargement
-
-- Après le titre Apple II+, l'écran présente le crash, l'objectif de rejoindre
-  les rangers, les besoins de survie et les commandes principales.
-- Les durées en heures, les quantités en onces et les rotations sur une ligne
-  vide sont expliquées. Le chargement continue sans attente de touche.
-- Présentation intégralement en anglais, limitée à vingt lignes de moins de quarante
-  caractères pour rester visible pendant les lectures DOS.
-- Vérification du texte au début et à la fin du chargeur, de l'arrivée à
-  l'invite jouable et de la restitution des données résidentes par `test_boot.py`.
-
-### Défilement près des sites et accélération du rendu
-
-- Les rotations de 22,5° et 45° réutilisent désormais la géométrie d'un site
-  distant unique, même hors champ. Les flèches ne chargent aucun module ;
-  seules les colonnes découvertes sont rendues. Les scènes à plusieurs sites
-  potentiellement voisins conservent la sélection par reprojection.
-- Invalidation du cache de cap après défilement pour éviter de réutiliser une
-  ancienne projection avec une origine de sprite déjà décalée.
-- Parcours direct des lignes physiques pour l'effacement et le défilement ;
-  suppression des appels d'activation de sprite inutiles dans les rayons.
-- Mesures : 77,0 % de cycles en moins sur 48 rotations près de la cabane,
-  comparées au rendu complet forcé ; 4,7 à 11,5 % de gain sur le rendu complet
-  des cinq cartes de contrôle, avec images identiques à la référence.
-- Tests de rotation étendus aux sites distants, au masquage par une crête,
-  aux sites concurrents, aux tours complets et aux compteurs de lectures disque.
-- Validation : `make test` complet réussi, plus rotations de l'épave distante
-  et sélection de deux sites à des azimuts différents ; disquette reconstruite.
-
-### Ciel, orientation et carte pendant la marche
-
-- Le ciel et le relief occupent à nouveau les côtés du ruban. Le paysage
-  sous le ruban est conservé dans des lignes HGR invisibles pour éviter les
-  traces lors des rotations, sans allocation de mémoire supplémentaire.
-- TOPO affiche maintenant les Y décroissants : le nord est réellement en
-  haut, comme les déplacements et la boussole. Les touches de défilement
-  suivent cette orientation.
-- À chaque pas de WALK, TOPO se recentre et se rafraîchit dans les vingt
-  premières lignes. Les messages, leur curseur et la simulation sont préservés ;
-  aucun rechargement ni attente de touche entre les pas.
-- Vérifications : déplacements réels N/E/S/W et douze rafraîchissements
-  consécutifs pendant WALK, avec contrôle des zones préservées.
-
-### TOPO : actualisation avant affichage
-
-- La carte est reconstruite avant de passer en mode texte à l'ouverture,
-  pour éviter l'apparition fugace du précédent écran TOPO ou STATUS.
-- Vérification de la réouverture après défilement, marche et rotation :
-  recentrage, position/cap, relief et repères relus depuis l'état courant ;
-  la vue 3D et son ruban de boussole restent intacts au retour.
-
-### Boussole permanente en haut de la vue
-
-- Suppression de l'activation `USE COMPASS` : les points cardinaux sont
-  disponibles dès le départ, sans désactivation lors des transferts d'objets.
-- Ruban de 98 pixels centré en haut, avec N/NE/E/SE/S/SW/W/NW, graduations
-  tous les 22,5° et curseur fixe. Défilement continu à un pixel pour deux
-  unités d'azimut, avec prise en compte de la déclinaison magnétique.
-- En-tête réservé sur 16 lignes ; il reste visible la nuit et à la cabane,
-  et n'est pas entraîné par le défilement du terrain. Pas de chargement disque
-  ni de calcul flottant pour mettre à jour le ruban lors des rotations.
-- Vérification des 560 azimuts, du raccord nord, du centrage magnétique,
-  des commandes de rotation et des retours depuis STATUS.
-
-### Rotations de la vue
-
-- Défilement du terrain et des sprites locaux pour les rotations de 22,5°
-  et 45° ; seules les colonnes entrantes sont recalculées. Géométrie et
-  masquage des sites distants conservent le rendu complet.
-- Restauration de l'image du sprite après le chargement du vocabulaire de
-  LOOK ; les flèches évitent ce chargement lorsque l'image est déjà en mémoire.
-- Boucle de défilement raccourcie et suppression d'une table sinusoïdale
-  de 141 octets, avec conservation exacte des arrondis des directions.
-- Test des cinq sprites, sorties/retours dans le champ et tours complets
-  dans les deux sens. Sur 52 rotations autour de l'épave : 435 480 947 →
-  98 301 942 cycles, soit 77,4 % économisés, pixels et texte identiques.
-
-### Température : variation lente originale
-
-- Ajout de `INT(5 × SIN(0,0187 × heures écoulées + phase))`, avec la phase
-  sauvegardée du premier voyage Sierra et les arrondis de la ROM Applesoft.
-- 405 cas comparés à la routine T09/S08 originale : phases, durées,
-  températures signées et passage de la limite d'un octet.
-- L'air concorde désormais aux six points du scénario de départ ; les
-  écarts passent de 13 à 6, encore sur le vent et le ressenti. Le cycle
-  quotidien, la visibilité et les fronts météo restent à porter.
-
-### Marche : attente et accès disque
-
-- Regroupement de la faune avec les calculs d'environnement : deux lectures
-  de modules par pas ordinaire au lieu de trois quand la faune est active.
-- Affichage des minutes parcourues après chaque pas, sans touche à presser.
-- Test d'une marche de quatre heures : progression, nombre de lectures,
-  retour à la commande et absence de lectures supplémentaires à l'arrêt.
-
-### Terrain : rivières et lacs
-
-- Les plateaux s'écoulent désormais vers un exutoire au lieu de déclencher
-  des lacs artificiels. Les véritables cuvettes sont remplies jusqu'au
-  niveau de débordement, avec une surface plane et une sortie continue.
-- Suppression du remplissage tronqué à 300 unités et des carrés d'eau
-  effacés après génération autour du crash et des rangers. Une source
-  couvrant ces lieux est rejetée avant modification du terrain.
-- Conversion 224 × 168 vers 112 × 84 : chaque bloc garde ses points d'eau,
-  y compris aux coordonnées impaires, à la hauteur de l'eau. La cabane
-  évite aussi ces cases converties. Les autres marqueurs TOPO ne sont
-  plus interprétés comme des rivières.
-- Tests des plateaux, petites/grandes cuvettes, rivières fines et de
-  18 couples graine/difficulté : continuité, descente et reproductibilité.
-  L'écoulement reste une reconstruction, à comparer au générateur original.
-
-### Nage : tracé des caps obliques
-
-- Remplacement des vecteurs continus par l'axe majeur entier et l'accumulateur
-  sinusoïdal de l'original ; la durée distingue désormais chaque pas réellement
-  droit ou diagonal. État du tracé conservé pendant les changements de module.
-- 2 880 positions sur 360 caps comparées aux routines originales sur ROM.
-
-### Nage : effort et charge
-
-- Remplacement des 19 minutes par case par la durée de nage normale de
-  l'original, dépendant de la santé, de la charge et du caractère diagonal
-  du pas. SWIM avance maintenant d'une demi-case ; un dernier pas peut
-  dépasser le temps demandé s'il reste au moins la moitié de sa durée.
-- 143 durées identiques aux routines originales exécutées sur ROM ; tests
-  de la commande réelle, du dépassement de durée et du retour sur la rive.
-  Nouveau module `WILDTRV` pour préserver la place mémoire résidente.
-
-- SWIM utilise désormais le coût original lié au poids total : environ
-  14,43 kcal/min avec l'équipement initial. L'eau de la gourde n'est plus
-  comptée deux fois dans ce calcul ; les frissons s'ajoutent à cet effort.
-- 81 cas de poids, charge et durée vérifient la dépense calorique ; les
-  métabolismes sont également comparés octet par octet au helper original
-  exécuté sur la ROM, et les calories à sa routine énergétique. Premier
-  intervalle de santé de nage rétabli à 15 minutes. Test de la commande réelle,
-  immersion, repos dans l'eau et sortie sur la rive. Les modificateurs de
-  blessures/équipement restent à reproduire.
-
-### Comparaison de commandes avec le jeu original
-
-- Nouveau pilote différentiel sur les deux exécutables Apple II : départ,
-  équipement, boissons, repas, repos répétés, nuit et première marche.
-  Questions inspectées avant réponse ; erreurs et différences font échouer
-  le test. Dumps, images, journaux, symboles et rapports restent dans `build/`.
-- Observation de l'état original avant sa pagination sur Journey T04,
-  pour éviter de confondre la seconde page HGR avec la physiologie.
-- Boire à la gourde ne consomme plus de temps ; manger prend 16 minutes,
-  avec crédits alimentaires et hydriques originaux. Les frissons de la
-  sauvegarde initiale contribuent aux premières calories dépensées.
-- Repos adaptatif après le premier pas de 30 minutes ; compteurs et
-  déficits actualisés à la cadence de santé, pourcentages entiers et Hmax
-  initial conservé à sa précision originale.
-- Correction de la règle de rencontres précédente : repos et repas ne
-  tirent aucune faune. Les tirages et interruptions restent actifs en marche.
-- Directions cardinales corrigées par la déclinaison magnétique de la carte.
-  La précision aléatoire de la boussole reste à porter.
-- `make test-original` reste en échec sur les écarts météo/nuit/marche.
-  Aucune aventure complète jusqu'aux rangers n'est encore validée.
-
-### Rencontres pendant les actions
-
-Cette étape précédait les corrections différentielles ci-dessus ; les
-tirages pendant REST et sa cadence fixe ont depuis été remplacés.
-
-- Tirage à chaque pas de simulation : repos de 30 minutes, marche/nage
-  selon la durée du pas ; suppression du cumul limité à 255 minutes.
-- Toutes les espèces sont testées dans l'ordre Sierra, même si un animal
-  est présent ; conservation ou remplacement à 50 %, vérifiés dans l'original.
-- Une rencontre acceptée interrompt marche/repos après le pas écoulé,
-  avec temps exact et message d'interruption du repos.
-- Aucun tirage extérieur sous abri ; VIEW/STATUS ne dépensent ni temps
-  ni hasard. Les interruptions laissent le sprite disponible pour l'action suivante.
-- Sondes des drapeaux originaux et scénarios déterministes de repos long,
-  marche interrompue, remplacements et protection de la cabane.
-  Durée de présence de 60 minutes et déplacements des animaux restent provisoires.
-
-### Faune Sierra et limites de déplacement
-
-- Filtres des trois espèces : saison, heure, terrain, altitude, pente
-  maximale du voisinage 3 × 3 et indice climatique régional.
-- Probabilité `minutes × NATURE × √difficulté × taux × 10⁻⁵`, avec les
-  taux originaux 80/40/100 et un générateur indépendant de la météo.
-- Commande NATURE : multiplicateur entier 0–100, valeur initiale 1, refus
-  des valeurs supérieures ; les animaux nocturnes restent invisibles la nuit.
-- Difficulté et indice Sierra dans l'en-tête de carte ; anciennes cartes
-  compatibles avec les valeurs par défaut 4 et 31.
-- Marche et nage arrêtées avant la bande extérieure de deux cases, avec
-  message explicite et aucun temps facturé pour le pas refusé.
-- Sondes du code original, scénarios par espèce et tests des quatre côtés.
-  Cadence des tirages, durée de présence, déplacements et réactions restent
-  provisoires ; NATURE n'accepte pas encore les valeurs fractionnaires.
-
-### Sites visibles à distance
-
-- Épave et cabane projetées à moins de huit cases : azimut depuis leurs
-  coordonnées fixes, tailles par paliers et ancrage sur leur altitude.
-- Insertion du sprite au pas de rayon correspondant à sa distance ; le relief
-  situé devant le masque, celui situé derrière conserve le sprite visible.
-- Composition toujours par colonne, sans chargement disque dans les rayons,
-  avec les couleurs, la transparence et les pixels noirs des flux originaux.
-- Module WILDPRJ pour préparer la géométrie et les bornes du terrain ; cache
-  réutilisé quand position, cap et rencontre restent identiques.
-- Rotations complètes près des sites, y compris lorsqu'ils sont hors champ,
-  pour éviter les apparitions manquées et les traces du défilement partiel.
-- Comparaisons exactes et parcours d'approche/retour à pied. Limite actuelle :
-  un seul site par vue, sélectionné par distance dans le champ ; les animaux
-  restent locaux et la projection est une règle propre au port.
-
-### Cabane et TOPO
-
-- `ENTER SHELTER`, `EXIT SHELTER` et `LEAVE SHELTER` à la cabane ; état
-  intérieur conservé pendant REST, rotations et écrans STATUS/TOPO.
-- Protection thermique de l'abri trouvé : air ambiant +15 °F, sans vent,
-  comparée à la branche originale ; HUT reste une fabrication distincte.
-- Refus de marche/nage à l'intérieur, absence de rencontres pendant le
-  repos sous abri et restitution de la vue extérieure à la sortie.
-- Première carte TOPO textuelle de 32 × 14 cases : relief, eau et repères
-  joueur/épave/cabane/rangers, avec défilement borné par flèches ou WASD.
-- Nouveau module disque WILDSIT ; résolution des qualificatifs déplacée
-  dans WILDVOC pour préserver la petite marge de mémoire résidente.
-- Parcours testé sans changement de position en mémoire : repérage, marche,
-  entrée, repos au froid, sortie et retour ; tests supplémentaires de nuit
-  et sondes locales des commandes et températures originales.
-
-### Rendu par colonne
-
-- Composition du sprite et du terrain dans chaque colonne, sans passe de
-  superposition après la vue complète ; chargement disque avant le rendu.
-- Remplissage limité aux zones transparentes et arrêt des rayons lorsque
-  le relief maximal ne peut plus contribuer aux lignes encore visibles.
-- Réutilisation du tampon de texte BLOAD pour les 160 couleurs de la colonne,
-  avec conservation des pixels noirs opaques et des rotations.
-- Épave descendue de dix lignes pour retrouver ses coordonnées verticales
-  d'origine, sans empiéter sur le texte.
-- Test de l'image intermédiaire, comparaisons exactes sur cinq cartes et
-  profilage des pas de rayons et cycles hors chargement DOS.
+## Unreleased
+
+### Text and HGR transitions
+
+- The HELLO explanation text stays on screen during decompression,
+  initialisation and the first render. DOS can no longer scroll
+  the twenty welcome lines; the blank curtain starts after this first view.
+
+- Startup, VIEW, full scene changes and the return from TOPO
+  hide the drawing until the last column; partial rotations
+  keep their progressive scrolling.
+- Before a SIM or TOPO load, the top twenty lines are cleared
+  before the switch to text. The old STATUS/HELP pages no longer reappear
+  during the computations; the command, the results and the cursor stay.
+- STATUS, the medical detail, INVENTORY, HELP and the final summary prepare
+  their first page behind the landscape. The keyboard reveals the finished
+  page.
+- The menus share MAP's differential writes, with clearing of
+  line ends, tab spaces and unused lines. An identical
+  page writes no character; a short page keeps no old object.
+- Returning from the menus clears the four text lines before showing HGR.
+  The restore after simulation shares the day/night/cabin rendering and
+  preserves the action results, without extra confirmation or delay.
+- Video initialisation and the projection cache are moved into ADV;
+  unused data and screen return are removed to fit in 48 KB.
+- `test_transitions.py` checks the captures of the intermediate steps,
+  the preservation of the state and the exact writes of the menus. The test
+  breakpoints now wait for the keyboard after the page is prepared.
+- The SLEEP disk contract is corrected to fourteen reads, also measured
+  on the local reference before these changes; the transitions add none.
+
+- SWIM loads SIM before its first bank probe, including without a move;
+  starting or repeating SWIM on dry land no longer jumps into HGR memory.
+- The route, wildlife and weight fixtures use the native raster,
+  random generator and loads already present.
+
+### First minutes and built-in help
+
+- The welcome screen suggests INVENTORY, STATUS, TOPO and HELP to reach the
+  rangers.
+- HELP splits movement, equipment and survival into three pages: command
+  examples, locations and a warning about DROP of the provisions.
+- 1/2/3 selection, circular N/Space/B navigation and Esc/Return to go back,
+  in the 2 KB screen module without changing the simulation rules.
+
+
+### Visibility at full moon
+
+- Nights when the lunar disc is fully lit keep a black
+  sky, with relief, trees, wreck, cabin and animals visible. The other
+  phases keep the darkness. The survival computations keep the night.
+- Regression independent of the terrain and sprite pixels, under a clear or
+  cloudy sky; the woods stay visible at full moon.
+
+### Site direction consistent with TOPO
+
+- Distant projection of the cabin and the wreck: north/south axis corrected
+  to follow the terrain, the walk and the TOPO map landmarks.
+- Regression independent of the projection model: eight directions per
+  site, TOPO landmarks read on screen, compass, pixels visible in front
+  and no sprite when looking behind.
+
+
+### Animal reactions inspired by the original engine
+
+- Sierra noise, injury and combat thresholds checked on ROM: noise has no
+  effect on the rattlesnake, bear/cougar sensitive to noise, axe/knife grouped
+  as in the native weapon choice.
+- Bear/cougar severity checked on ROM: cuts, broken arm/leg and shock,
+  linked to the health curves and treatments; higher outcome grouped as shock.
+- Contamination draw corrected: the state changes on each consumption
+  of untreated water, without using the animal random generator.
+- SCARE and ATTACK can fail; two combat draws allow a
+  successful defence with an injury. IGNORE can leave the animal present.
+- Bear/cougar can steal exposed food: hung stocks, water,
+  equipment and distant piles kept; load and totals recalculated.
+- Injury risks by posture checked on ROM: waiting/resting/eating
+  on the ground, IGNORE and tree. Climbing no longer prevents injuries; warning
+  shown, hung provisions kept and treatment possible in the tree.
+- Cabin protects the player/provisions;
+  reaction reported and action interrupted after an hour without a decision.
+- Probes `re_animal_reactions_probe.py`, keyboard scenarios
+  `test_animal_reactions.py`; adaptations and limits in `docs/logic/animals.md`.
+
+### Adventure, resupply and summary
+
+- `DONE` and remaining distance replace the ambiguous `GOAL` in STATUS;
+  distances with cell fractions, bounded progress and native score kept.
+- `FILL/REFILL CANTEEN`, neighbouring bank, 64 OZ capacity, 10-minute cost
+  and atomic overload refusal; contamination of drunk water and separate
+  random generator.
+- SCARE/IGNORE/ATTACK reactions, targeting by species, tools, cuts/bites
+  and attack after an hour without a reaction; hung provisions and
+  protection by the cabin.
+  These reactions and the contamination are documented rules of the port.
+- Banner for a low water reserve and a reaction to an encounter; HELP
+  expanded.
+- Dedicated arrival/death screen: duration, steps, encounters, health,
+  provisions and native efficiency score, kept until a key is pressed.
+- Two extra disk modules, WILDADV and WILDOUT; the simulation and
+  existing commands stay in their windows and the startup in two packets.
+- Purple/green palette confirmed as the engine's choice, sprite colours
+  and terrain rendering kept.
+
+
+### Fewer module transfers
+
+- Simulation and wreck/bear/cabin sprites compressed, resident in-place LZ
+  decompression: 32→22, 8→6, 4→2 and 5→3 data sectors read.
+- Allocations kept, BLOAD lengths reduced: placement of the following
+  files preserved. Small modules kept raw after measuring the native cost.
+- Projection tables reduced to one stored table and a cache rebuilt
+  at startup; 24,976 resident bytes, 16,303-byte packet in two files.
+- LOOK R at 7.26 s; rest/sleep almost unchanged at 21.11/22.70 s,
+  walk at 26.96 s. Decompression absorbs almost all of the disk gain.
+- 20 native loads checked byte by byte, with text, zero page/FAC
+  and memory bounds kept; states and images of six commands identical.
+- Direct 1–255 H/MIN durations of REST/SLEEP/WALK/SWIM validated in
+  resident code; full reader kept for keyboard input, other forms and
+  errors.
+- One WILDINP read avoided: REST 1 H at 21.12 s, SLEEP 8 H at 22.71 s,
+  WALK 1 H at 26.95 s; states and images identical.
+- Two redundant graphics tables removed (280 bytes) to make room for the
+  resident input; extra rendering cost of 0.004 s.
+- Compression dictionary shared between neighbouring regions: startup
+  kept in two files (16,369 bytes); resident reduced by eight bytes.
+- 799 native durations and the 140 pixel pairs checked; zero, errors,
+  cancellation, general input, DOS memory and full restore kept.
+
+### Audit of costs and native copies
+
+- Loader LZ copies indexed by Y; pointers and counters updated
+  once per sequence. Engine ready at 19.42 s; first prompt at 40.91 s.
+- Immediate zero-slope division; removal of the double clear and
+  of the second banner during the outdoor night restore.
+- VIEW at 5.62 s; night DRINK gains 0.14 s. Resident: 25,261 bytes,
+  compressed to 16,276 bytes in two files; four net bytes added.
+- Profiling of commands by memory area: DOS still absorbs 68 % of
+  sleep and 77 % of walking. States and pixels compared with no difference.
+- 8,256 divisions and 40 copies tested natively, as well as the single
+  night clear; page crossings and overlaps covered.
+
+### Disk II loading
+
+- LZ compression optimised per block taking the flags into account,
+  full 4,095-byte window and removal of the arbitrary output cuts
+  at 4 KB. Decompressor and Apple II memory identical.
+- Startup packed into 16,272 bytes in two files instead of three;
+  nine-sector interleave with a one-sector physical skew between tracks.
+- Arrival in the engine: 23.48 → 20.83 seconds; first prompt:
+  45.89 → 43.26. LOOK R: 8.08 → 7.36; eight-hour sleep: 25.83 → 25.30.
+- Disk II measurements corrected to stop the capture before the first BLOAD.
+  1,023 compression cases compared with an exhaustive search; format and
+  window limits, DOS integrity and native restore checked.
+
+### Render memory traversal
+
+- Tree search stopped for the rest of the ray after its distance
+  limit or the selection of a crown; reactivated on the next ray.
+- Clearing by contiguous lines, with HGR addresses computed once
+  per line; banner, cache, memory holes and kept columns protected.
+- 32 bytes of redundant pointers removed, without a new index computation
+  in the unrolled fill; total resident reduced by 14 bytes.
+- VIEW: 6.20 → 5.64 seconds, LOOK R: 8.28 → 8.08, eight-hour sleep:
+  26.39 → 25.83. States and pixels identical, DOS reads unchanged.
+- Regressions on every byte of an HGR page, partial/full clears,
+  tree search budget and reactivation between images.
+
+### Speed and lifetime of data in memory
+
+- 170 bytes of an off-screen rendering table recovered for resident LOOK
+  and the screen shortcuts, with the pixels kept. VIEW no longer reloads
+  the vocabulary and the sprite: 12.47 → 6.20 seconds. LOOK R goes
+  from 10.43 to 8.28; STATUS at the start from 12.27 to 3.76.
+- Astronomical temporaries reusing 68 bytes of the DOS buffer outside
+  loads; sky outputs always resident. Five-byte insulation
+  cache, invalidated by the clothes worn or the wetness mode.
+- Reproducible measurements in cycles and reads with profile_actions.py,
+  comparison of states and pixels before/after, 76 thermal transitions
+  and preservation tests across loads.
+- The 48 KB Apple II+ stays the target; the floating-point routines and
+  rounding of the simulation are kept. Sleep stays close to 26.4 seconds.
+
+### Survival banner and direct access to screens
+
+- Danger alerts, VERY hunger/thirst and health under 40 % in inverse video;
+  improvements in normal text to tell their importance apart without colour.
+- TOPO/HELP hints by day, REST/HELP at night and LOWER FOOD near the hung
+  bag, after the dangers and the shelter or tree hints.
+- Shortcuts shown to move directly between HELP, INVENTORY,
+  STATUS and TOPO. STATUS navigation fixed to the last two lines.
+- Check of the alert pixels and the nine direct transitions,
+  with time, reserves and the visible image kept.
+
+### More readable help and inventory
+
+- HELP shows two pages, movement and survival, with command examples,
+  units and navigation keys. Keys 1/2 select a page,
+  N/Space and B change page, Esc/Return show the landscape again.
+- Help titles and inventory group in inverse video; object count,
+  FREE capacities and paging commands shown explicitly.
+- Browsing checked with the keyboard, without advancing time or changing
+  the reserves, the health or the landscape.
+
+### Alerts restored before display
+
+- An improvement now replaces the worsening alert still
+  pending for the same category, instead of showing an outdated warning.
+- Regressions for hunger, thirst, health, temperature and immersion; alerts
+  still active in other categories keep their priority. The ranking
+  has no effect on the simulation.
+
+### Result of the waiting commands
+
+- WAIT and PAUSE announce "YOU WAITED" in hours or minutes, instead of
+  "YOU RESTED"; their lack of rest credit is kept.
+- Regressions on both units, the identical effects of WAIT/PAUSE,
+  the separate credit of REST and the cancellation of a zero duration.
+- Texts reorganised in memory without an extra disk read
+  for sleep; its five reads and its final state are still checked.
+
+### Forest limit in the information screens
+
+- TOPO and STATUS use the map's tree altitude limit,
+  like the 3D view and CLIMB TREE, instead of an 11,000-foot constant.
+- The value zero keeps the historical 11,000-foot limit.
+  Regressions below the limit and exactly at it, for three limits,
+  checking the T/t symbols, WOODS/SCRUB and access to the trees.
+
+### Direct NATURE value
+
+- `NATURE 0` now disables new encounters, like the value
+  zero entered at the prompt; the direct command was refused by the list
+  of numeric actions and kept the previous frequency.
+- Values 0–100, spaces and input at the prompt checked. Out-of-range
+  numbers, decimals and units are refused without changing the player's
+  state, the frequency, the landscape or the random generator.
+
+### Objects on the ground in the banner
+
+- "ITEMS: INV" disappears after picking up the last object or
+  consuming the last reserve on the ground, as in the inventory.
+- The summary no longer takes the rope counters and other equipment
+  for reserves on the ground; exhausted foods no longer count either.
+- Regressions through real commands on rope, axe, eggs and water.
+
+### Projection of sites at the foot of cliffs
+
+- A cabin far below the view no longer reappears on screen
+  when the computation of its height exceeds 16 bits.
+- Regression on nine cliff heights and three orientations, compared
+  pixel by pixel with the independent projection model.
+
+### Duration of encounters during stationary actions
+
+- Encounters already present also age during WAIT,
+  meals and sleep; they expire at 60 minutes, even without a move.
+- No new wildlife draw during these actions. Regression on a
+  wait, a meal and two rests, with presence at 59 minutes, disappearance
+  at 60 minutes and random generator unchanged.
+- NATURE joins the input module; this frees the space needed
+  in the simulation module and avoids loading it for this setting.
+
+### Alerts after a drink
+
+- DRINK immediately updates the thirst and dehydration state used
+  by the banner, without waiting for an action that advances time.
+- A dehydration cleared by the drink no longer stays displayed; tests
+  of healing, of thirst improvement and of persistent dehydration,
+  with stocks debited only once and time/health kept.
+
+### Going back between inventory groups
+
+- From the first page of a group, B goes back to the last page of the
+  previous group, instead of jumping directly to its first page.
+- Regression on the bag → ground → back to the bag path, with two pages
+  of objects in each group; time and stocks kept.
+
+### Outdated illness alert
+
+- An illness that disappeared before the banner refresh shows
+  "ILL IMPROVED", instead of causing a false "EXHAUSTION" alert.
+- Regressions on the three recoveries, a persistent dehydration and
+  illness replacements between two displays.
+
+### Clock minute
+
+- The banner and STATUS round the total minutes before extracting
+  hour/minute: WALK 19 MIN from 7:00 now shows 7:19, instead
+  of 7:18 when the float is slightly below the whole minute.
+- Carries into the next hour, noon and midnight handled together, without
+  changing the simulated time. Regression on a real walk and seven
+  values close to the minute and hour limits.
+- Midnight shows as 12:00A in STATUS; the 12-hour format used to show
+  0:00A because of the zero flag left by the comparison with 12.
+
+### Exact end of the travel duration
+
+- After the last requested step, WALK/SWIM stop without testing an extra
+  step. The result reports the end of the duration rather than an
+  obstacle (water, cliff or map edge) lying beyond the finished journey.
+- Interruptions of the completed step (animal, night, bank, death, arrival)
+  keep their priority. Regressions on three obstacles after exactly
+  19 minutes, on a swim ending at the map edge, on water met
+  with one minute left and on animal/night at the last requested step.
+
+### Numeric arguments of medicines
+
+- `EAT FLAGYL 0 OZ` no longer consumes a dose despite the zero quantity.
+  Medicines now refuse numbers and units added to
+  EAT/DRINK, instead of ignoring them and applying a single dose.
+- The refusal keeps stocks, time and medical state; it explains to remove
+  the number and the unit. A normal intake stays available after the
+  refusal.
+
+### Bug hunt: input and test launch
+
+- Numeric commands accept leading spaces like ordinary
+  parsing: `  SLEEP 1 MIN` no longer produces an invalid-value refusal.
+  Regressions on rest, too-short walk and qualified DRINK WATER.
+- `make test` rebuilds a2shot with its Makefile and its SDK paths,
+  instead of using the implicit C++ rule that failed on `pom2/core.hpp`.
+
+### Shorter wait during SLEEP
+
+- Removal of the detour through the vocabulary and of the reload of numeric
+  parsing for rest commands with a duration, as well as SLEEP alone.
+- Eight-hour sleep on the initial scene: 32.1 → 26.8 seconds at
+  1.023 MHz, with five floppy reads instead of seven.
+- Health, weather and simulated duration kept; comparison of the state and
+  the landscape with REST, and check of the six rest and wait verbs.
+
+### Fixes on cliffs and entering the cabin
+
+- Rejection of the overflow of the slope quotient multiplied by three:
+  trees lying far below a cliff no longer reappear in the sky.
+- ENTER SHELTER refuses entry from a tree; CLIMB DOWN is needed before
+  entering the cabin. The refusal keeps time, position and inventory.
+- Refusal message in the tree corrected: its exclamation mark was
+  interpreted as a substitution of the travel-stop pattern. Same
+  fix for the victory report without a move.
+- Regressions on five rising/falling cliffs and on the chain
+  climb → entry refused → climb down → enter → exit.
+
+### Doses and first-aid actions
+
+- Signed count of the uses of medical products, without overflow
+  of zero or negative stocks; quantities shown in INVENTORY.
+- Oral intake of FLAGYL, SALT TABLETS and QUININE through EAT/DRINK;
+  refusal of oxygen, soap, creams, glasses and kits.
+- SHIELD EYES and LOWER HEAD without a duration; SUCK VENOM requires an
+  active bite and takes 15 minutes. LOWER FOOD/BACKPACK keeps the recovery
+  of the hung bag.
+- Commands moved into WILDMVI, with a resident return before the computation
+  of treatments and time; the progressions stay in WILDMED.
+- 130 extra cases on ROM: 90 signed counters, 12 first-aid actions,
+  22 oral intakes and 6 USE/inventory/treatment chains on the last dose
+  or an empty stock. The native prerequisite stays selected even without a
+  positive dose; this behaviour is kept.
+- Oxygen depends on the separate use flag: the last dose
+  protects, but reusing an empty bottle disables this protection.
+- Still to port: SPLINT, thermal treatments, placement/sterilisation
+  specific to USE and the injury/illness triggers.
+
+### Medical conditions and exposures
+
+- Resident state of the 15 Journey conditions: incubation, health, healing
+  with/without treatment and product of whole percentages.
+- Prevention and treatment prerequisites, clothing protection,
+  daily reset of temporary treatments.
+- Salt/cold counters, strict thresholds and protected decay; solar
+  and snow exposure connected to the port's data.
+- Altitude sickness, oxygen and 30-minute cap in critical health or
+  during the first eight hours of conditions 6–11.
+- Medical USE, STOP BLEEDING and STATUS medical page.
+- WILDTRV for swimming, WILDMED for treatments/exposures, WILDMVI for
+  the medical state, load computation moved into WILDSIM.
+- Comparisons on ROM: 160 progressions, 66 treatment combinations,
+  60 altitude cases, 80 rates, 84 clothing protections and
+  59 salt/cold exposures, i.e. 509 cases.
+- Still to port: complementary treatments, triggers by
+  attacks/falls/contamination and exact solar/snow selectors.
+- TOPO: shortened legend to preserve progress while walking.
+- Banner invalidated when WILDSIM borrows HGR; returning from STATUS restores
+  the displayed pixels and the terrain cache. The tests tell this drawing
+  apart from the unused graphics bytes serving for temporary computations.
+- Adventure driver: acknowledgement of the native walking time supported,
+  four scenarios finished with differences still reported; 112 bounded
+  wind evolutions compared with the original engine.
+
+### Tree rendering fix
+
+- Underside of the first profile brought back to the height of the central
+  foliage: removal of the black side spikes that went down towards the
+  ground.
+- Separate crowns, centred in their cells: the native 32-column
+  profile no longer covers two whole cells.
+- Green/black foliage pattern restored, with opaque pixels and occlusion
+  of the celestial bodies; the profiles are no longer filled entirely in
+  black.
+- Black trunks under the centre of the foliage, anchored to the terrain;
+  crowns raised by 18 pixels divided by the distance for nearby trees.
+- Continuous black top outline and lower edging of the foliage to
+  set the crowns apart from the purple sky and the green terrain.
+- Foliage limit kept when the projected base goes beyond the screen,
+  without overflowing into a black fill on downward slopes.
+- This limit is stored outside the Applesoft rounding byte, to
+  keep the exact duration computations after the trees are displayed.
+- Visual check in the emulator and regression against continuous black
+  bands, in addition to the pixel and rotation comparisons.
+
+### Climbing and hanging food
+
+- `CLIMB TREE` / `CLIMB DOWN`: nearby tree, health > 2.5 to climb up,
+  walking and swimming refused in the tree; no time added.
+- `HANG FOOD` hangs the bag and its contents for 30 minutes, with
+  the native cost of 1.65 + 0.02 × body weight kcal/min.
+- `GET BACKPACK`, `LOWER FOOD` and `LOWER BACKPACK` recover the bag in its
+  cell; load checked and atomic restore on refusal.
+- INVENTORY shows `HUNG HERE`; STATUS reports the tree and the hung bag.
+- Probe of 24 CLIMB cases and 16 HANG cases in the original code on ROM;
+  port tests on shared stocks, containers, screens and refusals.
+
+### Trees and forests
+
+- Wooded areas from the TMAKE contours and Sierra tree profiles ported.
+- Projection attached to the world, clipping by the relief, priority to
+  nearby sprites.
+- TOPO, STATUS and the wildlife filters recognise high-altitude woods and
+  scrub.
+- 294-byte MAP extension, import of the TOPO forests, compatibility with
+  old maps.
+- Tests of the drawing, rotations and loading.
+
+
+### Neowilderness lots 4 and 5 Survival, inventory and orientation
+
+- Compass framed over its full height, kept during rotations.
+- Monochrome summary around the compass: time/period, health, hunger,
+  thirst, transition alert or thermal state; shelter and objects that can
+  be picked up here.
+- Alerts at the existing thresholds, without repetition for an unchanged
+  class nor a change of rules; long activities keep a priority alert.
+- STATUS reorganised, with conditions before needs/environment and separate
+  CARRIED/HERE reserves; maximal case readable without cutting a condition
+  name.
+- INVENTORY grouped by location, twelve objects/page, split reserves
+  shown separately, permanent capacities and explicit navigation.
+- TOPO: C to recentre, eight magnetic headings and the site under the
+  player named.
+- WILDHUD/WILDSTA in the 2 KB window; banner kept during rendering
+  and rotations, wildlife handled before its composition at startup.
+- `test_interface.py` checks display, transitions, groups/pages/quantities,
+  maximal STATUS, orientation/recentring and free browsing.
+- Validation: full suite `make -C wilderness test` passed after the frame;
+  disk rebuilt, rendering and memory checks included.
+
+
+### Sun and moon as geographic landmarks
+
+- Sun computed from latitude, season and solar time, independent of
+  the magnetic declination; projection in the terrain axes.
+- Night moon from a 1985 reference ephemeris, with stylised
+  phase and average parallax correction; identified extension of the port.
+- Masking by clouds, relief and sprites; the partial panorama is kept
+  by day and the dark view at night, which does not reveal the terrain.
+- Initialisation moved into WILDSIM to respect resident memory.
+- `test_sky.py` checks positions, hemispheres/seasons, masking and
+  rotations.
+
+
+### Neowilderness lot 2 Readable refusals and results
+
+- Removal of the hidden confirmations between messages: the next command
+  keeps its first key. The result stays readable on returning to the view,
+  during input, after Esc and after an empty line.
+- Movement: effective duration and stop by water, bank, night, limit,
+  animal, Esc, lack of time or terrain/pace combined. Death, victory and
+  weakness keep priority; travel results keep their duration.
+- Unknown verb reported with HELP; missing object accompanied by available
+  examples; inaccessible object told apart from an unimplemented command.
+- Consumption: accessible stock before the answer, then the quantity
+  actually consumed and the initial stock. Transfers name the object as in
+  INVENTORY and its new location, including qualified objects.
+- Load refusals: weight, volume or both, excess and capacity after
+  cancellation in OZ/IN3; distinction between worn volumes, the bag and the
+  hand. Arithmetic overflow told apart from a merely insufficient capacity.
+  Missing bag/canteen, non-empty containers and bag stored inside itself
+  separated.
+- WILDITM groups the transfers in 2 KB to free resident memory.
+  The engine keeps the texts in three lines, without scrolling caused by
+  a long name. `test_feedback.py` covers the refusal matrix, the maximal
+  values, persistence, stock and the stops for animal/night.
+- Validation: full `make -C wilderness test` passed, with the rotation
+  optimisations, TOPO writes and bank crossings preserved.
+
+### WALK / SWIM bank crossing
+
+- WALK reported the water one cell before it, then SWIM refused its first
+  half-step still on land. Two successive SWIMs therefore stayed in place.
+  This half-step is now allowed if the next one enters the water, with
+  the path checked without moving or spending during the check.
+- SWIM makes the last half-step towards land and stops on the bank,
+  with the summary of the time actually spent and the end of the immersion.
+  WALK then allows continuing. SWIM without water ahead still has no effect.
+- `test_shore.py` covers the four directions, a fractional position,
+  a diagonal path and two successive SWIMs up to the opposite bank.
+- Validation: full suite `make -C wilderness test` passed, including
+  swim paths and durations, thermal balance, Esc, TOPO and rotations.
+
+### Neowilderness lot 1 Commands and cancellation
+
+- Esc clears the command or cancels a numeric input, without quitting the
+  game; QUIT requires Y after a warning about losing progress.
+- The left arrow deletes a single character in quantities and durations.
+  An empty or zero input cancels the action; NATURE keeps its zero setting.
+- Direct arguments and units: WALK 10 MIN, REST 1 H, DRINK WATER 4 OZ and
+  EAT CHEESE 8 OZ. The old questions stay usable; no
+  unit = hours or ounces. Units, ranges and overflows are checked.
+- Esc interrupts WALK and SWIM after a finished step, with position, health,
+  reserves and effective time kept. Rest accepts minutes; its
+  interruption during the activity stays an optional follow-up.
+- Esc leaves each inventory page immediately, without waiting for a
+  second key. STATUS and TOPO keep their return to the view.
+- WILDINP module at $5800; the word walk moved into WILDVOC and
+  the HELP text into WILDSCR to stay within 48 KB, with no read added
+  to the arrow rotation path.
+- `test_input.py` covers cancellations, atomic refusals, units, digit
+  correction, screen exits, QUIT confirmation and walk/swim stops.
+- Validation: full `make -C wilderness test` passed.
+
+### TOPO writes only the changed characters
+
+- Removal of HOME and of the systematic rewrite of the map on every
+  step or scroll. Direct comparison with the text RAM before each write,
+  for the relief, the landmarks, the coordinates, the legends and the
+  spaces.
+- Old characters at the end of a line removed without rewriting the spaces
+  already present; messages and cursor kept during the walk.
+- Tests of the writes actually executed: one write per changed character
+  over twelve WALK steps and the scrolls; zero writes if the map does not
+  change.
+
+### Presentation during loading
+
+- After the Apple II+ title, the screen presents the crash, the goal of
+  reaching the rangers, the survival needs and the main commands.
+- Durations in hours, quantities in ounces and rotations on an empty
+  line are explained. Loading continues without waiting for a key.
+- Presentation entirely in English, limited to twenty lines of fewer than
+  forty characters to stay visible during the DOS reads.
+- Check of the text at the start and end of the loader, of the arrival at
+  the playable prompt and of the restore of the resident data by
+  `test_boot.py`.
+
+### Scrolling near sites and faster rendering
+
+- The 22.5° and 45° rotations now reuse the geometry of a single distant
+  site, even off-field. The arrows load no module;
+  only the uncovered columns are rendered. Scenes with several potentially
+  neighbouring sites keep the selection by reprojection.
+- Heading cache invalidated after scrolling to avoid reusing an
+  old projection with an already shifted sprite origin.
+- Direct walk of the physical lines for clearing and scrolling;
+  removal of the unneeded sprite activation calls in the rays.
+- Measurements: 77.0 % fewer cycles over 48 rotations near the cabin,
+  compared with the forced full render; 4.7 to 11.5 % gain on the full
+  render of the five control maps, with images identical to the reference.
+- Rotation tests extended to distant sites, masking by a ridge,
+  competing sites, full turns and the disk read counters.
+- Validation: full `make test` passed, plus rotations of the distant wreck
+  and selection of two sites at different azimuths; disk rebuilt.
+
+### Sky, orientation and map during the walk
+
+- The sky and the relief occupy the sides of the strip again. The landscape
+  under the strip is kept in invisible HGR lines to avoid
+  trails during rotations, without extra memory allocation.
+- TOPO now shows decreasing Y: north really is at the
+  top, like the moves and the compass. The scroll keys
+  follow this orientation.
+- On each WALK step, TOPO recentres and refreshes in the first twenty
+  lines. The messages, their cursor and the simulation are preserved;
+  no reload nor waiting for a key between steps.
+- Checks: real N/E/S/W moves and twelve consecutive refreshes
+  during WALK, with a check of the preserved areas.
+
+### TOPO: refresh before display
+
+- The map is rebuilt before switching to text mode on opening,
+  to avoid the brief appearance of the previous TOPO or STATUS screen.
+- Check of reopening after scrolling, walking and rotating:
+  recentring, position/heading, relief and landmarks reread from the
+  current state; the 3D view and its compass strip stay intact on return.
+
+### Permanent compass at the top of the view
+
+- Removal of the `USE COMPASS` activation: the cardinal points are
+  available from the start, without deactivation during object transfers.
+- 98-pixel strip centred at the top, with N/NE/E/SE/S/SW/W/NW, ticks
+  every 22.5° and a fixed cursor. Continuous scrolling at one pixel per two
+  azimuth units, taking the magnetic declination into account.
+- Header reserved over 16 lines; it stays visible at night and in the
+  cabin, and is not dragged along by the terrain scrolling. No disk load
+  nor floating-point computation to update the strip during rotations.
+- Check of the 560 azimuths, the north join, the magnetic centring,
+  the rotation commands and the returns from STATUS.
+
+### View rotations
+
+- Scrolling of the terrain and local sprites for the 22.5° and 45°
+  rotations; only the incoming columns are recomputed. Geometry and
+  masking of distant sites keep the full render.
+- Restore of the sprite image after loading the LOOK
+  vocabulary; the arrows avoid this load when the image is already in
+  memory.
+- Shortened scroll loop and removal of a 141-byte sine
+  table, with the direction rounding kept exactly.
+- Test of the five sprites, exits/returns into the field and full turns
+  in both directions. Over 52 rotations around the wreck: 435,480,947 →
+  98,301,942 cycles, i.e. 77.4 % saved, pixels and text identical.
+
+### Temperature: original slow variation
+
+- Addition of `INT(5 × SIN(0.0187 × hours elapsed + phase))`, with the
+  saved phase of the first Sierra journey and the Applesoft ROM rounding.
+- 405 cases compared with the original T09/S08 routine: phases, durations,
+  signed temperatures and crossing the one-byte limit.
+- The air now matches at the six points of the starting scenario; the
+  differences go from 13 to 6, still on the wind and the felt temperature.
+  The daily cycle, visibility and weather fronts are still to port.
+
+### Walking: waiting and disk access
+
+- Wildlife grouped with the environment computations: two module
+  reads per ordinary step instead of three when the wildlife is active.
+- Minutes travelled shown after each step, without a key to press.
+- Test of a four-hour walk: progress, number of reads,
+  return to the command and no extra reads at the stop.
+
+### Terrain: rivers and lakes
+
+- Plateaus now drain towards an outlet instead of triggering
+  artificial lakes. Real basins are filled up to the
+  overflow level, with a flat surface and a continuous outlet.
+- Removal of the fill truncated at 300 units and of the water squares
+  erased after generation around the crash and the rangers. A source
+  covering these places is rejected before the terrain is modified.
+- 224 × 168 to 112 × 84 conversion: each block keeps its water points,
+  including at odd coordinates, at the water height. The cabin
+  also avoids these converted cells. The other TOPO markers are no
+  longer interpreted as rivers.
+- Tests of plateaus, small/large basins, thin rivers and
+  18 seed/difficulty pairs: continuity, descent and reproducibility.
+  The drainage stays a reconstruction, to be compared with the original
+  generator.
+
+### Swimming: tracing oblique headings
+
+- Continuous vectors replaced by the original's integer major axis and
+  sinusoidal accumulator; the duration now tells apart each step that is
+  actually straight or diagonal. Trace state kept across module changes.
+- 2,880 positions over 360 headings compared with the original routines on
+  ROM.
+
+### Swimming: effort and load
+
+- The 19 minutes per cell replaced by the original's normal swimming
+  duration, which depends on health, load and whether the step is
+  diagonal. SWIM now advances by half a cell; a last step can
+  exceed the requested time if at least half of its duration remains.
+- 143 durations identical to the original routines run on ROM; tests
+  of the real command, the duration overrun and the return to the bank.
+  New `WILDTRV` module to preserve the resident memory space.
+
+- SWIM now uses the original cost linked to the total weight: about
+  14.43 kcal/min with the initial equipment. The canteen water is no longer
+  counted twice in this computation; shivering adds to this effort.
+- 81 weight, load and duration cases check the calorie expenditure; the
+  metabolisms are also compared byte by byte with the original helper
+  run on the ROM, and the calories with its energy routine. First
+  swimming health interval restored to 15 minutes. Test of the real
+  command, immersion, rest in the water and exit onto the bank. The
+  injury/equipment modifiers are still to reproduce.
+
+### Comparing commands with the original game
+
+- New differential driver on the two Apple II executables: start,
+  equipment, drinks, meals, repeated rests, night and first walk.
+  Questions inspected before answering; errors and differences make the
+  test fail. Dumps, images, logs, symbols and reports stay in `build/`.
+- Observation of the original state before its paging on Journey T04,
+  to avoid mistaking the second HGR page for the physiology.
+- Drinking from the canteen no longer takes time; eating takes 16 minutes,
+  with the original food and water credits. The shivering of the
+  initial save contributes to the first calories spent.
+- Adaptive rest after the first 30-minute step; counters and
+  deficits updated at the health rate, whole percentages and initial Hmax
+  kept at its original precision.
+- Fix of the previous encounter rule: rest and meals
+  draw no wildlife. Draws and interruptions stay active while walking.
+- Cardinal directions corrected by the map's magnetic declination.
+  The compass's random accuracy is still to port.
+- `make test-original` still fails on the weather/night/walk differences.
+  No complete adventure up to the rangers is validated yet.
+
+### Encounters during actions
+
+This step came before the differential fixes above; the
+draws during REST and its fixed rate have since been replaced.
+
+- Draw on each simulation step: 30-minute rest, walk/swim
+  according to the step duration; removal of the sum capped at 255 minutes.
+- All species are tested in Sierra order, even if an animal
+  is present; kept or replaced at 50 %, checked in the original.
+- An accepted encounter interrupts walking/resting after the elapsed step,
+  with exact time and a rest-interruption message.
+- No outdoor draw under shelter; VIEW/STATUS spend neither time
+  nor randomness. Interruptions leave the sprite available for the next
+  action.
+- Probes of the original flags and deterministic scenarios of long rest,
+  interrupted walk, replacements and protection by the cabin.
+  The 60-minute presence duration and the animals' movements are still
+  provisional.
+
+### Sierra wildlife and movement limits
+
+- Filters of the three species: season, time, terrain, altitude, maximum
+  slope of the 3 × 3 neighbourhood and regional climate index.
+- Probability `minutes × NATURE × √difficulty × rate × 10⁻⁵`, with the
+  original rates 80/40/100 and a generator independent of the weather.
+- NATURE command: integer multiplier 0–100, initial value 1, refusal
+  of higher values; nocturnal animals stay invisible at night.
+- Difficulty and Sierra index in the map header; old maps
+  compatible with the default values 4 and 31.
+- Walking and swimming stopped before the outer two-cell band, with
+  an explicit message and no time charged for the refused step.
+- Probes of the original code, scenarios per species and tests of the four
+  sides. Draw rate, presence duration, movements and reactions are still
+  provisional; NATURE does not accept fractional values yet.
+
+### Sites visible from a distance
+
+- Wreck and cabin projected within eight cells: azimuth from their
+  fixed coordinates, stepped sizes and anchoring on their altitude.
+- Sprite inserted at the ray step matching its distance; the relief
+  lying in front masks it, the relief lying behind keeps the sprite visible.
+- Composition always per column, without a disk load in the rays,
+  with the colours, transparency and black pixels of the original streams.
+- WILDPRJ module to prepare the geometry and the terrain bounds; cache
+  reused when position, heading and encounter stay identical.
+- Full rotations near the sites, including when they are off-field,
+  to avoid missed appearances and trails from partial scrolling.
+- Exact comparisons and approach/return routes on foot. Current limit:
+  a single site per view, selected by distance in the field; the animals
+  stay local and the projection is a rule specific to the port.
+
+### Cabin and TOPO
+
+- `ENTER SHELTER`, `EXIT SHELTER` and `LEAVE SHELTER` at the cabin; indoor
+  state kept during REST, rotations and STATUS/TOPO screens.
+- Thermal protection of the found shelter: ambient air +15 °F, no wind,
+  compared with the original branch; HUT stays a separate craft.
+- Walking/swimming refused indoors, no encounters during
+  rest under shelter and the outdoor view restored on exit.
+- First 32 × 14-cell text TOPO map: relief, water and
+  player/wreck/cabin/rangers landmarks, with bounded scrolling by arrows or
+  WASD.
+- New WILDSIT disk module; qualifier resolution moved
+  into WILDVOC to preserve the small resident memory margin.
+- Route tested without changing the position in memory: spotting, walking,
+  entering, resting in the cold, exiting and returning; extra night tests
+  and local probes of the original commands and temperatures.
+
+### Per-column rendering
+
+- Composition of the sprite and the terrain in each column, without an
+  overlay pass after the full view; disk load before rendering.
+- Fill limited to the transparent areas and rays stopped when
+  the maximal relief can no longer contribute to the lines still visible.
+- Reuse of the BLOAD text buffer for the column's 160 colours,
+  with the opaque black pixels and the rotations kept.
+- Wreck moved down by ten lines to recover its original vertical
+  coordinates, without encroaching on the text.
+- Test of the intermediate image, exact comparisons on five maps and
+  profiling of the ray steps and cycles outside DOS loading.
 
 ### Documentation
 
-- Réorganisation du TODO en lots ordonnés, avec la correction du rendu
-  terrain/sprites en première priorité.
-- README recentré sur l'état jouable, les commandes et la construction.
-- Référence du portage regroupée dans `docs/IMPLEMENTATION.md` : règles
-  provisoires, mémoire, format de carte, tests et outils.
-- Nettoyage des mentions périmées dans les analyses et ajout de cet historique.
+- TODO reorganised into ordered lots, with the fix of the terrain/sprite
+  rendering as the first priority.
+- README refocused on the playable state, the commands and the build.
+- Port reference gathered in `docs/IMPLEMENTATION.md`: provisional
+  rules, memory, map format, tests and tools.
+- Cleanup of outdated mentions in the analyses and addition of this history.
 
-### Graphismes originaux
+### Original graphics
 
-- Extraction des flux Journey de l'épave, de la cabane et des animaux,
-  avec PNG transparents et manifeste des positions/empreintes.
-- Branchement des sprites épave, cabane, ours, couguar et crotale Sierra
-  dans la fenêtre de chargement disque de 2 Ko.
-- Épave ancrée au départ, cabane placée sur terre et premières rencontres
-  graphiques avec un générateur aléatoire indépendant.
-- Préservation des couleurs, des pixels noirs et de la transparence ;
-  clipping, suivi du cap, masquage nocturne et effacement au départ de la case.
-- Tests des cinq images au pixel près et d'une rencontre après REST.
-- La cabane est visuelle et les comportements des animaux restent à porter.
+- Extraction of the Journey streams of the wreck, the cabin and the animals,
+  with transparent PNGs and a manifest of positions/footprints.
+- Wreck, cabin, bear, cougar and Sierra rattlesnake sprites hooked
+  into the 2 KB disk load window.
+- Wreck anchored at the start, cabin placed on land and first graphical
+  encounters with an independent random generator.
+- Colours, black pixels and transparency preserved;
+  clipping, heading tracking, night masking and clearing when leaving the
+  cell.
+- Pixel-exact tests of the five images and of an encounter after REST.
+- The cabin is visual only and the animals' behaviours are still to port.
 
 ### Immersion
 
-- SWIM traverse les cases d'eau et s'arrête avant la rive ; WALK rejoint la terre.
-- Pertes des vêtements mouillés, température d'eau liée à l'altitude et
-  bilan thermique immergé ; sueur supprimée dans l'eau.
-- REST conserve l'immersion ; STATUS affiche IMMERSED. Un pas sur terre
-  remet le sélecteur à sec. La cadence de nage reste reconstruite.
+- SWIM crosses water cells and stops before the bank; WALK reaches land.
+- Losses from wet clothes, water temperature linked to the altitude and
+  immersed thermal balance; sweat removed in the water.
+- REST keeps the immersion; STATUS shows IMMERSED. A step on land
+  resets the selector to dry. The swimming rate stays reconstructed.
 
-### Vent et énergie
+### Wind and energy
 
-- Température ressentie signée affichée dans STATUS et utilisée par la thermique.
-- Dépense entière en kcal par pas ; supplément des frissons selon le poids,
-  avec effet sur le déficit alimentaire et conservation du métabolisme de base.
-- Comparaisons des formules de vent et d'énergie aux routines originales sur ROM.
+- Signed felt temperature shown in STATUS and used by the thermals.
+- Integer kcal expenditure per step; shivering supplement according to the
+  weight, with an effect on the food deficit and the basal metabolism kept.
+- Wind and energy formulas compared with the original routines on ROM.
 
-### Thermique sèche
+### Dry thermals
 
-- Température corporelle selon air, activité et vêtements ; récupération
-  bornée à 98,6 °F et seuil de dérive vérifié sur la ROM.
-- Reconstruction déterministe des couches vestimentaires et facteurs de santé
-  froid/chaud ; arrêt de l'activité lorsque la santé devient fatale.
-- STATUS affiche température corporelle, frissons/sueur et hypo/hyperthermie.
+- Body temperature according to air, activity and clothing; recovery
+  capped at 98.6 °F and drift threshold checked on the ROM.
+- Deterministic reconstruction of the clothing layers and of the cold/heat
+  health factors; activity stopped when health becomes fatal.
+- STATUS shows body temperature, shivering/sweat and hypo/hyperthermia.
 
-### Modules disque
+### Disk modules
 
-- Découpage du vocabulaire, des écrans et de l'environnement dans une fenêtre
-  BLOAD partagée, avec cache du module courant.
-- Préservation de la page zéro, du texte visible, de HGR et de l'état du jeu.
-- Air horaire et thermique regroupés pour limiter les lectures pendant REST.
+- Vocabulary, screens and environment split into a shared BLOAD
+  window, with a cache of the current module.
+- Zero page, visible text, HGR and game state preserved.
+- Hourly air and thermals grouped to limit the reads during REST.
 
-### Objets et charge
+### Objects and load
 
-- WEAR, GET/PACK, CARRY/TAKE et DROP/REMOVE : corps, sac, main et sol.
-- Positions au sol, reprise au retour, quantités accessibles et qualificatifs
-  des noms partagés ; désactivation de la boussole lorsqu'elle est déposée.
-- Poids et volumes par catégorie, refus atomiques de surcharge/débordement,
-  vidage des conteneurs avant dépôt et capacités restantes dans INVENTORY.
-- Limites du modèle calibrées sur les capacités de départ de l'original ;
-  comptabilité exacte des conteneurs encore à établir.
+- WEAR, GET/PACK, CARRY/TAKE and DROP/REMOVE: body, bag, hand and ground.
+- Positions on the ground, pickup on return, accessible quantities and
+  qualifiers for shared names; compass disabled when it is dropped.
+- Weights and volumes per category, atomic overload/overflow refusals,
+  containers emptied before dropping and remaining capacities in INVENTORY.
+- Model limits calibrated on the original's starting capacities;
+  exact accounting of the containers still to establish.
 
-### Socle jouable
+### Playable base
 
-- Vue de terrain 3D, cartes générées, rotations et défilement partiel,
-  comparés au bit près à une référence Python.
-- Parseur de 280 mots, marche, repos, repas, boisson, boussole,
-  STATUS et INVENTORY.
-- Horloge, date, soleil, air, énergie, déficits de survie, santé, mort
-  et arrivée au poste de rangers.
-- Tests des commandes aléatoires, refus de marche nocturne et calcul du temps
-  sur les fortes pentes.
+- 3D terrain view, generated maps, rotations and partial scrolling,
+  compared bit-exact with a Python reference.
+- 280-word parser, walking, resting, meals, drinking, compass,
+  STATUS and INVENTORY.
+- Clock, date, sun, air, energy, survival deficits, health, death
+  and arrival at the ranger station.
+- Tests of random commands, refusal of night walking and time computation
+  on steep slopes.
 
-### TOPO graphique et MAP locale
+### Graphical TOPO and local MAP
 
-- TOPO/T affiche une feuille HGR de l’ensemble du terrain : courbes de niveau
-  interpolées tous les 400 pieds, eau, bois et repères C/H/R, nord en haut.
-- MAP conserve la fenêtre textuelle centrée sur le joueur, son défilement,
-  son recentrage et ses écritures différentielles pendant les déplacements.
-- Chaque disque contient une feuille calculée depuis sa propre carte ; fermer
-  TOPO restaure la vue sans modifier le temps, la position ou les provisions.
+- TOPO/T shows an HGR sheet of the whole terrain: contour lines
+  interpolated every 400 feet, water, woods and C/H/R landmarks, north at
+  the top.
+- MAP keeps the text window centred on the player, its scrolling,
+  its recentring and its differential writes during moves.
+- Each disk holds a sheet computed from its own map; closing
+  TOPO restores the view without changing the time, position or provisions.
 
-### Tests de déplacement alignés sur les règles natives
+### Movement tests aligned with the native rules
 
-- Correction des attentes devenues obsolètes dans les tests de saisie,
-  de cabane/orientation et de marche longue : demi-cases et cadence calculée.
-- Vérification explicite des budgets refusés, exacts et dépassés par le
-  dernier pas admis, du retour à la cabane après repos et des lectures disque.
-- Documentation des déplacements mise à jour ; le moteur natif est conservé.
+- Fix of the expectations that had become obsolete in the input,
+  cabin/orientation and long walk tests: half-cells and computed rate.
+- Explicit check of the budgets that are refused, exact and exceeded by
+  the last admitted step, of the return to the cabin after a rest and of
+  the disk reads.
+- Movement documentation updated; the native engine is kept.
 
 
-## Sorti de TODO.md le 2026-11-16
+## Moved out of TODO.md on 2026-11-16
 
-### Priorité : une aventure complète comparée à l'original
+### Priority: a complete adventure compared with the original
 
-- [x] Comparer départ, boussole, parka, boissons, repas et repos répétés ;
-  corriger temps des actions, crédits, cadence des compteurs, calories et
-  pourcentages entiers de santé.
-- [x] Observer l'état original paginé sur Journey avant sa réutilisation
-  en page graphique, sans modifier le jeu ni ajouter de commande.
-- [x] Porter l'onde lente de température et sa phase initiale Sierra ;
-  comparer 405 cas à T09/S08 sur ROM. L'air concorde aux six points du départ.
-- [x] Porter les températures journalières/horaire, fronts météo, hasard
-  et plafonds du pas de santé ; comparer leurs routines sur ROM.
-- [x] Faire concorder le vent et le ressenti dans les scénarios courts, dont
-  la nuit, et dans la marche native jusqu’à x70/y86.
-- [x] Vérifier les nuits de pleine lune : ciel noir, relief, arbres, sites et
-  animaux visibles ; conserver la nuit pour les calculs de survie.
+- [x] Compare start, compass, parka, drinks, meals and repeated rests;
+  fix action times, credits, counter rate, calories and
+  whole health percentages.
+- [x] Observe the original state paged on Journey before its reuse
+  as a graphics page, without modifying the game or adding a command.
+- [x] Port the slow temperature wave and its initial Sierra phase;
+  compare 405 cases with T09/S08 on ROM. The air matches at the six start
+  points.
+- [x] Port the daily/hourly temperatures, weather fronts, randomness
+  and health step caps; compare their routines on ROM.
+- [x] Make the wind and the felt temperature match in the short scenarios,
+  including the night, and in the native walk to x70/y86.
+- [x] Check full-moon nights: black sky, relief, trees, sites and
+  animals visible; keep the night for the survival computations.
 
-### 3. Remplacer les rencontres provisoires par la faune originale
+### 3. Replace the provisional encounters with the original wildlife
 
-- [x] Porter les critères Sierra : saison, heure, altitude, terrain,
-  difficulté et fréquence réglée par `NATURE`.
-- [x] Tirer les rencontres à chaque pas de simulation plutôt qu'au retour
-  à la vue ; supprimer le cumul plafonné à 255 minutes des actions longues.
-- [x] Tester toutes les espèces même avec un animal présent, porter sa
-  conservation/remplacement à 50 % et interrompre la marche sur acceptation.
-- [x] Rendre les rencontres jouables : SCARE/IGNORE/ATTACK, outils,
-  coupures/morsures, protection par arbre/cabane et bilan des rencontres.
-- [x] Sonder les seuils Sierra de bruit, blessures, outils de combat et vol
-  sur ROM ; remplacer les réussites automatiques et donner un effet aux provisions.
-- [x] Vérifier la distribution de gravité ours/couguar sur ROM et déclencher
-  coupures, fractures ou choc avec les conditions et soins existants.
-- [x] Sonder les postures et abris natifs sur ROM : risque distinct au sol,
-  IGNORE et arbre ; supprimer l’invulnérabilité du joueur dans l’arbre.
+- [x] Port the Sierra criteria: season, time, altitude, terrain,
+  difficulty and frequency set by `NATURE`.
+- [x] Draw encounters on each simulation step rather than on returning
+  to the view; remove the sum capped at 255 minutes for long actions.
+- [x] Test all species even with an animal present, port its
+  50 % keep/replacement and interrupt the walk on acceptance.
+- [x] Make the encounters playable: SCARE/IGNORE/ATTACK, tools,
+  cuts/bites, protection by tree/cabin and encounter summary.
+- [x] Probe the Sierra noise, injury, combat tool and theft thresholds
+  on ROM; replace the automatic successes and give the provisions an effect.
+- [x] Check the bear/cougar severity distribution on ROM and trigger
+  cuts, fractures or shock with the existing conditions and treatments.
+- [x] Probe the native postures and shelters on ROM: separate risk on the
+  ground, IGNORE and tree; remove the player's invulnerability in the tree.
 
-### 5. Compléter les actions et les risques de survie
+### 5. Complete the survival actions and risks
 
-- [x] Arrêter marche et nage à deux cases des limites de la carte ; conserver
-  la position et ne facturer que les pas acceptés (`test_boundary.py`).
-- [x] Porter l'effort de nage selon le poids total et vérifier 81 métabolismes
-  sur la ROM originale ; conserver les tests immersion et sortie sur la rive.
-- [x] Porter la durée de nage normale selon santé/charge, vérifier 143 pas
-  sur ROM, avancer par demi-cases et admettre le dernier pas à mi-durée.
-- [x] Porter le tracé entier des caps obliques ; comparer 2 880 positions
-  pour les 360 caps aux routines originales sur ROM.
-- [x] Porter les courbes et prérequis des blessures/maladies 1–15 ;
-  comparer progression, prévention, traitement et altitude à l'original.
-- [x] Raccorder les compteurs sel/froid, USE médical, STOP BLEEDING
-  et l'état médical paginé.
-- [x] Décompter les doses positives, afficher les utilisations restantes,
-  porter les prises orales, SHIELD EYES, LOWER HEAD et SUCK VENOM ;
-  vérifier les refus et le comportement natif des stocks épuisés sur ROM.
-- [x] Collecter de l’eau à la berge avec gourde, capacité et charge ;
-  déclencher la giardiase depuis une réserve non traitée consommée.
+- [x] Stop walking and swimming two cells from the map limits; keep
+  the position and charge only the accepted steps (`test_boundary.py`).
+- [x] Port the swimming effort according to the total weight and check 81
+  metabolisms on the original ROM; keep the immersion and bank exit tests.
+- [x] Port the normal swimming duration according to health/load, check 143
+  steps on ROM, advance by half-cells and admit the last step at half
+  duration.
+- [x] Port the integer tracing of oblique headings; compare 2,880 positions
+  for the 360 headings with the original routines on ROM.
+- [x] Port the curves and prerequisites of injuries/illnesses 1–15;
+  compare progression, prevention, treatment and altitude with the original.
+- [x] Connect the salt/cold counters, medical USE, STOP BLEEDING
+  and the paged medical state.
+- [x] Count the positive doses, show the remaining uses,
+  port oral intake, SHIELD EYES, LOWER HEAD and SUCK VENOM;
+  check the refusals and the native behaviour of exhausted stocks on ROM.
+- [x] Collect water at the bank with canteen, capacity and load;
+  trigger giardiasis from an untreated reserve that is consumed.
 
-### Améliorations du rendu et de la carte
+### Rendering and map improvements
 
-- [x] Remplacer les faux lacs de plateaux par un écoulement vers les exutoires ;
-  remplir les cuvettes à niveau constant et conserver les rivières fines
-  dans les blocs 2 × 2, sans effacer de tronçons autour des sites.
-- [x] Ajouter les forêts à la carte et à la vue avec un format de données adapté.
-- [x] Porter les interactions avec les arbres : grimper et suspendre la nourriture,
-  récupérer le sac à sa case et vérifier les capacités sans perdre de stock.
+- [x] Replace the fake plateau lakes with drainage towards the outlets;
+  fill the basins at a constant level and keep the thin rivers
+  in the 2 × 2 blocks, without erasing stretches around the sites.
+- [x] Add the forests to the map and the view with a suitable data format.
+- [x] Port the interactions with the trees: climbing and hanging food,
+  recovering the bag in its cell and checking capacities without losing
+  stock.
 
-## Avant le prochain lot : place mémoire
+## Before the next lot: memory space
 
-- [x] Consulter `build/wild.map` et mesurer la place disponible avant d'ajouter
-  du code résident. Les zones `$4000-$57FF`, `$6000-$6FFF` et `$1000-$1FFF`
-  sont presque pleines depuis le branchement des sprites.
-- [x] Déplacer les nouvelles règles et les écrans dans des modules disque ;
-  conserver un état résident limité et explicite pour les sites et les abris.
-- [x] Vérifier les changements de module avec sprites actifs : page zéro,
-  texte, HGR, objets, horloge et cache doivent être préservés.
+- [x] Consult `build/wild.map` and measure the available space before adding
+  resident code. The `$4000-$57FF`, `$6000-$6FFF` and `$1000-$1FFF` areas
+  have been almost full since the sprites were hooked in.
+- [x] Move the new rules and screens into disk modules;
+  keep a limited, explicit resident state for the sites and shelters.
+- [x] Check module changes with active sprites: zero page,
+  text, HGR, objects, clock and cache must be preserved.
 
-## 1. Rendu terrain et sprites — terminé
+## 1. Terrain and sprite rendering — done
 
-- [x] Remplacer la vue complète suivie d'une superposition par une composition
-  terrain/sprites pendant le rendu de chaque colonne.
-- [x] Utiliser la couverture opaque des sprites pour éviter les rayons et les
-  remplissages qui ne peuvent plus contribuer à l'image ; tenir compte des
-  trous transparents et des pixels noirs opaques.
-- [x] Adapter le défilement et les rotations sans traînées ni changement de
-  position apparente des sprites.
-- [x] Mesurer les cycles et le nombre de pas de rayons avec et sans sprite,
-  en distinguant le coût des chargements disque.
+- [x] Replace the full view followed by an overlay with a terrain/sprite
+  composition during the rendering of each column.
+- [x] Use the opaque coverage of the sprites to avoid the rays and
+  fills that can no longer contribute to the image; take into account the
+  transparent holes and the opaque black pixels.
+- [x] Adapt scrolling and rotations without trails or a change in the
+  apparent position of the sprites.
+- [x] Measure the cycles and the number of ray steps with and without a
+  sprite, separating out the cost of disk loads.
 
-**Validation :** `test_scene_render.py` contrôle une image intermédiaire,
-les pixels finaux et les pas de rayons sur cinq cartes, dont une sans plafond
-déclaré. `test_sprites.py` couvre les cinq sprites aux bords et les rotations.
-L'épave reprend sa hauteur d'origine, dix lignes plus bas.
+**Validation:** `test_scene_render.py` checks an intermediate image,
+the final pixels and the ray steps on five maps, one of them without a
+declared ceiling. `test_sprites.py` covers the five sprites at the edges
+and the rotations. The wreck gets back its original height, ten lines lower.
 
-## 2. Sites, cabane et orientation — terminé
+## 2. Sites, cabin and orientation — done
 
-Cabane, TOPO et projection des sites voisins intégrés. Le prochain lot
-concerne les règles originales de la faune.
+Cabin, TOPO and projection of neighbouring sites integrated. The next lot
+covers the original wildlife rules.
 
-- [x] Établir les commandes et l'état intérieur/extérieur de la cabane dans
-  l'original ; distinguer une cabane trouvée d'un abri construit (`HUT`).
-- [x] Permettre d'entrer et de sortir, avec des refus utiles hors du site.
-- [x] Appliquer la protection thermique pendant le repos et rétablir le
-  milieu extérieur à la sortie ; refuser marche/nage tant qu'on reste dedans.
-- [x] Rendre les sites repérables depuis les cases voisines : distance,
-  orientation, taille et occlusion des sprites ; conserver leur position
-  lors des déplacements et des retours.
-- [x] Ajouter un premier écran TOPO utilisable : relief, eau, position,
-  épave, cabane et poste de rangers, avec défilement.
+- [x] Establish the commands and the indoor/outdoor state of the cabin in
+  the original; tell a found cabin apart from a built shelter (`HUT`).
+- [x] Allow entering and exiting, with useful refusals away from the site.
+- [x] Apply the thermal protection during rest and restore the
+  outdoor environment on exit; refuse walking/swimming while inside.
+- [x] Make the sites identifiable from neighbouring cells: distance,
+  orientation, size and occlusion of the sprites; keep their position
+  during moves and returns.
+- [x] Add a first usable TOPO screen: relief, water, position,
+  wreck, cabin and ranger station, with scrolling.
 
-**Validation :** trouver la cabane sans modifier la mémoire, entrer, se
-reposer au froid, sortir et revenir ; comparer intérieur/extérieur et vérifier
-l'effacement des sprites pendant les rotations et les changements de case.
-`test_projection.py` compare les images à une référence indépendante :
-directions, fractions de case, tailles, clipping, relief devant/derrière,
-cache et approche/retour par WALK. La première version affiche un seul site
-à la fois, dans un rayon de huit cases ; la projection est une règle du port.
+**Validation:** find the cabin without modifying memory, enter,
+rest in the cold, exit and return; compare indoor/outdoor and check
+the clearing of the sprites during rotations and cell changes.
+`test_projection.py` compares the images with an independent reference:
+directions, cell fractions, sizes, clipping, relief in front/behind,
+cache and approach/return by WALK. The first version shows a single site
+at a time, within a radius of eight cells; the projection is a rule of the
+port.

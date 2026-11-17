@@ -11,9 +11,17 @@ play; 200 keys of play with the interrupts keep every VDP access inside the
 card's window (vdp_dropped == 0); ESC then Y, and Ctrl-RESET, leave to DOS
 with the service off (no more ticks, the old $03FE vector back, the AY's
 volumes 0). Without a Mockingboard: snd_mb = 0 and the speaker sounds.
+
+ROGUE.DHGR (a2shot --iie and --iic with --mockingboard, the //c's being its
+4c in slot 4): found, $03FE, 50 Hz at the title and over nine moves of play,
+and test_dhgr's oracle: both DHGR pages, main and auxiliary banks, equal to
+the model of the virtual screen (the interrupt never lands in a wrong bank);
+without the card snd_mb = 0.
 """
 import random
+import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 GAME = Path(__file__).resolve().parents[1]
@@ -22,6 +30,8 @@ sys.path.insert(0, str(ROOT / 'dev/tools'))
 sys.path.insert(0, str(ROOT / 'dev/tools/audio'))
 import a2test  # noqa: E402
 import aysong  # noqa: E402
+sys.path.insert(0, str(GAME / 'tests'))
+import test_dhgr as TD  # noqa: E402
 
 DISK = ROOT / 'dist/ROGUE.dsk'
 L = a2test.labels(GAME / 'build/rogue_tms.lbl')
@@ -36,6 +46,7 @@ def check(cond, what):
     print(('ok   ' if cond else 'FAIL ') + what)
     if not cond:
         fails += 1
+    return cond
 
 
 def run(steps, mockingboard=True, check=True):
@@ -133,6 +144,42 @@ def main():
     r = run(BOOT + [L.peek('snd_mb')], mockingboard=False)
     check(r.dumps[-1][0] == 0 and speaker(BOOT + ['key:B', 'wait:30', 'key:X'], 120, mockingboard=False),
           "no Mockingboard: snd_mb = 0, the demon's room on the speaker")
+
+    # --- ROGUE.DHGR on the //e and the //c --------------------------------------
+    D = a2test.labels(GAME / 'build/rogue_dhgr.lbl')
+    wk = D['wait_key'] + 3
+    for machine in ('iie', 'iic'):
+        steps = [D.until('music_title', 3000), 'wait:30', D.peek('snd_mb'), 'peek:03FE:2',
+                 D.peek('mb_irq_ticks'), 'wait:120', D.peek('mb_irq_ticks'),
+                 'key: ', 'wait:200', 'key: ', f'until:{wk:04X}:900', D.peek('mb_irq_ticks')]
+        for k in 'LLKKJJII.':
+            steps += [f'press:{k}', 'wait:2', f'until:{wk:04X}:900']
+        steps += [D.peek('mb_irq_ticks')] + TD.screen_steps(D)
+        with tempfile.TemporaryDirectory(prefix='rogue-mb-') as work:
+            disk = a2test.build_disk(work, 'ROGUE.DHGR', TD.BIN, load=D['entry'])
+            p = subprocess.run([str(a2test.A2SHOT), f'--{machine}', '--mockingboard', '--disk', str(disk)]
+                               + steps, capture_output=True, text=True, timeout=300)
+            nomb = subprocess.run([str(a2test.A2SHOT), f'--{machine}', '--disk', str(disk),
+                                   D.until('music_title', 3000), D.peek('snd_mb')],
+                                  capture_output=True, text=True, timeout=300)
+        tag = '//e' if machine == 'iie' else '//c'
+        if not check(p.returncode == 0, f'DHGR {tag}: runs' + ('' if p.returncode == 0 else f' (exit {p.returncode}: {p.stderr[-200:]})')):
+            continue
+        r = a2test.Result(p.stdout)
+        d = [r.mem(D['snd_mb'], 1)[0], word(r.mem(0x03FE, 2))] + \
+            [r.mem(D['mb_irq_ticks'], 1, i)[0] for i in range(4)]
+        check(d[0] == MB_SLOT and d[1] == D['mb_irq_handler'],
+              f'DHGR {tag}: Mockingboard in slot {d[0]}, $03FE = ${d[1]:04X}')
+        title = (d[3] - d[2]) & 0xFF
+        play = (d[5] - d[4]) & 0xFF
+        check(abs(title - want) <= 2, f'DHGR {tag}: {title} ticks in 120 frames at the title (model {want:.1f})')
+        check(play > 0 and p.stdout.count(f'PC={wk:04X}') == 10,
+              f'DHGR {tag}: nine moves played, the service ticking ({play} ticks)')
+        before = len(TD.FAIL)
+        TD.oracle(p.stdout, D, f'mb_{machine}', record=False)
+        check(len(TD.FAIL) == before, f'DHGR {tag}: both pages, main and aux, = the model under the interrupts')
+        rn = a2test.Result(nomb.stdout)
+        check(nomb.returncode == 0 and rn.mem(D['snd_mb'], 1)[0] == 0, f'DHGR {tag} without the card: snd_mb = 0')
 
     print('rogue (Mockingboard): ' + ('PASS' if not fails else f'{fails} FAILED'))
     return 1 if fails else 0

@@ -1,32 +1,32 @@
-# DIRTBIKE — prochains lots
+# DIRTBIKE — next lots
 
-Les lots terminés sont dans [CHANGELOG.md](CHANGELOG.md).
+Finished lots are in [CHANGELOG.md](CHANGELOG.md).
 
-## Lot 2 — jouabilité
-- Régler la conduite à la main dans POM2 : traction, inclinaison, souplesse
-  de la suspension, rebond (modèle d'abord, puis `make test`).
-- Fantôme : enregistrer les entrées de chaque tick (rejouables au bit près,
-  comme la démo) ; course contre le fantôme du record.
-- Autres figures (atterrissage sur une roue) ; multiplicateur de combo.
-- Drapeau visible dès le bord droit (x > 255 : une ligne verticale 16 bits).
-- Encore de la place : ~135 octets en `$6000-$91FF`, une vingtaine par
-  bande de la page texte (TXT5, TXT6).
+## Lot 2 — playability
+- Tune the handling by hand in POM2: traction, lean, suspension
+  softness, bounce (model first, then `make test`).
+- Ghost: record each tick's inputs (replayable bit for bit, like the
+  demo); race against the record's ghost.
+- More tricks (landing on one wheel); combo multiplier.
+- Flag visible from the right edge (x > 255: a 16-bit vertical line).
+- Still some room: ~135 bytes in `$6000-$91FF`, about twenty per
+  text page band (TXT5, TXT6).
 
-## Lot 3 — contenu
-- Moto et pilote plus détaillés (jambes, guidon, fourche) ; animation de la
-  chute.
-- Décor : drapeaux départ/arrivée, collines lointaines.
+## Lot 3 — content
+- More detailed bike and rider (legs, handlebar, fork); crash
+  animation.
+- Scenery: start/finish flags, distant hills.
 
-## Performances (seuil : 5 %)
-Lot 1 bis : défilement au pixel. ~36 000 cycles par image sur les bosses
-(28 i/s) et 34 000 sur le plat (30 i/s), contre 48 000 au lot 1 (défilement
-par octets). Répartition sur les bosses : sol ~12 700, physique ~9 700,
-moto ~8 600.
-- Physique : carrés des contraintes en 8×8 au lieu de 16×8 ; `height_at`
-  appelé 7 fois par tick.
-- Moto : marques d'effacement calculées pendant le tracé.
-- Cadence régulière : VBL sur //e ; sur II+, synchronisation par le bus
-  flottant : `dev/lib/apple2/vapor.asm` existe depuis le 2026-10-24 (SNAKE,
-  marqueur sur la ligne HGR 191, testé sur a2run et POM2 NTSC/PAL/IIe).
-- Mémoire : ~135 octets libres en `$6000-$91FF`, ~30 en `$1000-$1FFF`,
-  page zéro pleine (1 octet).
+## Performance (threshold: 5 %)
+Lot 1 bis: pixel scrolling. ~36,000 cycles per frame on the bumps
+(28 fps) and 34,000 on the flat (30 fps), against 48,000 in lot 1 (byte
+scrolling). Breakdown on the bumps: ground ~12,700, physics ~9,700,
+bike ~8,600.
+- Physics: constraint squares in 8×8 instead of 16×8; `height_at`
+  called 7 times per tick.
+- Bike: erase marks computed while drawing.
+- Steady frame rate: VBL on the //e; on the II+, sync through the floating
+  bus: `dev/lib/apple2/vapor.asm` exists since 2026-10-24 (SNAKE,
+  marker on HGR line 191, tested on a2run and POM2 NTSC/PAL/IIe).
+- Memory: ~135 bytes free in `$6000-$91FF`, ~30 in `$1000-$1FFF`,
+  zero page full (1 byte).

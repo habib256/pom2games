@@ -165,7 +165,7 @@ def test_sierra():
     parity = g.parity_reference(fine)
     assert parity in (None, True), 'differs from wilderness parity-stage15 map.bin'
     lz = g.measure(fine, 'band7', 'lz')
-    # TODO.md lot 5 reference: 11 305 bytes in 24 independent blocks.
+    # docs/GEOGRAPHY.md reference (lot 5): 11 305 bytes in 24 independent blocks.
     assert lz['total'] == 11305, lz
     for codec in ('rle', 'nib', 'vlc', 'coarse'):
         r = g.measure(fine, 'band7', codec)          # verifies every block

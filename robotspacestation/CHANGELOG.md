@@ -1,45 +1,45 @@
-# ROBOT SPACE STATION — historique
+# ROBOT SPACE STATION — changelog
 
-*[← TODO](TODO.md)* · les cases cochées, sorties de TODO.md le 2026-11-16.
+*[← TODO](TODO.md)* · the checked boxes, moved out of TODO.md on 2026-11-16.
 
-## Contenu
+## Content
 
-- [x] Missions 8-14 (2026-10-30) : LE ZIGZAG, LE COLIS, LE GARDIEN, LA RONDE,
-      LE SAS, LA CAISSE, LE TANDEM, prouvées par le modèle et jouées en C
-      (`make test-long`) ; titre en deux colonnes, touche 0 pour la dixième
-      (11-14 : au titre). Missions 15 LE COMPTEUR (fronts du capteur O),
-      16 LA SPIRALE (quatre caps), 17 LE CONVOI (pince dans les virages), 18 DEUX
-      CLES (réutiliser la puce de LA CAISSE), 19 LA PASSE (pince, radio, fente), 20 LES
-      ETAGES (bascule T : une OX rebouclée)
-      sur une seconde page du titre (PAGE ; RECORDS suit la page).
-      `best` a 28 places (deux pages de titre).
-- [x] Son (2026-10-30) : contact, pince (prise, lâcher), radio, puce gravée,
-      mission réussie ; S coupe.
+- [x] Missions 8-14 (2026-10-30): LE ZIGZAG, LE COLIS, LE GARDIEN, LA RONDE,
+      LE SAS, LA CAISSE, LE TANDEM, proven by the model and played in C
+      (`make test-long`); title in two columns, key 0 for the tenth
+      (11-14: on the title). Missions 15 LE COMPTEUR (edges of the O sensor),
+      16 LA SPIRALE (four headings), 17 LE CONVOI (grabber in the turns), 18 DEUX
+      CLES (reuse the chip from LA CAISSE), 19 LA PASSE (grabber, radio, slot), 20 LES
+      ETAGES (T flip-flop: an OX looped back)
+      on a second title page (PAGE; RECORDS follows the page).
+      `best` has 28 slots (two title pages).
+- [x] Sound (2026-10-30): contact, grabber (grab, release), radio, chip
+      burned, mission complete; S mutes.
 
 ## Interface
 
-- [x] Refonte de l'ergonomie (2026-10-30, soir) : tout en anglais, un
-      briefing par mission (but, nouveauté, deux indices), la ligne du bas
-      décrit ce que montre le pointeur ou dit quoi faire ensuite, moteurs
-      nommés par la direction du drone, textes en mémoire auxiliaire
-      (`tools/gen_text.py`, `RSS.TEXT1/2`). Puis : la borne + (alimentation,
-      toujours 1), la boîte à outils étiquetée, un cours d'électronique en
-      six pages (tables de vérité), GATES sur le briefing.
-      Puis : sortie derrière le drone (sa planche jouée 4 tours d'avance),
-      on n'entre qu'en cliquant le drone, sprites de profil (drone et
-      technicien), redessin des seules bandes découvertes (vitesse
-      d'avant à 5-8 % près).
-- [x] Deux fils partis de bornes voisines partageaient leur segment
-      vertical : la colonne libre la plus proche du milieu (2026-10-30).
-- [x] Une pièce en main se voit sur le pointeur (un bloc sous la flèche).
-- [x] Un indice par mission (touche H), sur le disque après la salle.
-- [x] Une page d'aide (AIDE ou H au titre) : bornes, pièces, touches ; puis
-      la légende des salles (grille, tunnel, portes et plaques, chargeur...).
-- [x] Records : le moins de portes par mission (sauvegarde RSS3, RSS1/2
-      migrées), rappelé à l'entrée de la mission, page RECORDS au titre.
-- [x] V : vitesse rapide (×1,5 sur //e, ×1,2 sur //c : le tour y coûte déjà
-      presque tout le temps).
-- [x] `make test-long` : 12 cartes aléatoires (boucles comprises) tour par
-      tour == `Sim` du modèle ; 10 drones aléatoires dans des salles aléatoires
-      == `Zone` ; la campagne entière, chaque mission jouée en C avec
-      la solution du modèle (carte dans `RSS.SAVE`), //e et //c.
+- [x] Usability overhaul (2026-10-30, evening): everything in English, a
+      briefing per mission (goal, what is new, two hints), the bottom line
+      describes what the pointer shows or says what to do next, thrusters
+      named by the drone's direction, texts in auxiliary memory
+      (`tools/gen_text.py`, `RSS.TEXT1/2`). Then: the + terminal (power,
+      always 1), the labelled toolbox, a six-page electronics course
+      (truth tables), GATES on the briefing.
+      Then: exit behind the drone (its board played 4 turns ahead),
+      you only enter by clicking the drone, side-view sprites (drone and
+      technician), redraw of the uncovered strips only (previous speed
+      within 5-8 %).
+- [x] Two wires leaving neighbouring terminals shared their vertical
+      segment: the free column nearest the middle (2026-10-30).
+- [x] A part in hand shows on the pointer (a block under the arrow).
+- [x] One hint per mission (key H), on the disk after the room.
+- [x] A help page (AIDE or H on the title): terminals, parts, keys; then
+      the room legend (grid, tunnel, doors and plates, charger...).
+- [x] Records: the fewest gates per mission (save RSS3, RSS1/2
+      migrated), recalled on entering the mission, RECORDS page on the title.
+- [x] V: fast speed (×1.5 on the //e, ×1.2 on the //c: a turn there already
+      takes almost all the time).
+- [x] `make test-long`: 12 random boards (loops included) turn by
+      turn == the model's `Sim`; 10 random drones in random rooms
+      == `Zone`; the whole campaign, each mission played in C with
+      the model's solution (board in `RSS.SAVE`), //e and //c.

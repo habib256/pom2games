@@ -1,5 +1,5 @@
-# Suite du prototype
+# Next steps for the prototype
 
-- Stabiliser la cadence et mesurer les cas proches des grands obstacles.
-- Obstacles horizontaux et bonus.
-- Validation du jeu complet avec les cartes souris POM2 et sur Apple II réel.
+- Stabilise the frame rate and measure the cases near large obstacles.
+- Horizontal obstacles and bonuses.
+- Validation of the complete game with the POM2 mouse cards and on a real Apple II.

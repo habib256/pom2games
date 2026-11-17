@@ -10,6 +10,7 @@ the $5800 loader. Every generated block is independently round-trip checked.
 """
 from collections import defaultdict, deque
 from pathlib import Path
+import os
 import struct
 import sys
 
@@ -169,7 +170,12 @@ def write_packages(build, out, mapbin=None):
     for index, group in enumerate(groups, 1):
         group.extend(struct.pack('<H', 0 if index == len(groups) else 0xFFFF))
         path = out / f'boot{index}.bin'
-        path.write_bytes(group)
+        # Only a change is written, through a rename: tests run in parallel
+        # (dev/tools/run_tests.py) and one of them rebuilds the packages.
+        if not path.exists() or path.read_bytes() != group:
+            tmp = path.with_name(f'.{path.name}.{os.getpid()}.tmp')
+            tmp.write_bytes(group)
+            os.replace(tmp, path)
         paths.append(path)
     print(f'Boot: {raw_size} -> {sum(len(group) for group in groups)} bytes, {len(groups)} files')
     return paths
