@@ -21,10 +21,11 @@ mode. Output goes through COUT (`$FDED`) on the text page, input reads the keybo
 | `apple2cadence.s` | IRQ-driven two-refresh deadlines `a2_cadence_*` (`apple2frame.h`) |
 | `apple2rand.h` + `apple2rand.s`, `apple2stick.s`, `apple2dosbin.s` | opt-in objects, see "More opt-in objects" |
 | `apple2c.h` | umbrella header |
-| `apple2c.mk` | Makefile fragment: `APPLE2C_SRCS`, `APPLE2C_INCS`, `APPLE2C_GAME_SRCS`, `APPLE2C_DOS_SRCS`, `APPLE2C_VAPOR_SRCS`, `APPLE2C_FRAME_SRCS`, `APPLE2C_VBL_SRCS`, `APPLE2C_VBL_PAL_SRCS`, `APPLE2C_AUX_SRCS`, `APPLE2C_AUXFETCH_SRCS`, `APPLE2C_AUX_DEPS`, `APPLE2C_VBL_GATE_SRCS`, `APPLE2C_T80_SRCS`, `APPLE2C_T80_PTR_SRCS`, `APPLE2C_T80_PTR_AFLAGS`, `APPLE2C_CADENCE_SRCS`, `APPLE2C_RAND_SRCS`, `APPLE2C_RAND_DEPS`, `APPLE2C_STICK_SRCS`, `APPLE2C_DOSBIN_SRCS`, `APPLE2C_HEADERS`, `APPLE2C_AFLAGS` |
+| `apple2c.mk` | Makefile fragment: `APPLE2C_SRCS`, `APPLE2C_INCS`, `APPLE2C_GAME_SRCS`, `APPLE2C_DOS_SRCS`, `APPLE2C_VAPOR_SRCS`, `APPLE2C_FRAME_SRCS`, `APPLE2C_VBL_SRCS`, `APPLE2C_VBL_PAL_SRCS`, `APPLE2C_AUX_SRCS`, `APPLE2C_AUXFETCH_SRCS`, `APPLE2C_AUX_DEPS`, `APPLE2C_VBL_GATE_SRCS`, `APPLE2C_T80_SRCS`, `APPLE2C_T80_PTR_SRCS`, `APPLE2C_T80_PTR_AFLAGS`, `APPLE2C_CADENCE_SRCS`, `APPLE2C_RAND_SRCS`, `APPLE2C_RAND_DEPS`, `APPLE2C_STICK_SRCS`, `APPLE2C_DOSBIN_SRCS`, `APPLE2C_FM_SRCS`, `APPLE2C_FM_DEPS`, `APPLE2C_HEADERS`, `APPLE2C_AFLAGS` |
 | `apple2game.h` + `apple2game_asm.s` | speaker, joystick, buttons (optional) |
 | `apple2vapor.h` + `apple2vapor_asm.s` | vapor lock: frame sync through the floating bus on a II / II+ / //e (optional) |
 | `apple2dos.h` + `apple2dos_asm.s` | DOS 3.3 commands: BLOAD, BSAVE… (optional) |
+| `apple2fm.h` + `apple2fm.s` | DOS 3.3 files by name through the file manager, with error codes (optional, see "More opt-in objects") |
 
 ## API
 
@@ -75,6 +76,7 @@ not call it links the same bytes:
 | `apple2rand.s` (`APPLE2C_RAND_SRCS`), `apple2rand.h` | `a2_rand16()`: one step matching `../math/random.asm`'s Galois LFSR (taps `$B400`), the new state; `a2_rand_state` (`$ACE1` at load) to seed, never 0 | 19 B code, 2 B DATA |
 | `apple2stick.s` (`APPLE2C_STICK_SRCS`, with `APPLE2C_GAME_SRCS`) | `a2_stick_present()`: `a2_read_stick()`, then 1 if both paddle timers ran out (a two-axis stick), 0 if either still runs | 17 B |
 | `apple2dosbin.s` (`APPLE2C_DOSBIN_SRCS`, with `APPLE2C_DOS_SRCS`) | `a2_dos_bload(name, addr)`, `a2_dos_bsave(name, addr, len)`: `BLOAD NAME,A$hhhh` / `BSAVE NAME,A$hhhh,L$hhhh` | 84 B code, 22 RODATA, no BSS |
+| `apple2fm.s` (`APPLE2C_FM_SRCS`, deps `APPLE2C_FM_DEPS`), `apple2fm.h` | `a2_fm_open(name, type)` (A2_FM_CREATED = 1 when it made the file, or `A2_FM_MUST_EXIST`), `a2_fm_read` / `a2_fm_write(buf, len)`, `a2_fm_seek(pos)`, `a2_fm_close()`, `a2_fm_delete` / `lock` / `unlock` / `verify(name)`; handle `a2_fm_file`, `a2_fm_type`, `a2_fm_slot` / `a2_fm_drive`. Every call returns a code (0 or > 1: 4 protected, 5 end of data, 6 not found, 9 full, 10 locked, 12 no DOS buffer): a failure never stops the program at the `]` prompt, unlike `a2_dos_cmd`. Wrappers over `../apple2/fm.asm`; zero page $26-$49 only. `test_fm_c.py` | 560 B code, 27 B BSS/DATA |
 
 The binary-command wrapper borrows `ptr2`, `ptr3` and `tmp1` while building
 the command. The builders preserve them, and their values are dead before

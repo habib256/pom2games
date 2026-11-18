@@ -74,7 +74,7 @@
 ; everything; BSS 25 bytes (fm_len, fm_type, fm_file, fm_pl, fm_call_x,
 ; fm_op), DATA 2 (fm_slot, fm_drive). The name, the DOS buffer and DOS's
 ; parameter list are reached through patched absolute operands.
-; .ifref: include after the callers.
+; .ifref: include after the callers. C mirror: ../apple2c/apple2fm.h.
 ; ============================================================================
 
 .ifndef _FM_ASM_LOADED_
