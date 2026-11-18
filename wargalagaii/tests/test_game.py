@@ -303,16 +303,16 @@ def game_over(disk, L):
     # render_init/game_init once cleared whole pages past their variables:
     # the clock (//e fell back to delays after a restart), /RAM's unit and
     # crt0's saved zero page (bug hunt 2026-10-23).
-    r = a2test.run(disk, [*boot(L), L.peek('ram_unit'), L.peek('zp_save', 256),
+    r = a2test.run(disk, [*boot(L), L.peek('ram_unit'), L.peek('zp_save', 80),
                           'peek:0:256', wait_end, *skip_bonuses(L), 'key: ', 'wait:60', L.peek('_a2_vbl_mode'),
-                          L.peek('ram_unit'), L.peek('zp_save', 256)], iie=True)
-    saved, live = r.mem(L['zp_save'], 256, 0), r.mem(0, 256)
+                          L.peek('ram_unit'), L.peek('zp_save', 80)], iie=True)
+    saved, live = r.mem(L['zp_save'], 80, 0), r.mem(0, 256)
     keep = range(0x20, 0x3A)        # text window, hooks ($3A-$4F: MLI and AUXMOVE scratch)
     assert [saved[a] for a in keep] == [live[a] for a in keep] and sum(map(bool, saved)) > 20, \
         'crt0 zero page kept'
     assert r.mem(L['ram_unit'], 1, 0)[0] & 0xF0 == 0xB0, '/RAM unit kept for the release'
     assert r.mem(L['_a2_vbl_mode'], 1)[0] == 1 and r.mem(L['ram_unit'], 1, 1) == r.mem(L['ram_unit'], 1, 0)
-    assert r.mem(L['zp_save'], 256, 1) == saved, 'restart keeps crt0 state'
+    assert r.mem(L['zp_save'], 80, 1) == saved, 'restart keeps crt0 state'
     print('PASS no player: 3 lives lost, GAME OVER and 0 lives on both pages, the title, SPACE: new game '
           '(clock, /RAM unit and saved zero page intact)')
 

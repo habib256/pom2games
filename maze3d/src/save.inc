@@ -52,8 +52,6 @@ profiles_init:
 preferences_save:
         LDA preferences_dirty
         BEQ @done
-        JSR disk_protected
-        BCS @done
         LDA #0
         STA preferences_dirty
         LDA #'M'
@@ -76,7 +74,9 @@ preferences_save:
         LDX #SAVE_PREFS
         LDA #<prefs_name
         LDY #>prefs_name
-        JMP save_file
+        JSR save_file
+        BCC @done
+        INC preferences_dirty   ; protected, full...: still to be saved
 @done:  RTS
 
 profile_load:
@@ -218,8 +218,6 @@ prepare_text:
 manual_save:
         LDA active_game
         BEQ @unavailable
-        JSR disk_protected
-        BCS @unavailable
         LDX #(ev_dmg-p_col)
 @player:
         LDA p_col,X
@@ -244,7 +242,8 @@ manual_save:
         STA SAVE_CHECK
         JSR checkpoint_sum
         STA SAVE_CHECK
-        JSR checkpoint_write
+        JSR checkpoint_write    ; C = 1: protected, full, I/O error
+        BCS @unavailable
         LDA #1
         STA save_available
         SEC

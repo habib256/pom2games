@@ -784,8 +784,6 @@ score_finish:
         EOR p_seed_hi
         EOR #$A5
         STA SCORE_BASE+7
-        JSR disk_protected
-        BCS @done
         LDX #SAVE_SCORE
         LDA #<str_score_save
         LDY #>str_score_save
@@ -4722,7 +4720,6 @@ unpack_title = lz4fh_unpack
 .include "save.inc"
 .code
 .include "fm.asm"                ; files through DOS's file manager (after save.inc: .ifref)
-.include "dos.asm"               ; disk_protected only (the commands are gone)
 
 ; Native renderer reuses game scratch without changing its ZP layout.
 hl_ln_x0 = ln_x0

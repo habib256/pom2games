@@ -152,6 +152,8 @@ fm_op:      .res 1
 .ifndef fm_hdr
 fm_hdr:     .res 4              ; a binary file's header: address, length
 .endif
+fm_bmode:   .res 1              ; fm_open's X: bit 7 = load
+
 .endif
 .if FM_KEEP_ZP
 .ifndef fm_zp_buf
@@ -166,31 +168,25 @@ fm_drive:   .byte 0
 
 ; ---------------------------------------------------------------- whole files
 ; (first: their calls must come before the .ifref blocks below)
-.ifref fm_bload
-fm_bload:
-        LDX     #FM_MUST_EXIST
-        JSR     fm_open
-        BCS     @rts
-        JSR     fm_hdr4
-        JSR     fm_read
-        BCS     fm_bend
-        JSR     fm_body
-        JSR     fm_read
-        JMP     fm_bend
-@rts:   RTS
-.endif
-.ifref fm_bsave
+.if .referenced(fm_bload) .or .referenced(fm_bsave)
 fm_bsave:
-        LDX     #FM_BINARY
+        LDX     #FM_BINARY              ; bit 7 clear: write
+        .byte   $2C                     ; BIT abs: skips the LDX
+fm_bload:
+        LDX     #FM_MUST_EXIST          ; bit 7 set: read
+        STX     fm_bmode
         JSR     fm_open
-        BCS     @rts
+        BCS     fm_brts
         JSR     fm_hdr4
-        JSR     fm_write
+        JSR     fm_brw
         BCS     fm_bend
         JSR     fm_body
-        JSR     fm_write
+        JSR     fm_brw
         JMP     fm_bend
-@rts:   RTS
+fm_brw: BIT     fm_bmode                ; (keeps A and Y)
+        BMI     @read
+        JMP     fm_write
+@read:  JMP     fm_read
 .endif
 .if .referenced(fm_bload) .or .referenced(fm_bsave)
 ; Close; the result is the first error (C/A at entry, else fm_close's).
@@ -202,6 +198,8 @@ fm_bend:
         SEC
         RTS
 @close: JMP     fm_close
+fm_brts:
+        RTS
 fm_hdr4:
         LDA     #4                      ; the header itself
         STA     fm_len
@@ -403,30 +401,28 @@ fm_call:
 fm_take:
         STA     @name+1
         STY     @name+2
-        LDA     FM_DOS_PAGE             ; ($03D2) * 256: buffer 1's name field
-        STA     @lo+2
-        STA     @hi+2
-@lo:    LDA     $FF00                   ; patched: DOS's first page
-        STA     fm_file
-@hi:    LDA     $FF01
-        STA     fm_file+1
-@buf:   JSR     fm_patch
-        LDY     #0
+        LDA     FM_DOS_PAGE             ; ($03D2) * 256 holds the address of
+        STA     fm_get+2                ; buffer 1's name field: read it as
+        LDY     #0                      ; a "next" link at offset 0
+        STY     fm_get+1
+        BEQ     @link                   ; always
+@buf:   LDY     #0
         JSR     fm_get
-        BEQ     @free                   ; name byte 0 = 0: free
+        BEQ     @free                   ; name byte 0 = 0: free (Y = 0)
         LDY     #36                     ; next buffer's name field
-        JSR     fm_get
+@link:  JSR     fm_get
         TAX
         INY
         JSR     fm_get
         BEQ     @full                   ; 0: that was the last buffer
         STX     fm_file
         STA     fm_file+1
+        JSR     fm_patch                ; (ends on the high byte: not 0)
         BNE     @buf                    ; always
 @full:  LDA     #FM_ERR_NO_BUFFER
         SEC
         RTS
-@free:  LDY     #0                      ; the name: high bit set, spaces
+@free:                                  ; the name: high bit set, spaces
 @ch:
 @name:  LDA     $FFFF,Y                 ; patched: the caller's name
         BEQ     @pad
@@ -454,13 +450,13 @@ fm_take:
         LDA     fm_drive
         BNE     @drive
         JSR     FM_IOB                  ; DOS's last access: IOB bytes 15-16
-        STY     @iob+1
-        STA     @iob+2
-        LDY     #16
-        JSR     @iob
+        STY     fm_get+1                ; (fm_get is free: the calls that
+        STA     fm_get+2                ; follow write through fm_put only,
+        LDY     #16                     ; fm_use patches both again)
+        JSR     fm_get
         PHA
         DEY
-        JSR     @iob
+        JSR     fm_get
         LSR     A                       ; slot * 16 -> slot
         LSR     A
         LSR     A
@@ -470,8 +466,6 @@ fm_take:
 @drive: STA     fm_pl+5
         STX     fm_pl+6
         CLC
-        RTS
-@iob:   LDA     $FFFF,Y                 ; patched: the IOB
         RTS
 
 ; fm_use: the open file fm_file, its buffers in fm_pl.

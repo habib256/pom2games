@@ -21,13 +21,27 @@ CRT0_CONDES = 0
 .endif
 .import _main, _game_shutdown
 .importzp sp
+; Zero page saved for the way back to ProDOS: $00-$4F by default (the
+; Monitor's and ProDOS's part: text window, hooks, MLI scratch). $50-$FF is
+; the program's own (the cfgs' ZP area); QUIT's dispatcher and the next
+; program set up what they need there. -D CRT0_ZP_SAVE=256 saves it all
+; (176 B more of ZPSAVE).
+.ifndef CRT0_ZP_SAVE
+CRT0_ZP_SAVE = $50
+.endif
+.assert CRT0_ZP_SAVE >= $50 .and CRT0_ZP_SAVE <= 256, error, "CRT0_ZP_SAVE: $50..256"
 .segment "STARTUP"
         cld
-        ldx #0
+        ldx #<(CRT0_ZP_SAVE-1)
 save:   lda $00,x
         sta zp_save,x
-        inx
+        dex
+.if CRT0_ZP_SAVE > 128
+        cpx #$FF
         bne save
+.else
+        bpl save
+.endif
         ldx #2
 :       lda $03F2,x
         sta rst_save,x
@@ -99,11 +113,16 @@ cleanup:
         sta $03F2,x
         dex
         bpl :-
-        ldx #0
+        ldx #<(CRT0_ZP_SAVE-1)
 :       lda zp_save,x
         sta $00,x
-        inx
+        dex
+.if CRT0_ZP_SAVE > 128
+        cpx #$FF
         bne :-
+.else
+        bpl :-
+.endif
         bit $C051
         bit $C052
         bit $C054
@@ -123,6 +142,6 @@ quit_params: .byte 4,0
         .word 0
 .segment "ZPSAVE"
 apple2_zp_buf:
-zp_save: .res 256
+zp_save: .res CRT0_ZP_SAVE
 rst_save: .res 3
 bitmap: .res 24

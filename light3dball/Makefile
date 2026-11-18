@@ -66,5 +66,7 @@ test-long:
 	@echo "light3dball: no long tests"
 .PHONY: test-long
 
+# The fixed row table is linked anyway: its low bytes serve as _hgr_rowlo.
+HGRC_AFLAGS += -D HGRC_ROWLO_FIXED=1
 include $(HGRC)/hgrc_build.mk
 .PHONY: test
