@@ -10,7 +10,8 @@ use the Apple II's native video. Every game in the repository shares them.
                        moves (auxmem.asm); game building blocks: stick
                        as key events (joy.asm stick_key), initials entry
                        (initials.asm), tick music (tune.asm), save-file
-                       magic (savehdr.asm), save sectors (rwts_sectors);
+                       magic (savehdr.asm), save sectors (rwts_sectors),
+                       DOS 3.3 files by name with error codes (fm.asm);
                        Mockingboard: music on the VIA timer IRQ (mb_irq.asm,
                        ProDOS or own vector), AYS song player (aysong.asm,
                        format in AYSONG_FORMAT.md); E-Z Color TMS9918A card:

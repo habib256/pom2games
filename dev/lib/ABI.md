@@ -268,6 +268,6 @@ Options of this kind (measurements: hgrc bench, or the commit that introduced th
 | `EZ_DETECT_SKIP3` / `EZ_DETECT_ORDER` / `EZ_DETECT_BOOT_SLOT` | `apple2/ezcolor.asm` | Probe slot 3 last (0; default 1 = skipped) / your own zero-terminated slot list / skip the slot in bits 4-6 of that byte (`$B7E9` DOS 3.3, `$BF30` ProDOS); placement, not speed | — (dev/tests/test_ezcolor.py) |
 | `TMS9918_M1_ZP` / `TMS9918_M2_ZP` / `TMS9918_CONSOLE_ZP` | `tms9918/tms9918.inc` | Reserve the drivers' zero page at the top of the source (6 / 17 / 3 B; M1 default on) so code above the drivers uses zero-page addressing; off: the driver reserves it later (absolute operands before, ca65 warnings) | — (dev/tests/test_ezcolor.py) |
 
-The modules' other definitions (ZP addresses, `DOS_ZP_*`, `RWTS_*`,
+The modules' other definitions (ZP addresses, `DOS_ZP_*`, `RWTS_*`, `FM_*`,
 `HGR_SPR_MAX`, `HG_HOOK_*`/`HP_OR_PLOT` hooks, `WF_*_TABLE` tables…)
 place or wire the code: they are not speed/RAM trade-offs.

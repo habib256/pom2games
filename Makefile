@@ -160,6 +160,7 @@ test-hgr:
 	$(PYTHON) dev/tests/test_gfx_decimal.py
 	$(PYTHON) dev/tests/test_gfx_decimal.py --iie
 	$(PYTHON) dev/tests/test_rwts.py
+	$(PYTHON) dev/tests/test_fm.py
 	$(PYTHON) dev/tests/test_lib_options.py
 	$(PYTHON) dev/tests/test_pt3_notes.py
 	$(PYTHON) dev/tests/test_pt3_registers.py
