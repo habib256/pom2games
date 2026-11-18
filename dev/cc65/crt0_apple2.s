@@ -3,7 +3,8 @@
 ; ============================================================================
 ; The Apple II counterpart of POM1's dev/cc65/crt0_pom1.s. Put it FIRST on the
 ; link line: its __STARTUP__ / _exit definitions keep none.lib's crt0.o out,
-; while zerobss / copydata / initlib / donelib still come from none.lib.
+; while zerobss (and, with CRT0_CONDES, copydata / initlib / donelib)
+; still comes from none.lib.
 ;
 ;   CLD, LDX #$FF / TXS     clean flags and hardware stack -- skipped when the
 ;                           cfg sets __EXIT_RTS__ = 1: the program is started by
@@ -28,7 +29,24 @@
         .export         _exit
         .export         apple2_zp_buf   ; DOS's page zero (dev/lib/apple2/dos.asm)
         .import         __STACKSTART__, __EXIT_RTS__
-        .import         zerobss, copydata, initlib, donelib
+        .import         zerobss
+; cc65's copydata / initlib / donelib are left out by default: no program
+; here has constructors or destructors, and DATA loads where it runs (no
+; run = in the cfgs), so copydata would copy DATA onto itself. That saves
+; 115 bytes (condes.o, copydata.o, three JSRs). The link fails if a
+; constructor or destructor appears: assemble with -D CRT0_CONDES=1 then
+; (and for a cfg whose DATA has a separate run address).
+.ifndef CRT0_CONDES
+CRT0_CONDES = 0
+.endif
+.if CRT0_CONDES
+.import copydata, initlib, donelib
+.else
+.import __CONSTRUCTOR_COUNT__, __DESTRUCTOR_COUNT__
+.forceimport __CONSTRUCTOR_TABLE__, __DESTRUCTOR_TABLE__   ; ld65 builds the (empty) tables and their counts only if imported
+.assert __CONSTRUCTOR_COUNT__ = 0, lderror, "constructors linked: assemble the crt0 with -D CRT0_CONDES=1"
+.assert __DESTRUCTOR_COUNT__ = 0, lderror, "destructors linked: assemble the crt0 with -D CRT0_CONDES=1"
+.endif
         .import         _main
         .importzp       sp
 
@@ -70,10 +88,15 @@ LORES   = $C056
         lda     #>__STACKSTART__
         sta     sp+1
         jsr     zerobss
+.if CRT0_CONDES
         jsr     copydata
         jsr     initlib
+.endif
         jsr     _main
-_exit:  jsr     donelib
+_exit:
+.if CRT0_CONDES
+        jsr     donelib
+.endif
         jsr     restore
         lda     #<__EXIT_RTS__
         beq     @dos

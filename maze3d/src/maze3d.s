@@ -42,7 +42,7 @@
 ;
 ; Pixel-space mapping: the TMS 256x192 bitmap becomes 32 HGR byte
 ; columns (4..35, centred in the 40-byte row). Each 8-px TMS byte
-; column lands on one 7-px HGR byte column: bytes go through rev7_tab
+; column lands on one 7-px HGR byte column: the font was converted once
 ; (bit 7 = leftmost -> bit 0 = leftmost, rightmost pixel dropped);
 ; per-pixel plots clamp x%8 == 7 onto bit 6 so wall edges on those
 ; columns still render. Text cells / sprite tiles stay 8-aligned in
@@ -345,7 +345,7 @@ hsp_col = mob_curx
 ; in zero page so the packed sprite blitter gets short addressing.
 .globalzp sp_ptr, sp_cm_ev, sp_cm_od, sp_cbit
 .globalzp sp_wout, sp_yy, sp_lin_lo, sp_lin_hi
-.globalzp ht_col, ht_sl, ht_left, ht_wrap, ht_font_lo, ht_font_hi, ht_rev
+.globalzp ht_col, ht_sl, ht_left, ht_wrap, ht_font_lo, ht_font_hi
 .globalzp ht_cm_ev, ht_cm_od, ht_cbit, ht_page
 
 .code
@@ -421,14 +421,12 @@ main:
         LDA #0
         STA front_page
         JSR set_draw_page
-        ; hgr_text8 setup: the game's own font (TMS bit order -> ht_rev=1);
+        ; hgr_text8 setup: the game's own font, stored in HGR bit order;
         ; write_char positions every glyph explicitly, so no wrap (40).
         LDA #<font_base
         STA ht_font_lo
         LDA #>font_base
         STA ht_font_hi
-        LDA #1
-        STA ht_rev
         LDA #4
         STA ht_left
         LDA #40
@@ -788,15 +786,16 @@ score_finish:
         STA SCORE_BASE+7
         JSR disk_protected
         BCS @done
+        LDX #SAVE_SCORE
         LDA #<str_score_save
         LDY #>str_score_save
-        JSR dos_cmd_line
+        JSR save_file
 @done:  RTS
 
 score_initial:
         .byte 'M','Z','3',1,0,0,0,$A5
 str_score_save:
-        .byte "BSAVE MAZESCORE,A$1F00,L$0008",0
+        .byte "MAZESCORE",0
 
 sound_wall:
         LDA #$18
@@ -1855,8 +1854,7 @@ draw_page       = hgr_draw_page
 hgr_bitmask:
         .byte $01, $02, $04, $08, $10, $20, $40, $40
 
-; (rev7_tab — TMS bit order -> HGR — comes from dev/lib/hgr/rev7.inc;
-; write_char and x2_tile below use it for their 8-px-grid glyphs.)
+; (The font is stored in HGR bit order: write_char needs no rev7_tab.)
 
 ; =============================================
 ; clear_viewport / clear_bitmap / clear_hud — zero a scanline band of
@@ -2008,8 +2006,8 @@ vline:
 ; =============================================
 ; write_char: place 8x8 glyph at cell (ch_cx, ch_cy); ch_code = ASCII.
 ; Thin wrapper over hgr_putc8 (dev/lib/hgr/hgr_text8.asm): byte column
-; 4 + cx, top scanline cy*8; the game font is TMS bit order, so main:
-; arms ht_rev = 1 once at boot (glyph rows pass through rev7_tab).
+; 4 + cx, top scanline cy*8; the game font is stored in HGR bit order
+; (HGR_TEXT8_HGR_ORDER: no rev7_tab, no ht_rev).
 ; =============================================
 write_char:
         LDA ch_cx
@@ -2162,7 +2160,7 @@ show_title:
         ; picture occupies disk sectors, not scarce permanent 48K RAM.
         LDA #<str_title_load
         LDY #>str_title_load
-        JSR dos_cmd_line
+        JSR fm_bload
         LDA #0
         STA in_src
         STA in_dst
@@ -2178,7 +2176,7 @@ show_title:
         JSR unpack_title
         LDA #<str_state_load
         LDY #>str_state_load
-        JSR dos_cmd_line
+        JSR fm_bload
         JSR profiles_init
         JSR profile_load
         ; A compact footer leaves the illustration and title unobstructed.
@@ -4471,14 +4469,14 @@ str_config_no_save: .byte "   SAVE UNAVAILABLE   ",0
 str_config_quit: .byte "Q  QUIT",0
 str_on: .byte "ON ",0
 str_off: .byte "OFF",0
-str_state_load: .byte "BLOAD MAZESTATE",0
+str_state_load: .byte "MAZESTATE",0
 str_profile: .byte "PROFILE",0
 str_saved: .byte "SAVED",0
 str_empty_save: .byte "EMPTY",0
 str_profile_keys: .byte "C CONTINUE  N NEW  1-3 PROFILE",0
 str_profile_new: .byte  "RETURN NEW GAME  1-3 PROFILE ",0
-str_title_load: .byte "BLOAD MAZETITLE,A$1100",0
-str_text_load: .byte "BLOAD MAZETEXT",0
+str_title_load: .byte "MAZETITLE",0       ; binary files: fm_bload at their address
+str_text_load: .byte "MAZETEXT",0
 str_title_keys: .byte "S SEED   R REPLAY   ESC MENU",0
 str_press_any:.byte "PRESS ANY KEY...",0
 
@@ -4554,114 +4552,115 @@ str_mob_mage: .byte "DARK MAGE",0
 str_mob_dragon: .byte "DRAGON",0
 
 ; =============================================
-; FONT (8x8, ASCII $20..$5F = 64 glyphs * 8 = 512 bytes)
-; Bit 7 = leftmost pixel.
+; FONT (7x8, ASCII $20..$5F = 64 glyphs * 8 = 512 bytes)
+; HGR bit order: bit 0 = leftmost pixel, bit 7 clear (the original 8-px
+; TMS glyphs passed once through rev7: the 8th pixel column was never shown).
 ; =============================================
 font_base:
         ; $20 SPACE
         .byte $00,$00,$00,$00,$00,$00,$00,$00
         ; $21 !
-        .byte $30,$30,$30,$30,$30,$00,$30,$00
+        .byte $0C,$0C,$0C,$0C,$0C,$00,$0C,$00
         ; $22 "
         .byte $66,$66,$66,$00,$00,$00,$00,$00
         ; $23 #
-        .byte $66,$66,$FF,$66,$FF,$66,$66,$00
+        .byte $66,$66,$7F,$66,$7F,$66,$66,$00
         ; $24 $
-        .byte $18,$3E,$60,$3C,$06,$7C,$18,$00
+        .byte $18,$7C,$06,$3C,$60,$3E,$18,$00
         ; $25 %
-        .byte $62,$66,$0C,$18,$30,$66,$46,$00
+        .byte $46,$66,$30,$18,$0C,$66,$62,$00
         ; $26 &
-        .byte $3C,$66,$3C,$38,$67,$66,$3F,$00
+        .byte $3C,$66,$3C,$1C,$66,$66,$7C,$00
         ; $27 '
-        .byte $30,$30,$60,$00,$00,$00,$00,$00
+        .byte $0C,$0C,$06,$00,$00,$00,$00,$00
         ; $28 (
-        .byte $0C,$18,$30,$30,$30,$18,$0C,$00
-        ; $29 )
         .byte $30,$18,$0C,$0C,$0C,$18,$30,$00
+        ; $29 )
+        .byte $0C,$18,$30,$30,$30,$18,$0C,$00
         ; $2A *
-        .byte $00,$66,$3C,$FF,$3C,$66,$00,$00
+        .byte $00,$66,$3C,$7F,$3C,$66,$00,$00
         ; $2B +
         .byte $00,$18,$18,$7E,$18,$18,$00,$00
         ; $2C ,
-        .byte $00,$00,$00,$00,$00,$18,$18,$30
+        .byte $00,$00,$00,$00,$00,$18,$18,$0C
         ; $2D -
         .byte $00,$00,$00,$7E,$00,$00,$00,$00
         ; $2E .
         .byte $00,$00,$00,$00,$00,$18,$18,$00
         ; $2F /
-        .byte $00,$03,$06,$0C,$18,$30,$60,$00
+        .byte $00,$40,$60,$30,$18,$0C,$06,$00
         ; $30 0
-        .byte $3C,$66,$6E,$76,$66,$66,$3C,$00
+        .byte $3C,$66,$76,$6E,$66,$66,$3C,$00
         ; $31 1
-        .byte $18,$18,$38,$18,$18,$18,$7E,$00
+        .byte $18,$18,$1C,$18,$18,$18,$7E,$00
         ; $32 2
-        .byte $3C,$66,$06,$0C,$30,$60,$7E,$00
+        .byte $3C,$66,$60,$30,$0C,$06,$7E,$00
         ; $33 3
-        .byte $3C,$66,$06,$1C,$06,$66,$3C,$00
+        .byte $3C,$66,$60,$38,$60,$66,$3C,$00
         ; $34 4
-        .byte $06,$0E,$1E,$66,$7F,$06,$06,$00
+        .byte $60,$70,$78,$66,$7E,$60,$60,$00
         ; $35 5
-        .byte $7E,$60,$7C,$06,$06,$66,$3C,$00
+        .byte $7E,$06,$3E,$60,$60,$66,$3C,$00
         ; $36 6
-        .byte $3C,$60,$60,$7C,$66,$66,$3C,$00
+        .byte $3C,$06,$06,$3E,$66,$66,$3C,$00
         ; $37 7
-        .byte $7E,$66,$0C,$18,$18,$18,$18,$00
+        .byte $7E,$66,$30,$18,$18,$18,$18,$00
         ; $38 8
         .byte $3C,$66,$66,$3C,$66,$66,$3C,$00
         ; $39 9
-        .byte $3C,$66,$66,$3E,$06,$66,$3C,$00
+        .byte $3C,$66,$66,$7C,$60,$66,$3C,$00
         ; $3A :
         .byte $00,$18,$18,$00,$00,$18,$18,$00
         ; $3B ;
-        .byte $00,$18,$18,$00,$00,$18,$18,$30
+        .byte $00,$18,$18,$00,$00,$18,$18,$0C
         ; $3C <
-        .byte $0E,$18,$30,$60,$30,$18,$0E,$00
+        .byte $70,$18,$0C,$06,$0C,$18,$70,$00
         ; $3D =
         .byte $00,$00,$7E,$00,$7E,$00,$00,$00
         ; $3E >
-        .byte $70,$18,$0C,$06,$0C,$18,$70,$00
+        .byte $0E,$18,$30,$60,$30,$18,$0E,$00
         ; $3F ?
-        .byte $3C,$66,$06,$0C,$18,$00,$18,$00
+        .byte $3C,$66,$60,$30,$18,$00,$18,$00
         ; $40 @
-        .byte $3C,$66,$6E,$6E,$60,$62,$3C,$00
+        .byte $3C,$66,$76,$76,$06,$46,$3C,$00
         ; $41 A
         .byte $18,$3C,$66,$66,$7E,$66,$66,$00
         ; $42 B
-        .byte $7C,$66,$66,$7C,$66,$66,$7C,$00
+        .byte $3E,$66,$66,$3E,$66,$66,$3E,$00
         ; $43 C
-        .byte $3C,$66,$60,$60,$60,$66,$3C,$00
+        .byte $3C,$66,$06,$06,$06,$66,$3C,$00
         ; $44 D
-        .byte $78,$6C,$66,$66,$66,$6C,$78,$00
+        .byte $1E,$36,$66,$66,$66,$36,$1E,$00
         ; $45 E
-        .byte $7E,$60,$60,$78,$60,$60,$7E,$00
+        .byte $7E,$06,$06,$1E,$06,$06,$7E,$00
         ; $46 F
-        .byte $7E,$60,$60,$78,$60,$60,$60,$00
+        .byte $7E,$06,$06,$1E,$06,$06,$06,$00
         ; $47 G
-        .byte $3C,$66,$60,$6E,$66,$66,$3C,$00
+        .byte $3C,$66,$06,$76,$66,$66,$3C,$00
         ; $48 H
         .byte $66,$66,$66,$7E,$66,$66,$66,$00
         ; $49 I
         .byte $3C,$18,$18,$18,$18,$18,$3C,$00
         ; $4A J
-        .byte $1E,$0C,$0C,$0C,$0C,$6C,$38,$00
+        .byte $78,$30,$30,$30,$30,$36,$1C,$00
         ; $4B K
-        .byte $66,$6C,$78,$70,$78,$6C,$66,$00
+        .byte $66,$36,$1E,$0E,$1E,$36,$66,$00
         ; $4C L
-        .byte $60,$60,$60,$60,$60,$60,$7E,$00
+        .byte $06,$06,$06,$06,$06,$06,$7E,$00
         ; $4D M
-        .byte $63,$77,$7F,$6B,$63,$63,$63,$00
+        .byte $46,$6E,$7E,$56,$46,$46,$46,$00
         ; $4E N
-        .byte $66,$76,$7E,$7E,$6E,$66,$66,$00
+        .byte $66,$6E,$7E,$7E,$76,$66,$66,$00
         ; $4F O
         .byte $3C,$66,$66,$66,$66,$66,$3C,$00
         ; $50 P
-        .byte $7C,$66,$66,$7C,$60,$60,$60,$00
+        .byte $3E,$66,$66,$3E,$06,$06,$06,$00
         ; $51 Q
-        .byte $3C,$66,$66,$66,$66,$3C,$0E,$00
+        .byte $3C,$66,$66,$66,$66,$3C,$70,$00
         ; $52 R
-        .byte $7C,$66,$66,$7C,$78,$6C,$66,$00
+        .byte $3E,$66,$66,$3E,$1E,$36,$66,$00
         ; $53 S
-        .byte $3C,$66,$60,$3C,$06,$66,$3C,$00
+        .byte $3C,$66,$06,$3C,$60,$66,$3C,$00
         ; $54 T
         .byte $7E,$5A,$18,$18,$18,$18,$18,$00
         ; $55 U
@@ -4669,23 +4668,23 @@ font_base:
         ; $56 V
         .byte $66,$66,$66,$66,$66,$3C,$18,$00
         ; $57 W
-        .byte $63,$63,$63,$6B,$7F,$77,$63,$00
+        .byte $46,$46,$46,$56,$7E,$6E,$46,$00
         ; $58 X
         .byte $66,$66,$3C,$18,$3C,$66,$66,$00
         ; $59 Y
         .byte $66,$66,$66,$3C,$18,$18,$18,$00
         ; $5A Z
-        .byte $7E,$06,$0C,$18,$30,$60,$7E,$00
+        .byte $7E,$60,$30,$18,$0C,$06,$7E,$00
         ; $5B [
-        .byte $3C,$30,$30,$30,$30,$30,$3C,$00
-        ; $5C backslash
-        .byte $00,$60,$30,$18,$0C,$06,$03,$00
-        ; $5D ]
         .byte $3C,$0C,$0C,$0C,$0C,$0C,$3C,$00
+        ; $5C backslash
+        .byte $00,$06,$0C,$18,$30,$60,$40,$00
+        ; $5D ]
+        .byte $3C,$30,$30,$30,$30,$30,$3C,$00
         ; $5E ^
         .byte $18,$3C,$66,$00,$00,$00,$00,$00
         ; $5F _
-        .byte $00,$00,$00,$00,$00,$00,$00,$FF
+        .byte $00,$00,$00,$00,$00,$00,$00,$7F
 
 ; =============================================
 ; GEN2 lib modules (textual includes): hgr_lo/hgr_hi scanline tables +
@@ -4694,7 +4693,7 @@ font_base:
 .include "hgr_scanline.inc"
 .include "hgr_flip.asm"          ; dev/lib/hgr: draw page by rewriting hgr_hi
 .include "hgr_sprite_packed.asm"
-.include "rev7.inc"
+HGR_TEXT8_HGR_ORDER = 1          ; the font is in HGR order: no rev7_tab
 HGR_TEXT8_NO_PUTS = 1            ; write_char drives hgr_putc8 itself
 .include "hgr_text8.asm"
 .include "hgr.asm"               ; dev/lib/apple2: hgr_init_clear
@@ -4703,10 +4702,6 @@ SOUND_GATE = sound_enabled       ; the shared tone, silent while it is 0
 .include "joy.asm"               ; two axes and dead zone, no zero-page scratch
 EXIT_USE_NATIVE_VIDEO = 1        ; hgr.asm's native_video, above
 .include "exit.asm"              ; dev/lib/apple2: apple2_zp_save / apple2_exit
-DOS_ZP_START = $50
-DOS_ZP_LEN = $B0
-DOS_CMD_HEX_IFREF = 1            ; no dos_cmd_hex: it is not called
-.include "dos.asm"               ; DOS score file, preserving the game's ZP
 
 ; Shared asset data and rendering modules.
 
@@ -4725,6 +4720,9 @@ unpack_title = lz4fh_unpack
 .include "lz4fh.asm"
 
 .include "save.inc"
+.code
+.include "fm.asm"                ; files through DOS's file manager (after save.inc: .ifref)
+.include "dos.asm"               ; disk_protected only (the commands are gone)
 
 ; Native renderer reuses game scratch without changing its ZP layout.
 hl_ln_x0 = ln_x0

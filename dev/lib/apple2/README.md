@@ -198,8 +198,10 @@ video; `exit.asm` restores the zero page to hand control back to DOS cleanly.
   length: `fm_write` asks for `fm_len` − 1. Needs nothing in the zero
   page and writes `$26`-`$49` (measured list in the header);
   `FM_KEEP_ZP`, `FM_SEI` as in `rwts.asm`. 401 B for open/write/close,
-  451 B with everything, 27 B of variables. C mirror: `../apple2c/apple2fm.h`
-  (`a2_fm_*`). No user yet.
+  451 B with everything, 27 B of variables. `fm_bload` / `fm_bsave` (A/Y =
+  name, `fm_hdr` = address + length) are BLOAD / BSAVE of a whole binary
+  file: 497 B for both, all included. C mirror: `../apple2c/apple2fm.h`
+  (`a2_fm_*`). ARKABREAKOUT (records, level packs, music: `dos.asm` gone).
   `python3 dev/tests/test_fm.py` (write-protected and full disks too).
 
 `sound.asm`, `joy.asm` and `dos.asm` were taken out of MICRO-SOKOBAN so the other games (sounds,

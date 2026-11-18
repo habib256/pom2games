@@ -34,9 +34,9 @@ hgr_hspan:
         ORA (hs_ptr),Y
         STA (hs_ptr),Y
         INY
+        LDA #$7F
 @whole: CPY hs_end_col
         BEQ @last
-        LDA #$7F
         STA (hs_ptr),Y
         INY
         BNE @whole

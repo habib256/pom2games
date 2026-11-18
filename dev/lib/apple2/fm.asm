@@ -21,6 +21,15 @@
 ;              (sector count) and frees the DOS buffer, even on an error.
 ;   fm_delete, fm_lock, fm_unlock, fm_verify
 ;              A/Y = name, as fm_open (they borrow a free DOS buffer).
+;   fm_bload   A/Y = name: a whole DOS binary file, as BLOAD: open (must
+;              exist), read its 4-byte header into fm_hdr (address,
+;              length), then its data at that address, close.
+;   fm_bsave   A/Y = name, fm_hdr = address (2 bytes) then length (2), as
+;              BSAVE name,A,L: open (created if missing), header, data,
+;              close. Both: C = 1, A = the first error; the file is
+;              closed in every case. One of them alone: 472 B in all (with
+;              the open / read or write / close it uses); both: 497 B,
+;              and 4 B of BSS (fm_hdr).
 ; All return C = 0 on success, or C = 1 and A = the error:
 ;   FM_ERR_PROTECTED 4, FM_ERR_END 5 (end of data: a read past the file's
 ;   last sector), FM_ERR_NOT_FOUND 6, FM_ERR_VOLUME 7, FM_ERR_IO 8,
@@ -126,7 +135,7 @@ DOS_ZP_LEN = 256
 .endif
 .endif
 
-.if .referenced(fm_open) .or .referenced(fm_close) .or .referenced(fm_read) .or .referenced(fm_write) .or .referenced(fm_seek) .or .referenced(fm_delete) .or .referenced(fm_lock) .or .referenced(fm_unlock) .or .referenced(fm_verify)
+.if .referenced(fm_open) .or .referenced(fm_close) .or .referenced(fm_read) .or .referenced(fm_write) .or .referenced(fm_seek) .or .referenced(fm_delete) .or .referenced(fm_lock) .or .referenced(fm_unlock) .or .referenced(fm_verify) .or .referenced(fm_bload) .or .referenced(fm_bsave)
 
 .segment "BSS"
 .ifndef fm_len
@@ -139,6 +148,11 @@ fm_file:    .res 2              ; the open file: its DOS buffer's name field
 fm_pl:      .res 18             ; the parameter list, copied in and out
 fm_call_x:  .res 1
 fm_op:      .res 1
+.if .referenced(fm_bload) .or .referenced(fm_bsave)
+.ifndef fm_hdr
+fm_hdr:     .res 4              ; a binary file's header: address, length
+.endif
+.endif
 .if FM_KEEP_ZP
 .ifndef fm_zp_buf
 fm_zp_buf:  .res DOS_ZP_LEN
@@ -150,8 +164,64 @@ fm_drive:   .byte 0
 
 .segment "CODE"
 
+; ---------------------------------------------------------------- whole files
+; (first: their calls must come before the .ifref blocks below)
+.ifref fm_bload
+fm_bload:
+        LDX     #FM_MUST_EXIST
+        JSR     fm_open
+        BCS     @rts
+        JSR     fm_hdr4
+        JSR     fm_read
+        BCS     fm_bend
+        JSR     fm_body
+        JSR     fm_read
+        JMP     fm_bend
+@rts:   RTS
+.endif
+.ifref fm_bsave
+fm_bsave:
+        LDX     #FM_BINARY
+        JSR     fm_open
+        BCS     @rts
+        JSR     fm_hdr4
+        JSR     fm_write
+        BCS     fm_bend
+        JSR     fm_body
+        JSR     fm_write
+        JMP     fm_bend
+@rts:   RTS
+.endif
+.if .referenced(fm_bload) .or .referenced(fm_bsave)
+; Close; the result is the first error (C/A at entry, else fm_close's).
+fm_bend:
+        BCC     @close
+        PHA
+        JSR     fm_close
+        PLA
+        SEC
+        RTS
+@close: JMP     fm_close
+fm_hdr4:
+        LDA     #4                      ; the header itself
+        STA     fm_len
+        LDA     #0
+        STA     fm_len+1
+        LDA     #<fm_hdr
+        LDY     #>fm_hdr
+        RTS
+fm_body:
+        LDA     fm_hdr+2                ; its length, at its address
+        STA     fm_len
+        LDA     fm_hdr+3
+        STA     fm_len+1
+        LDA     fm_hdr
+        LDY     fm_hdr+1
+        RTS
+.endif
+
 ; ---------------------------------------------------------------- open/close
-.ifref fm_open
+.if .referenced(fm_open) .or .referenced(fm_bload) .or .referenced(fm_bsave)
 fm_open:
         STX     fm_type
         JSR     fm_take                 ; a free buffer, the name, the drive
@@ -181,7 +251,7 @@ fm_open:
 @rts:   RTS
 .endif
 
-.ifref fm_close
+.if .referenced(fm_close) .or .referenced(fm_bload) .or .referenced(fm_bsave)
 fm_close:
         JSR     fm_use
         LDA     #FM_OP_CLOSE

@@ -1958,11 +1958,8 @@ clear_pages:
 APPLE2_EXIT_HOOK = mouse_shutdown
 EXIT_USE_NATIVE_VIDEO = 1        ; hgr.asm's native_video, above
 .include "exit.asm"
-DOS_ZP_START = $50
-DOS_ZP_LEN = $B0
-DOS_SEI = 1                       ; the //c mouse runs with IRQs on (interface.inc)
-DOS_CMD_HEX_IFREF = 1            ; no dos_cmd_hex: it is not called
-.include "dos.asm"
+FM_SEI = 1                        ; the //c mouse runs with IRQs on (interface.inc)
+.include "fm.asm"                 ; files through DOS's file manager: errors are codes
 .include "mouse_context.asm"
 .include "hgr_text8.asm"          ; again: hgr_puts8_at, after its callers
 

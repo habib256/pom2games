@@ -87,12 +87,35 @@ int main(void)
 ''' % {'N': N}
 
 
-def build(work):
-    (work / 'fixture.c').write_text(FIXTURE)
+FILE_FIXTURE = r'''
+#include <string.h>
+#include "apple2fm.h"
+unsigned char res[8];
+unsigned char src[50], dst[52];
+void done(void) { for (;;) ; }
+int main(void)
+{
+    unsigned char i;
+    for (i = 0; i < 50; ++i) src[i] = i ^ 0x69;
+    memset(dst, 0xEE, sizeof dst);
+    res[0] = a2_fm_load("REC", dst, 50);      /* missing */
+    res[1] = a2_fm_save("REC", src, 50);      /* created */
+    res[2] = a2_fm_load("REC", dst, 50);
+    src[0] = 0x11;
+    res[3] = a2_fm_save("REC", src, 50);      /* rewritten */
+    res[4] = a2_fm_load("REC", dst + 50, 1);  /* first data byte only */
+    done();
+    return 0;
+}
+'''
+
+
+def build(work, fixture=FIXTURE, lib='apple2fm.s'):
+    (work / 'fixture.c').write_text(fixture)
     objects = []
     for source, flags in ((work / 'fixture.c', ['-Oirs', '-I', DEV / 'lib/apple2c']),
                           (DEV / 'cc65/crt0_apple2.s', []),
-                          (DEV / 'lib/apple2c/apple2fm.s', ['--asm-include-dir', DEV / 'lib/apple2'])):
+                          (DEV / 'lib/apple2c' / lib, ['--asm-include-dir', DEV / 'lib/apple2'])):
         obj = work / (source.stem + '.o')
         if source.suffix == '.c':                       # never a .s beside the source
             subprocess.run(['cl65', '-t', 'none', *flags, '-S', '-o', work / 'fixture.gen.s', source], check=True)
@@ -105,10 +128,10 @@ def build(work):
     return a2test.labels(work / 'fm.lbl', any_name=True), binary
 
 
-def module_size(work):
-    """CODE / DATA / BSS bytes of apple2fm.o alone (ld65's module list)."""
+def module_size(work, name='apple2fm.o'):
+    """CODE / DATA / BSS bytes of one object alone (ld65's module list)."""
     text = (work / 'fm.map').read_text()
-    lines = text[text.index('apple2fm.o:'):].splitlines()[1:]
+    lines = text[text.index(name + ':'):].splitlines()[1:]
     block = '\n'.join(line for line in lines[:next((i for i, x in enumerate(lines) if not x.startswith(' ')), len(lines))])
     return {seg: int(size, 16) for seg, size in re.findall(r'(CODE|DATA|BSS|RODATA)\s+Offs=\w+\s+Size=(\w+)', block)}
 
@@ -146,5 +169,22 @@ def main():
           f'unlock, verify, missing, 3 handles + NO BUFFER, disk image exact; apple2fm.o {size}')
 
 
+def files():
+    """apple2fmfile.s alone: a2_fm_load / a2_fm_save."""
+    with tempfile.TemporaryDirectory(prefix='fm-file-') as tmp:
+        work = Path(tmp)
+        L, binary = build(work, FILE_FIXTURE, 'apple2fmfile.s')
+        disk = a2test.build_disk(work, 'FMF', binary)
+        r = a2test.run(disk, ['wait:200', L.until('_done', 6000), L.peek('_res', 5), L.peek('_dst', 52),
+                              f'dsk:{work / "after.dsk"}'])
+        assert list(r.mem(L['_res'], 5)) == [6, 0, 0, 0, 0], list(r.mem(L['_res'], 5))
+        data = bytes(i ^ 0x69 for i in range(50))
+        assert r.mem(L['_dst'], 52) == data + b'\x11\xEE', 'a2_fm_load: data, one byte, nothing past it'
+        assert dos33.read_file((work / 'after.dsk').read_bytes(), 'REC') == b'\x11' + data[1:], 'REC on the disk'
+        print(f'fm (C files): missing = 6, save creates, load skips the header, rewrite, partial load; '
+              f'apple2fmfile.o {module_size(work, "apple2fmfile.o")}')
+
+
 if __name__ == '__main__':
     main()
+    files()

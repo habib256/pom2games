@@ -46,7 +46,7 @@
  */
 #include "hgr.h"
 #include "apple2game.h"
-#include "apple2dos.h"
+#include "apple2fm.h"
 #include "apple2rand.h"
 #include "apple2vapor.h"
 
@@ -566,8 +566,8 @@ static void next_level(void)
     redraw();
 }
 
-/* "BLOAD HISCORE,A$xxxx" / "BSAVE HISCORE,A$xxxx,L$0002" at &hiscore. The
- * disk ships HISCORE (2 bytes, 0): DOS would stop the game on a missing file. */
+/* HISCORE: a 2-byte DOS binary file, read and written at &hiscore through
+ * DOS's file manager (apple2fm.h): an error is a code, never a DOS stop. */
 static const char hiscore_name[] = "HISCORE";
 
 /* A better score becomes the record, saved unless the disk is write-protected
@@ -579,7 +579,7 @@ static void keep_record(void)
     if (score <= hiscore) return;
     hiscore = score;
     new_record = 1u;
-    if (!a2_disk_protected()) a2_dos_bsave(hiscore_name, &hiscore, 2u);
+    a2_fm_save(hiscore_name, &hiscore, 2u);   /* protected or full disk: a code, the game goes on */
 }
 
 /* The wait between two ticks: whole video frames through the vapor lock
@@ -645,7 +645,7 @@ void main(void)
      * the title times out after ~4 s and the game starts on its own. Every
      * line in a different artifact colour (violet / green / orange / blue).
      * The record is read first, while the disk still spins from BRUN. */
-    a2_dos_bload(hiscore_name, &hiscore);
+    a2_fm_load(hiscore_name, &hiscore, 2u);   /* missing file: the record stays 0 */
     hgr_init();
     hgr_clear(0);
     /* The vapor lock: a frame measured in polls, ~1000 at 60 Hz, ~1190 at

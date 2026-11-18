@@ -73,9 +73,10 @@ preferences_save:
         STA PREFS+5
         LDA configured_depth
         STA PREFS+6
-        LDA #<prefs_command
-        LDY #>prefs_command
-        JMP dos_cmd_line
+        LDX #SAVE_PREFS
+        LDA #<prefs_name
+        LDY #>prefs_name
+        JMP save_file
 @done:  RTS
 
 profile_load:
@@ -85,10 +86,10 @@ profile_load:
         LDA active_profile
         CLC
         ADC #'0'
-        STA load_command+14
-        LDA #<load_command
-        LDY #>load_command
-        JSR dos_cmd_line
+        STA save_name+8
+        LDA #<save_name
+        LDY #>save_name
+        JSR fm_bload
         LDA SAVE_MAGIC
         CMP #'M'
         BNE @invalid
@@ -212,7 +213,7 @@ resume_game:
 prepare_text:
         LDA #<str_text_load
         LDY #>str_text_load
-        JMP dos_cmd_line
+        JMP fm_bload
 
 manual_save:
         LDA active_game
@@ -262,10 +263,34 @@ checkpoint_write:
         LDA active_profile
         CLC
         ADC #'0'
-        STA save_command+14
-        LDA #<save_command
-        LDY #>save_command
-        JMP dos_cmd_line        ; dos.asm: new + add + run
+        STA save_name+8
+        LDX #SAVE_PROFILE
+        LDA #<save_name
+        LDY #>save_name
+        ; falls into save_file
+
+; BSAVE through DOS's file manager (fm.asm): A/Y = name, X = which file
+; (its address and length below). An error is a code, not a DOS stop.
+save_file:
+        PHA
+        LDA save_addr_lo,X
+        STA fm_hdr
+        LDA save_addr_hi,X
+        STA fm_hdr+1
+        LDA save_len_lo,X
+        STA fm_hdr+2
+        LDA save_len_hi,X
+        STA fm_hdr+3
+        PLA
+        JMP fm_bsave
+
+SAVE_PROFILE = 0                ; MAZESAVEn  A$1000,L$0100
+SAVE_PREFS   = 1                ; MAZEPREFS  A$1F10,L$0008
+SAVE_SCORE   = 2                ; MAZESCORE  A$1F00,L$0008
+save_addr_lo: .byte <$1000, <$1F10, <$1F00
+save_addr_hi: .byte >$1000, >$1F10, >$1F00
+save_len_lo:  .byte <$0100, 8, 8
+save_len_hi:  .byte >$0100, 0, 0
 
 checkpoint_sum:
         LDX #0
@@ -276,7 +301,6 @@ checkpoint_sum:
         CMP #0
         RTS
 
-load_command:  .byte "BLOAD MAZESAVE1",0
-save_command:  .byte "BSAVE MAZESAVE1,A$1000,L$0100",0
-prefs_command: .byte "BSAVE MAZEPREFS,A$1F10,L$0008",0
+save_name:     .byte "MAZESAVE1",0
+prefs_name:    .byte "MAZEPREFS",0
 str_resumed:   .byte "YOUR JOURNEY CONTINUES",0

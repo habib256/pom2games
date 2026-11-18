@@ -12,6 +12,12 @@
 ; tmp1 destroyed; non-reentrant, never from an IRQ.
 ; DHGR_SPR_CODE_SEGMENT=1: code and tables in segment DHGRSPRCODE.
 .export _dhgr_cv_paint, _dhgr_cv_solid, dhgr_cv_fill, cv_seq, cv_nibble, cv_begin
+.ifndef DHGR_SPR_CANVAS
+DHGR_SPR_CANVAS = 0             ; 1: canvas = the program's dhgr_spr_canvas (dhgr_spr_asm.s)
+.endif
+.if DHGR_SPR_CANVAS
+.import dhgr_spr_canvas
+.endif
 .export _dhgr_cv_buf, _dhgr_cv_x0, _dhgr_cv_y0, _dhgr_cv_w, _dhgr_cv_h
 .export _dhgr_cv_x1, _dhgr_cv_y1, _dhgr_cv_shape, _dhgr_cv_sx, _dhgr_cv_sy
 .export _dhgr_cv_flags, _dhgr_cv_pal
@@ -161,7 +167,11 @@ f_nib:  lda #0
 f_go:   jmp cv_seq
 cv_seq:
 .repeat 8, J
+.if DHGR_SPR_CANVAS
+        sta dhgr_spr_canvas + 7 - J,y
+.else
         sta $FF00 + 7 - J,y     ; (patched: canvas + 7 - J)
+.endif
 .endrepeat
         tya
         clc

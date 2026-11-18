@@ -1,7 +1,24 @@
 ; VERHILLE Arnaud — GPL-3.0. cc65 ProDOS 8 graphics startup at $6000.
 .export __STARTUP__ : absolute = 1
 .export _exit, apple2_zp_buf, _prodos_quit
-.import __STACKSTART__, zerobss, copydata, initlib, donelib
+.import __STACKSTART__, zerobss
+; cc65's copydata / initlib / donelib are left out by default: no program
+; here has constructors or destructors, and DATA loads where it runs (no
+; run = in the cfgs), so copydata would copy DATA onto itself. That saves
+; 115 bytes (condes.o, copydata.o, three JSRs). The link fails if a
+; constructor or destructor appears: assemble with -D CRT0_CONDES=1 then
+; (and for a cfg whose DATA has a separate run address).
+.ifndef CRT0_CONDES
+CRT0_CONDES = 0
+.endif
+.if CRT0_CONDES
+.import copydata, initlib, donelib
+.else
+.import __CONSTRUCTOR_COUNT__, __DESTRUCTOR_COUNT__
+.forceimport __CONSTRUCTOR_TABLE__, __DESTRUCTOR_TABLE__   ; ld65 builds the (empty) tables and their counts only if imported
+.assert __CONSTRUCTOR_COUNT__ = 0, lderror, "constructors linked: assemble the crt0 with -D CRT0_CONDES=1"
+.assert __DESTRUCTOR_COUNT__ = 0, lderror, "destructors linked: assemble the crt0 with -D CRT0_CONDES=1"
+.endif
 .import _main, _game_shutdown
 .importzp sp
 .segment "STARTUP"
@@ -46,10 +63,15 @@ save:   lda $00,x
         lda #>__STACKSTART__
         sta sp+1
         jsr zerobss
+.if CRT0_CONDES
         jsr copydata
         jsr initlib
+.endif
         jsr _main
-_exit:  jsr donelib
+_exit:
+.if CRT0_CONDES
+        jsr donelib
+.endif
         jmp cleanup
 reset_exit:
         cld
