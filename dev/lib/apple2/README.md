@@ -184,6 +184,22 @@ video; `exit.asm` restores the zero page to hand control back to DOS cleanly.
   `DOS_SEI = 1` masks IRQs during `dos_cmd_run` (RWTS does not tolerate
   interrupts: programs that do `CLI`, the //c mouse). `disk_protected`
   reads the slot of DOS's last access from its IOB (`$B7E9`, 48 KB DOS).
+- **`fm.asm`** — DOS 3.3 files by name through the file manager (`$03D6`):
+  `fm_open` (A/Y = name, X = type to create or `FM_MUST_EXIST`; C = 0 and
+  A = 6 when it created the file), `fm_read` / `fm_write` (A/Y = address,
+  `fm_len` = count), `fm_seek`, `fm_close`, and by name `fm_delete`,
+  `fm_lock`, `fm_unlock`, `fm_verify`. Errors come back as C = 1, A = the
+  file manager's code (4 protected, 5 end of data, 6 not found, 9 disk
+  full, 10 locked, 12 no free DOS buffer): DOS prints nothing and the
+  program keeps running, where a `dos.asm` command would stop it at the
+  `]` prompt. Each open file borrows one of DOS's MAXFILES buffers
+  (`fm_file` is the handle); no fixed DOS address (`$03DC`, `$03D2`,
+  `$03E3`). The file manager's WRITE range writes one byte more than its
+  length: `fm_write` asks for `fm_len` − 1. Needs nothing in the zero
+  page and writes `$26`-`$49` (measured list in the header);
+  `FM_KEEP_ZP`, `FM_SEI` as in `rwts.asm`. 401 B for open/write/close,
+  451 B with everything, 27 B of variables. No user yet.
+  `python3 dev/tests/test_fm.py` (write-protected and full disks too).
 
 `sound.asm`, `joy.asm` and `dos.asm` were taken out of MICRO-SOKOBAN so the other games (sounds,
 joystick, saving in their `TODO.md`) share the same code; their C
