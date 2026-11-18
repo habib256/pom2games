@@ -217,14 +217,6 @@ mob_step:   .res 1     ; row pitch (monster width px = sz*16)
 mob_spy:    .res 1     ; shared sp_y for the whole row (same height)
 mob_curx:   .res 1     ; running x while laying out the row
 
-; --- double-size text (title "MAZE 3D") ---
-x2_src:     .res 1     ; source glyph row (0 or 4)
-x2_nib:     .res 1     ; 0=high nibble (left tile), 1=low (right tile)
-x2_cx:      .res 1     ; dest cell col/row
-x2_cy:      .res 1
-x2_row:     .res 1     ; loop cursors
-x2_cnt:     .res 1
-x2_byte:    .res 1     ; doubled byte (written twice = vertical double)
 last_mob_depth: .res 1 ; depth coloured last frame (0=none) -> reset target
 ; --- colour-table fill (color_rect) ---
 cr_x:       .res 1     ; rect origin/size (pixels, multiples of 8)

@@ -10,6 +10,7 @@
 .setcpu "65C02"
 .macpack longbranch
 AUXMEM_FETCH_SCAN = 1            ; aux_fetch: a VBL scan between two chunks
+AUXMEM_CHUNK_NATIVE = 1          ; its own zero-page loop, not the ROM's AUXMOVE (2.5 times faster)
 .include "auxmem.asm"            ; dev/lib/apple2: AUXMOVE (aux_fetch: below)
 
 .import _prodos_video_claim, _prodos_video_release

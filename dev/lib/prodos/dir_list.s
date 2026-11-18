@@ -230,7 +230,6 @@ next_entry:
  lda tmp1
  cmp per
  jcc entry_loop
- jmp block_done
 block_done:
  ldy #4
  lda ptr3

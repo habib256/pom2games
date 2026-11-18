@@ -53,6 +53,15 @@
 ;                           ~2 300 cycles with interrupts masked each). Bigger
 ;                           = fewer AUXMOVE setups (~60 cycles each), longer
 ;                           masked windows.
+;   AUXMEM_CHUNK_NATIVE = 1 aux_fetch_chunked / aux_store_chunked copy with
+;                           their own 18-byte loop run from the zero page
+;                           (auxmem_ccopy: reserved in ZEROPAGE, or at
+;                           AUXMEM_CHUNK_ZP; it must not be shared: it stays
+;                           installed between two chunks) instead of the
+;                           ROM's AUXMOVE: ~16 cycles a byte instead of ~36
+;                           (dev/tests/test_auxmem_chunked.py), same
+;                           variables, same masked window per chunk. $3C-$3F
+;                           and $42-$43 are no longer used.
 ;   AUXMEM_FETCH_SCAN = 1   jsr _a2_vbl_scan after each chunk (apple2vbl.s:
 ;                           the //e VBL edges keep being counted during a long
 ;                           fetch); +3 bytes, ~30 cycles a chunk. Default: none.
@@ -68,6 +77,9 @@ AUX_TO_MAIN = 0
 MAIN_TO_AUX = 1
 .ifndef AUXMEM_FETCH_CHUNK
 AUXMEM_FETCH_CHUNK = 64
+.endif
+.ifndef AUXMEM_CHUNK_NATIVE
+AUXMEM_CHUNK_NATIVE = 0
 .endif
 .ifndef AUXMEM_FETCH_SCAN
 AUXMEM_FETCH_SCAN = 0
@@ -195,6 +207,101 @@ auxmem_flen: .res 2
 auxmem_fn:   .res 1
 .popseg
 .endif
+.if AUXMEM_CHUNK_NATIVE
+; ---- native copy: an 18-byte loop in the zero page, both directions ----
+AUXMEM_CLEN = 18
+.ifdef AUXMEM_CHUNK_ZP
+auxmem_ccopy = AUXMEM_CHUNK_ZP
+.else
+.pushseg
+.zeropage
+auxmem_ccopy: .res AUXMEM_CLEN
+.popseg
+.endif
+.if .referenced(aux_store_chunked)
+aux_store_chunked:
+        ldx #$05                 ; RAMWRT aux ... $C004 main
+        .byte $2C                ; (bit abs: skips the ldx)
+aux_fetch_chunked:
+        ldx #$03                 ; RAMRD aux ... $C002 main
+        stx auxmem_csw
+.else
+aux_fetch_chunked:
+.endif
+        sta auxmem_fsrc
+        sty auxmem_fsrc+1
+        ldx #AUXMEM_CLEN - 1     ; install the loop
+@put:   lda auxmem_ctemplate,x
+        sta auxmem_ccopy,x
+        dex
+        bpl @put
+.if .referenced(aux_store_chunked)
+        lda auxmem_csw           ; the direction: the two switches
+        sta auxmem_ccopy + 1
+        dec a
+        sta auxmem_ccopy + 15
+.endif
+@chunk: lda auxmem_flen+1
+        bne :+
+        lda auxmem_flen
+        beq @done
+        cmp #AUXMEM_FETCH_CHUNK
+        bcc :++
+:       lda #AUXMEM_FETCH_CHUNK
+:       sta auxmem_ccopy + 11    ; cpy #n
+        sta auxmem_fn
+        lda auxmem_fsrc          ; the loop's operands, then src/dst += n
+        sta auxmem_ccopy + 4
+        clc
+        adc auxmem_fn
+        sta auxmem_fsrc
+        lda auxmem_fsrc+1
+        sta auxmem_ccopy + 5
+        adc #0
+        sta auxmem_fsrc+1
+        lda auxmem_fdst
+        sta auxmem_ccopy + 7
+        clc
+        adc auxmem_fn
+        sta auxmem_fdst
+        lda auxmem_fdst+1
+        sta auxmem_ccopy + 8
+        adc #0
+        sta auxmem_fdst+1
+        lda auxmem_flen
+        sec
+        sbc auxmem_fn
+        sta auxmem_flen
+        bcs :+
+        dec auxmem_flen+1
+:       ldy #0
+        php
+        sei
+        jsr auxmem_ccopy
+        plp
+.if AUXMEM_FETCH_SCAN
+        jsr _a2_vbl_scan
+.endif
+        bra @chunk
+@done:  rts
+; RAMRD aux (fetch) or RAMWRT aux (store) around n bytes, Y = 0 on entry.
+auxmem_ctemplate:
+        sta $C003                ; +1: $03 fetch / $05 store
+:       lda $FFFF,y              ; +4: source
+        sta $FFFF,y              ; +7: destination
+        iny
+        cpy #0                   ; +11: n
+        bne :-
+        sta $C002                ; +15: $02 / $04
+        rts
+.assert * - auxmem_ctemplate = AUXMEM_CLEN, error, "auxmem: the chunk loop's length"
+.if .referenced(aux_store_chunked)
+.pushseg
+.bss
+auxmem_csw: .res 1
+.popseg
+.endif
+.else
 .if .referenced(aux_store_chunked)
 aux_store_chunked:
         ldx #$38                 ; sec: main -> aux
@@ -258,10 +365,12 @@ aux_fetch_chunked:
 @done:  rts
 auxmem_fdir = @dir
 .endif
+.endif
 
 ; A previous include may already have emitted the fetch-only routine. Keep
 ; that routine byte-identical and add the missing store entry on demand.
 .if .referenced(aux_store_chunked) .and (.not .defined(aux_store_chunked))
+.assert !AUXMEM_CHUNK_NATIVE, error, "AUXMEM_CHUNK_NATIVE: reference aux_store_chunked before the include"
 aux_store_chunked:
         ldx #$38                 ; sec: main -> aux
         stx auxmem_fdir

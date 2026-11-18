@@ -44,9 +44,6 @@ hx_rm: .res 1
 .ifndef hx_row
 hx_row: .res 1
 .endif
-.ifndef hx_index
-hx_index: .res 1
-.endif
 .code
 hgr_xor_rect:
         ldx hx_x
@@ -98,30 +95,27 @@ hgr_xor_sprite:
         sta hx_first
         lda hx_y
         sta hx_row
-        lda #0
-        sta hx_index
+        ldy #0                          ; data index, 16 bytes
 @line:  ldx hx_row
-        lda hgr_lo,x
+        lda hgr_lo,x                    ; the column goes into the pointer:
+        clc                             ; a row's low byte is at most $D0,
+        adc hx_first                    ; + 39: no carry
         sta hx_ptr
         lda hgr_hi,x
         eor hx_page
         sta hx_ptr+1
-        ldy hx_index
+        ldx #0
         lda (hx_data),y
-        ldy hx_first
-        eor (hx_ptr),y
-        sta (hx_ptr),y
-        inc hx_index
-        ldy hx_index
-        lda (hx_data),y
-        ldy hx_first
+        eor (hx_ptr,x)
+        sta (hx_ptr,x)
         iny
-        eor (hx_ptr),y
-        sta (hx_ptr),y
-        inc hx_index
+        inc hx_ptr                      ; the second byte (same page)
+        lda (hx_data),y
+        eor (hx_ptr,x)
+        sta (hx_ptr,x)
+        iny
         inc hx_row
-        lda hx_index
-        cmp #16
+        cpy #16
         bne @line
         rts
 .rodata

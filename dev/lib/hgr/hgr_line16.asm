@@ -116,12 +116,12 @@ hgr_line16:
         LDA h16_y0
         CMP h16_y1
         BEQ @end
-@do:    LDA h16_err
+@do:    LDA h16_err             ; e2 = 2 * err
+        ASL A
         STA h16_e2
         LDA h16_err+1
+        ROL A
         STA h16_e2+1
-        ASL h16_e2
-        ROL h16_e2+1
         ; test 1: step x if 2*err >= -dy  (dy 8-bit, zero-extended)
         CLC
         LDA h16_e2
