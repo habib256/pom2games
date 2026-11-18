@@ -35,6 +35,8 @@ APPLE2C_AUX_SRCS := $(APPLE2C)/apple2aux.s
 APPLE2C_AUXFETCH_SRCS := $(APPLE2C)/apple2auxfetch.s
 APPLE2C_AUX_DEPS := $(APPLE2C)/../apple2/auxmem.asm
 APPLE2C_GAME_SRCS := $(APPLE2C)/apple2game_asm.s
+# a2_tone alone (no joystick: 24 B instead of 131), in place of APPLE2C_GAME_SRCS.
+APPLE2C_TONE_SRCS := $(APPLE2C)/apple2tone.s
 APPLE2C_DOS_SRCS  := $(APPLE2C)/apple2dos_asm.s
 # More opt-ins (separate objects, nothing for the programs that do not call
 # them): a2_rand16 (math/random.asm's LFSR; deps APPLE2C_RAND_DEPS),
@@ -46,10 +48,13 @@ APPLE2C_RAND_DEPS :=
 APPLE2C_STICK_SRCS := $(APPLE2C)/apple2stick.s
 APPLE2C_DOSBIN_SRCS := $(APPLE2C)/apple2dosbin.s
 # DOS 3.3 files by name with error codes (apple2fm.h, dev/lib/apple2/fm.asm):
-# a2_fm_open / read / write / seek / close / delete... 560 B code, 27 B
+# a2_fm_open / read / write / seek / close / delete... 546 B code, 27 B
 # variables. Assemble with $(APPLE2C_AFLAGS) (-D FM_SEI=1 if IRQs are on).
 APPLE2C_FM_SRCS := $(APPLE2C)/apple2fm.s
 APPLE2C_FM_DEPS := $(APPLE2C)/../apple2/fm.asm
+# Whole binary files only (a2_fm_load / a2_fm_save), self-contained: in
+# place of APPLE2C_FM_SRCS for a program that needs nothing else.
+APPLE2C_FM_FILE_SRCS := $(APPLE2C)/apple2fmfile.s
 # 80-column text written directly (apple2t80.h, //e 80-column card / //c,
 # 65C02): t80_init / putc / puts / fill / scroll. The pointer cell on it
 # (apple2t80_ptr.s) needs apple2t80.s assembled with $(APPLE2C_T80_PTR_AFLAGS).

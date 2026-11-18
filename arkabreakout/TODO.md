@@ -16,6 +16,5 @@ AppleMouse II ROMs; a complete Relax campaign is played by paddle steering.
   48 KB budget permits; the victory text and two-voice fanfare already exist.
 - Improve miniature brick visibility on physical composite displays; sector
   previews, names and mouse navigation are implemented.
-- Consider RWTS error recovery for removed/damaged disks. Current BLOAD/BSAVE
-  uses resident DOS commands; the shipped disk contains all required files,
-  and write protection is checked before saving.
+- Tell a full disk from a protected one when the records cannot be saved
+  (`fm_bsave` returns the code; the message says "WRITE PROTECTED").

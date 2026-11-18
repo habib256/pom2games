@@ -1,16 +1,47 @@
 ; VERHILLE Arnaud — GPL-3.0. cc65 ProDOS 8 graphics startup at $6000.
 .export __STARTUP__ : absolute = 1
 .export _exit, apple2_zp_buf, _prodos_quit
-.import __STACKSTART__, zerobss, copydata, initlib, donelib
+.import __STACKSTART__, zerobss
+; cc65's copydata / initlib / donelib are left out by default: no program
+; here has constructors or destructors, and DATA loads where it runs (no
+; run = in the cfgs), so copydata would copy DATA onto itself. That saves
+; 115 bytes (condes.o, copydata.o, three JSRs). The link fails if a
+; constructor or destructor appears: assemble with -D CRT0_CONDES=1 then
+; (and for a cfg whose DATA has a separate run address).
+.ifndef CRT0_CONDES
+CRT0_CONDES = 0
+.endif
+.if CRT0_CONDES
+.import copydata, initlib, donelib
+.else
+.import __CONSTRUCTOR_COUNT__, __DESTRUCTOR_COUNT__
+.forceimport __CONSTRUCTOR_TABLE__, __DESTRUCTOR_TABLE__   ; ld65 builds the (empty) tables and their counts only if imported
+.assert __CONSTRUCTOR_COUNT__ = 0, lderror, "constructors linked: assemble the crt0 with -D CRT0_CONDES=1"
+.assert __DESTRUCTOR_COUNT__ = 0, lderror, "destructors linked: assemble the crt0 with -D CRT0_CONDES=1"
+.endif
 .import _main, _game_shutdown
 .importzp sp
+; Zero page saved for the way back to ProDOS: $00-$4F by default (the
+; Monitor's and ProDOS's part: text window, hooks, MLI scratch). $50-$FF is
+; the program's own (the cfgs' ZP area); QUIT's dispatcher and the next
+; program set up what they need there. -D CRT0_ZP_SAVE=256 saves it all
+; (176 B more of ZPSAVE).
+.ifndef CRT0_ZP_SAVE
+CRT0_ZP_SAVE = $50
+.endif
+.assert CRT0_ZP_SAVE >= $50 .and CRT0_ZP_SAVE <= 256, error, "CRT0_ZP_SAVE: $50..256"
 .segment "STARTUP"
         cld
-        ldx #0
+        ldx #<(CRT0_ZP_SAVE-1)
 save:   lda $00,x
         sta zp_save,x
-        inx
+        dex
+.if CRT0_ZP_SAVE > 128
+        cpx #$FF
         bne save
+.else
+        bpl save
+.endif
         ldx #2
 :       lda $03F2,x
         sta rst_save,x
@@ -46,10 +77,15 @@ save:   lda $00,x
         lda #>__STACKSTART__
         sta sp+1
         jsr zerobss
+.if CRT0_CONDES
         jsr copydata
         jsr initlib
+.endif
         jsr _main
-_exit:  jsr donelib
+_exit:
+.if CRT0_CONDES
+        jsr donelib
+.endif
         jmp cleanup
 reset_exit:
         cld
@@ -77,11 +113,16 @@ cleanup:
         sta $03F2,x
         dex
         bpl :-
-        ldx #0
+        ldx #<(CRT0_ZP_SAVE-1)
 :       lda zp_save,x
         sta $00,x
-        inx
+        dex
+.if CRT0_ZP_SAVE > 128
+        cpx #$FF
         bne :-
+.else
+        bpl :-
+.endif
         bit $C051
         bit $C052
         bit $C054
@@ -101,6 +142,6 @@ quit_params: .byte 4,0
         .word 0
 .segment "ZPSAVE"
 apple2_zp_buf:
-zp_save: .res 256
+zp_save: .res CRT0_ZP_SAVE
 rst_save: .res 3
 bitmap: .res 24

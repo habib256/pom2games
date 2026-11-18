@@ -10,6 +10,7 @@
 .setcpu "65C02"
 .macpack longbranch
 AUXMEM_FETCH_SCAN = 1            ; aux_fetch: a VBL scan between two chunks
+AUXMEM_CHUNK_NATIVE = 1          ; its own zero-page loop, not the ROM's AUXMOVE (2.5 times faster)
 .include "auxmem.asm"            ; dev/lib/apple2: AUXMOVE (aux_fetch: below)
 
 .import _prodos_video_claim, _prodos_video_release
@@ -819,46 +820,11 @@ zb_done:
 
 .pushseg
 .segment "BOOT"
-; Row address tables: lo = (y/8 mod 2)*$80 + (y/64)*$28, hi = $20 +
-; (y mod 8)*4 + (y/8 mod 8)/2; page 2 = hi + $20.
-rows_init:
-        ldx #0
-:       txa
-        and #7
-        asl
-        asl
-        ora #$20
-        sta hgr_hi,x
-        txa
-        lsr
-        lsr
-        lsr
-        tay                      ; y/8
-        and #7
-        lsr                      ; C = (y/8) & 1
-        ora hgr_hi,x
-        sta hgr_hi,x
-        lda #0
-        ror
-        sta hgr_lo,x
-        tya
-        lsr
-        lsr
-        lsr
-        tay                      ; y/64
-        lda hgr_lo,x
-        clc
-        adc thirds,y
-        sta hgr_lo,x
-        lda hgr_hi,x
-        clc
-        adc #$20
-        sta hgr_hi2,x
-        inx
-        cpx #192
-        bne :-
-        rts
-thirds: .byte $00, $28, $50
+; Row address tables (hgr_lo, hgr_hi and page 2's hgr_hi2 in one loop):
+; dev/lib/hgr/hgr_scanline_ram.asm on this program's own tables.
+HGR_SCANLINE_HI2 = 1
+.include "hgr_scanline_ram.asm"
+rows_init = hgr_scanline_init
 .popseg
 
 game_init:

@@ -47,9 +47,15 @@
 ; inline record. RODATA +18 preserves the tables; three BSS bytes stay free.
 ; 2026-11-06, read_free shares its last-page byte with the CPY operand.
 ; RODATA +2 preserves every asserted table/workspace address.
-CODE_SPARE   = 38
-RODATA_SPARE = 60
-BSS_SPARE    = 0
+; 2026-11-18, crt0_prodos.s without cc65's copydata / initlib / donelib (no
+; constructors, DATA loads where it runs): -9 STARTUP, -12 ONCE, -57 library
+; CODE, -37 DATA. Every asserted address holds: CODE +21, RODATA +57,
+; BSS +37 (115 bytes now in reserve here).
+; 2026-11-18, dev/lib/prodos/video.s shares its return tails: -8 library
+; CODE bytes, RODATA +8.
+CODE_SPARE   = 59
+RODATA_SPARE = 125
+BSS_SPARE    = 37
 
 .code
         .res CODE_SPARE

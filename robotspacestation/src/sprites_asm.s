@@ -11,6 +11,8 @@
 .import _drone_s, _drone_jet_s, _tech_s, _tech_step_s, _cell_s, _crate_s, _tile_s, _tile_set
 .import _obj_n, _obj_kind, _obj_x, _obj_y, _drone_n, _drone_x, _drone_y, _thrust
 .import _act_x, _act_y, _screen, _door_open, _tiles, _iobuf
+.export dhgr_spr_canvas         ; DHGR_SPR_CANVAS=1: the compositor's canvas, fixed at link time
+dhgr_spr_canvas = _iobuf
 .import pusha, pushax
 
 ROOM_Y = 10                             ; zone.h, ui.h, dhgr.h

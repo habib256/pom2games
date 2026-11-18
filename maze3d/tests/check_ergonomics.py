@@ -24,8 +24,8 @@ def page(r):
 def row(r, n):
     memory = page(r)
     font = r.mem(L['font_base'], 512)
-    # The font's high seven bits are reversed into each native HGR byte.
-    glyphs = {bytes(int(f'{b:08b}'[:7][::-1], 2) for b in font[i:i+8]): chr(32+i//8)
+    # The font is stored in HGR bit order: each row is the native byte.
+    glyphs = {bytes(b & 127 for b in font[i:i+8]): chr(32+i//8)
               for i in range(0, 512, 8)}
     return ''.join(glyphs.get(bytes(memory[a2test.hgr_offset(n*8+y)+4+x] & 127
                                     for y in range(8)), '?') for x in range(32))

@@ -30,7 +30,7 @@ LIB_SRCS := $(sort $(HGRC_DHGR_SRCS) $(HGRC_DHGR_SMALL_TEXT_SRCS) $(HGRC_DHGR_SP
             $(PRODOS_SRCS) $(PRODOS_FILE_AUX_AT_SRCS) $(MOUSE_SRCS)
 # (the speaker's tone right after crt0: its timed loops must not cross a
 # page, wherever the game's code grows; dev/lib/apple2/sound.asm asserts it)
-OBJS := $(BUILD)/crt0_prodos.o $(BUILD)/apple2game_asm.o $(addprefix $(BUILD)/,$(notdir $(SRCS:.c=.o)))
+OBJS := $(BUILD)/crt0_prodos.o $(BUILD)/apple2tone.o $(addprefix $(BUILD)/,$(notdir $(SRCS:.c=.o)))
 OBJS := $(OBJS:.s=.o)
 LIB_OBJS := $(addprefix $(BUILD)/,$(notdir $(LIB_SRCS:.c=.o)))
 LIB_OBJS := $(LIB_OBJS:.s=.o)
@@ -69,7 +69,7 @@ $(BUILD)/%.o: %.s $(HGRC_ASM_DEPS)
 # 7 slots, rectangles only, the overlay inside the area only (no save-under
 # member). In the PLAY overlay but the calls and the overlay (resident:
 # PLAY is full). Its objects are rebuilt when these options change.
-SPR_DEFS := -D DHGR_SPR_MAX=7 -D DHGR_SPR_RECTS_ONLY=1 -D DHGR_SPR_OVERLAY_INSIDE=1
+SPR_DEFS := -D DHGR_SPR_MAX=7 -D DHGR_SPR_RECTS_ONLY=1 -D DHGR_SPR_OVERLAY_INSIDE=1 -D DHGR_SPR_CANVAS=1
 SPR_PLAY_OBJS := $(addprefix $(BUILD)/,dhgr_spr_update.o dhgr_spr_asm.o dhgr_cv_asm.o \
     dhgr_cv_bitmap.o dhgr_spr_cells.o)
 SPR_RES_OBJS := $(addprefix $(BUILD)/,dhgr_spr_api.o dhgr_spr_overlay.o dhgr_spr_cursor.o)

@@ -26,6 +26,7 @@ walls, crates and other graphic elements keep their colours.
 | `hgr_div7_ram.asm` | `hgr_div7` / `hgr_mod7` (x/7, x mod 7, x = 0..255) in BSS, built by `hgr_div7_init` (27 B): 512 B less in the file | arkabreakout |
 | `hgr_clear.asm` | `clear_hgr`: clears `$2000-$3FFF` (`HGR_CLEAR_LOOP`, no ZP) | logo |
 | `hgr_flip.asm` | `hgr_draw_hidden` / `hgr_show_draw` / `hgr_set_draw_page`: double buffering by rewriting `hgr_hi` in place (`hgr_scanline.inc` in a writable segment) | maze3d, micro-sokoban |
+| `hgr_text8_fast.asm` | `ht_diff_row` / `ht_fast_put`: a white HUD on the two top text lines, only the characters that changed, glyphs through an unrolled 8-row store (HGR-order `bbfont`); caller's zero page (`ht_fp_*`); 168 B | dev/examples/halfpipe, lander |
 | `hgr_text8.asm` | `hgr_putc8` / `hgr_puts8`: byte-aligned 8x8 text, colours. `HGR_TEXT8_HGR_ORDER` (font in HGR order: no more `ht_rev` or `rev7_tab`, −256 B), `HGR_TEXT8_NO_PUTS`; `hgr_puts8_at` (inline col/scanline/string, `.ifref`, `HGR_TEXT8_AT_PAGE`) | arkabreakout, dirtbike, maze3d |
 | `hgr_sprite16.asm` | `hgr_spr16_x1/_x2/_x4`: TMS 16x16 sprites converted at run time | legacy TMS path |
 | `hgr_sprite_packed.asm` | `hgr_sprite_packed`: pre-packed HGR rows, vertical repeat and masked edge | maze3d |

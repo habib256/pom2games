@@ -69,7 +69,7 @@ $(GAME_LIB): $(LIB_OBJS) Makefile $(HGRC)/hgrc.mk
 	$(PYTHON) -c 'from pathlib import Path; Path("$@").unlink(missing_ok=True)'
 	$(AR65) a $@ $(LIB_OBJS)
 $(BUILD)/game.bin: $(OBJS) $(GAME_LIB) Makefile $(DEV)/cc65/apple2_dhgr_prodos_c.cfg
-	$(CL65) -t none -C $(DEV)/cc65/apple2_dhgr_prodos_c.cfg -m $(BUILD)/game.map -Ln $(BUILD)/game.lbl -o $@ $(OBJS) $(GAME_LIB)
+	$(CL65) -t none -C $(DEV)/cc65/apple2_dhgr_prodos_c.cfg -Wl -D,__STACKSIZE__=0x0080 -m $(BUILD)/game.map -Ln $(BUILD)/game.lbl -o $@ $(OBJS) $(GAME_LIB)
 $(BUILD)/CHROMA.SYS: $(BUILD)/game.bin $(BUILD)/tables.bin $(BUILD)/levels.bin src/levels.inc src/fine_font.inc src/music_aux.inc src/music_offsets.inc src/duet.inc $(APPLE2)/duet.asm src/startup.s $(PRODOS_SYS_CFG) $(PRODOS_SYSRELOC_DEPS)
 	$(CA65) --bin-include-dir $(BUILD) --bin-include-dir src -I src -I $(APPLE2) -I $(PRODOS) -o $(BUILD)/startup.o src/startup.s
 	$(LD65) -C $(PRODOS_SYS_CFG) -o $@ $(BUILD)/startup.o

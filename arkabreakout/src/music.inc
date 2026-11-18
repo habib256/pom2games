@@ -4,9 +4,9 @@
 MUSIC_BANK = $1400
 .code
 music_load:
-        lda #<music_load_command
-        ldy #>music_load_command
-        jmp dos_cmd_line
+        lda #<music_name
+        ldy #>music_name
+        jmp fm_bload_retry
 music_title:
         lda #$80
         sta DUET_KEYS
@@ -69,7 +69,7 @@ music_play:
 music_done:
         rts
 .rodata
-music_load_command: .asciiz "BLOAD MUSIC,A$1300"
+music_name: .asciiz "MUSIC"                ; a binary file at $1300
 jingle_lo:
 .byte <(MUSIC_BANK+TUNE_JINGLE0_OFS),<(MUSIC_BANK+TUNE_JINGLE1_OFS),<(MUSIC_BANK+TUNE_JINGLE2_OFS),<(MUSIC_BANK+TUNE_JINGLE3_OFS),<(MUSIC_BANK+TUNE_JINGLE4_OFS)
 .byte <(MUSIC_BANK+TUNE_JINGLE5_OFS),<(MUSIC_BANK+TUNE_JINGLE6_OFS),<(MUSIC_BANK+TUNE_JINGLE7_OFS),<(MUSIC_BANK+TUNE_JINGLE8_OFS),<(MUSIC_BANK+TUNE_JINGLE9_OFS)

@@ -21,6 +21,21 @@
 ;              (sector count) and frees the DOS buffer, even on an error.
 ;   fm_delete, fm_lock, fm_unlock, fm_verify
 ;              A/Y = name, as fm_open (they borrow a free DOS buffer).
+;   fm_bload   A/Y = name: a whole DOS binary file, as BLOAD: open (must
+;              exist), read its 4-byte header into fm_hdr (address,
+;              length), then its data at that address, close.
+;   fm_bsave   A/Y = name, fm_hdr = address (2 bytes) then length (2), as
+;              BSAVE name,A,L: open (created if missing), header, data,
+;              close. Both: C = 1, A = the first error; the file is
+;              closed in every case. One of them or both: 475 B in all (with
+;              the open, read, write and close they use), and 5 B of
+;              BSS (fm_hdr, fm_bmode).
+;   fm_bload_retry  A/Y = name: fm_bload until it succeeds. After each
+;              failure it calls the program's FM_RETRY_HOOK (defined
+;              before the include; A = the error): show "cannot read the
+;              disk", wait for a key, return C = 0 to try again or C = 1
+;              to give up (fm_bload_retry then returns C = 1). 22 B more,
+;              2 B of BSS.
 ; All return C = 0 on success, or C = 1 and A = the error:
 ;   FM_ERR_PROTECTED 4, FM_ERR_END 5 (end of data: a read past the file's
 ;   last sector), FM_ERR_NOT_FOUND 6, FM_ERR_VOLUME 7, FM_ERR_IO 8,
@@ -70,7 +85,7 @@
 ; Interrupts: FM_SEI = 1 masks them during each call (RWTS's disk timing),
 ; the caller's I flag put back: for programs that enable IRQs.
 ;
-; Size: 401 bytes for fm_open + fm_write (fm_read) + fm_close, 451 with
+; Size: 387 bytes for fm_open + fm_write (fm_read) + fm_close, 437 with
 ; everything; BSS 25 bytes (fm_len, fm_type, fm_file, fm_pl, fm_call_x,
 ; fm_op), DATA 2 (fm_slot, fm_drive). The name, the DOS buffer and DOS's
 ; parameter list are reached through patched absolute operands.
@@ -126,7 +141,7 @@ DOS_ZP_LEN = 256
 .endif
 .endif
 
-.if .referenced(fm_open) .or .referenced(fm_close) .or .referenced(fm_read) .or .referenced(fm_write) .or .referenced(fm_seek) .or .referenced(fm_delete) .or .referenced(fm_lock) .or .referenced(fm_unlock) .or .referenced(fm_verify)
+.if .referenced(fm_open) .or .referenced(fm_close) .or .referenced(fm_read) .or .referenced(fm_write) .or .referenced(fm_seek) .or .referenced(fm_delete) .or .referenced(fm_lock) .or .referenced(fm_unlock) .or .referenced(fm_verify) .or .referenced(fm_bload) .or .referenced(fm_bsave) .or .referenced(fm_bload_retry)
 
 .segment "BSS"
 .ifndef fm_len
@@ -139,6 +154,13 @@ fm_file:    .res 2              ; the open file: its DOS buffer's name field
 fm_pl:      .res 18             ; the parameter list, copied in and out
 fm_call_x:  .res 1
 fm_op:      .res 1
+.if .referenced(fm_bload) .or .referenced(fm_bsave)
+.ifndef fm_hdr
+fm_hdr:     .res 4              ; a binary file's header: address, length
+.endif
+fm_bmode:   .res 1              ; fm_open's X: bit 7 = load
+
+.endif
 .if FM_KEEP_ZP
 .ifndef fm_zp_buf
 fm_zp_buf:  .res DOS_ZP_LEN
@@ -150,8 +172,75 @@ fm_drive:   .byte 0
 
 .segment "CODE"
 
+; ---------------------------------------------------------------- whole files
+; (first: their calls must come before the .ifref blocks below)
+.ifref fm_bload_retry
+.segment "BSS"
+fm_rname:   .res 2
+.segment "CODE"
+fm_bload_retry:
+        STA     fm_rname
+        STY     fm_rname+1
+@try:   LDA     fm_rname
+        LDY     fm_rname+1
+        JSR     fm_bload
+        BCC     @rts
+        JSR     FM_RETRY_HOOK           ; A = the error; C = 0: again
+        BCC     @try
+@rts:   RTS
+.endif
+.if .referenced(fm_bload) .or .referenced(fm_bsave)
+fm_bsave:
+        LDX     #FM_BINARY              ; bit 7 clear: write
+        .byte   $2C                     ; BIT abs: skips the LDX
+fm_bload:
+        LDX     #FM_MUST_EXIST          ; bit 7 set: read
+        STX     fm_bmode
+        JSR     fm_open
+        BCS     fm_brts
+        JSR     fm_hdr4
+        JSR     fm_brw
+        BCS     fm_bend
+        JSR     fm_body
+        JSR     fm_brw
+        JMP     fm_bend
+fm_brw: BIT     fm_bmode                ; (keeps A and Y)
+        BMI     @read
+        JMP     fm_write
+@read:  JMP     fm_read
+.endif
+.if .referenced(fm_bload) .or .referenced(fm_bsave)
+; Close; the result is the first error (C/A at entry, else fm_close's).
+fm_bend:
+        BCC     @close
+        PHA
+        JSR     fm_close
+        PLA
+        SEC
+        RTS
+@close: JMP     fm_close
+fm_brts:
+        RTS
+fm_hdr4:
+        LDA     #4                      ; the header itself
+        STA     fm_len
+        LDA     #0
+        STA     fm_len+1
+        LDA     #<fm_hdr
+        LDY     #>fm_hdr
+        RTS
+fm_body:
+        LDA     fm_hdr+2                ; its length, at its address
+        STA     fm_len
+        LDA     fm_hdr+3
+        STA     fm_len+1
+        LDA     fm_hdr
+        LDY     fm_hdr+1
+        RTS
+.endif
+
 ; ---------------------------------------------------------------- open/close
-.ifref fm_open
+.if .referenced(fm_open) .or .referenced(fm_bload) .or .referenced(fm_bsave)
 fm_open:
         STX     fm_type
         JSR     fm_take                 ; a free buffer, the name, the drive
@@ -181,7 +270,7 @@ fm_open:
 @rts:   RTS
 .endif
 
-.ifref fm_close
+.if .referenced(fm_close) .or .referenced(fm_bload) .or .referenced(fm_bsave)
 fm_close:
         JSR     fm_use
         LDA     #FM_OP_CLOSE
@@ -333,30 +422,28 @@ fm_call:
 fm_take:
         STA     @name+1
         STY     @name+2
-        LDA     FM_DOS_PAGE             ; ($03D2) * 256: buffer 1's name field
-        STA     @lo+2
-        STA     @hi+2
-@lo:    LDA     $FF00                   ; patched: DOS's first page
-        STA     fm_file
-@hi:    LDA     $FF01
-        STA     fm_file+1
-@buf:   JSR     fm_patch
-        LDY     #0
+        LDA     FM_DOS_PAGE             ; ($03D2) * 256 holds the address of
+        STA     fm_get+2                ; buffer 1's name field: read it as
+        LDY     #0                      ; a "next" link at offset 0
+        STY     fm_get+1
+        BEQ     @link                   ; always
+@buf:   LDY     #0
         JSR     fm_get
-        BEQ     @free                   ; name byte 0 = 0: free
+        BEQ     @free                   ; name byte 0 = 0: free (Y = 0)
         LDY     #36                     ; next buffer's name field
-        JSR     fm_get
+@link:  JSR     fm_get
         TAX
         INY
         JSR     fm_get
         BEQ     @full                   ; 0: that was the last buffer
         STX     fm_file
         STA     fm_file+1
+        JSR     fm_patch                ; (ends on the high byte: not 0)
         BNE     @buf                    ; always
 @full:  LDA     #FM_ERR_NO_BUFFER
         SEC
         RTS
-@free:  LDY     #0                      ; the name: high bit set, spaces
+@free:                                  ; the name: high bit set, spaces
 @ch:
 @name:  LDA     $FFFF,Y                 ; patched: the caller's name
         BEQ     @pad
@@ -384,13 +471,13 @@ fm_take:
         LDA     fm_drive
         BNE     @drive
         JSR     FM_IOB                  ; DOS's last access: IOB bytes 15-16
-        STY     @iob+1
-        STA     @iob+2
-        LDY     #16
-        JSR     @iob
+        STY     fm_get+1                ; (fm_get is free: the calls that
+        STA     fm_get+2                ; follow write through fm_put only,
+        LDY     #16                     ; fm_use patches both again)
+        JSR     fm_get
         PHA
         DEY
-        JSR     @iob
+        JSR     fm_get
         LSR     A                       ; slot * 16 -> slot
         LSR     A
         LSR     A
@@ -400,8 +487,6 @@ fm_take:
 @drive: STA     fm_pl+5
         STX     fm_pl+6
         CLC
-        RTS
-@iob:   LDA     $FFFF,Y                 ; patched: the IOB
         RTS
 
 ; fm_use: the open file fm_file, its buffers in fm_pl.

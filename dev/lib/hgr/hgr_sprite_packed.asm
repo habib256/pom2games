@@ -73,25 +73,26 @@ hgr_sprite_packed:
         STA packed_repeat_left
 @copy:  LDY sp_yy
         LDA hgr_lo,Y
+        CLC                     ; the column goes into the pointer: a row's
+        ADC hsp_col             ; low byte is at most $D0, + 39: no carry
         STA sp_lin_lo
         LDA hgr_hi,Y
         STA sp_lin_hi
-        LDX #0
-        LDY hsp_col
-@byte:  INX
-        CPX sp_wout
-        BEQ @tail
-        LDA packed_row-1,X
-        STA (sp_lin_lo),Y
-        INY
-        BNE @byte
-@tail:  ; Preserve pixels outside the sprite's trailing edge.
+        LDY sp_wout             ; right to left, one index for both sides
+        DEY
+        ; Preserve pixels outside the sprite's trailing edge.
         LDA packed_tail
         EOR #$7F
         AND (sp_lin_lo),Y
-        ORA packed_row-1,X
+        ORA packed_row,Y
         STA (sp_lin_lo),Y
-        INC sp_yy
+        DEY
+        BMI @next
+@byte:  LDA packed_row,Y
+        STA (sp_lin_lo),Y
+        DEY
+        BPL @byte
+@next:  INC sp_yy
         DEC packed_repeat_left
         BNE @copy
         CLC

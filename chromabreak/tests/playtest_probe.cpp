@@ -189,10 +189,10 @@ int main(int argc,char** argv) {
     require(read("mouse_slot")==4,"AppleMouse not detected in slot 4");
     require(read("mouse_x")==70 && read("mouse_y")==CB_PAD_Y,"initial mouse position/clamps");
     std::cout<<"PASS ProDOS boot + AppleMouse firmware slot 4\n";
-    // C stack high-water mark: paint the free part of the 256-byte stack
-    // ($BE00-$BEFF, below the cc65 stack pointer), then find the deepest
+    // C stack high-water mark: paint the free part of the 128-byte stack
+    // ($BE80-$BEFF, below the cc65 stack pointer), then find the deepest
     // byte touched at the end of a test. Main RAM ends right below it.
-    const unsigned stackBottom=0xBE00;
+    const unsigned stackBottom=0xBE80;
     {unsigned sp=mem.memRead(labels.at(".sp"))+256*mem.memRead(labels.at(".sp")+1);
      for(unsigned a=stackBottom;a<sp;++a)mem.memWrite(a,0x5A);}
     auto stackCheck=[&]() {

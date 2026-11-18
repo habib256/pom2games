@@ -84,10 +84,10 @@ fetch_level:
         txa
         clc
         adc #'1'
-        sta pack_command+12
-        lda #<pack_command
-        ldy #>pack_command
-        jsr dos_cmd_line
+        sta pack_name+6
+        lda #<pack_name
+        ldy #>pack_name
+        jsr fm_bload_retry
         lda pack_number
         sta current_pack
 @address:
@@ -805,4 +805,4 @@ enemy_periods: .byte 180,135,90
 gate_x: .byte 63,189,4,240
 gate_y: .byte 18,18,128,128
 ; Mutable command is in RAM even though grouped with constants.
-pack_command: .asciiz "BLOAD LEVELS1,A$1800"
+pack_name: .asciiz "LEVELS1"            ; a binary file at $1800

@@ -987,75 +987,21 @@ draw_hud:
         STA     ht_sl
         LDY     #4
         LDA     #8
-        JSR     diff_row
+        JSR     ht_diff_row
         LDY     #12
         LDA     #15
-        JSR     diff_row
+        JSR     ht_diff_row
         LDY     #22
         LDA     #25
 
-; (srcp),Y vs (shp),Y for Y = Y .. A - 1: the characters that differ
-; written at row ht_sl and recorded in (shp). Clobbers A, Y.
-diff_row:
-        STA     dend
-@l:     LDA     (srcp),Y
-        CMP     (shp),Y
-        BEQ     @n
-        STA     (shp),Y
-        JSR     fast_put
-@n:     INY
-        CPY     dend
-        BNE     @l
-        RTS
-
-; A = char ($20-$5F), Y = column: its 8 glyph rows stored at text line
-; ht_sl / 8 (0 or 1) of the draw page (ht_page), white: what hgr_putc8
-; writes there, ~150 cycles instead of ~470 (a private 8-row STA loop,
-; dev/lib/font). Keeps Y.
-fast_put:
-        STY     fp_y
-        SEC
-        SBC     #$20                    ; the glyph: bbfont + 8 (char - $20)
-        LDX     #0
-        STX     gp+1
-        ASL     A
-        ROL     gp+1
-        ASL     A
-        ROL     gp+1
-        ASL     A
-        ROL     gp+1                    ; (C = 0)
-        ADC     #<bbfont
-        STA     gp
-        LDA     gp+1
-        ADC     #>bbfont
-        STA     gp+1
-        TYA                             ; X = the column, + $80 on line 1
-        LDX     ht_sl
-        BEQ     :+
-        ORA     #$80
-:       TAX
-        LDY     #0
-        LDA     ht_page
-        BNE     @p2
-        .repeat 8, R
-        LDA     (gp),Y
-        STA     $2000 + R * $400,X
-        .if R < 7
-        INY
-        .endif
-        .endrepeat
-        LDY     fp_y
-        RTS
-@p2:    .repeat 8, R
-        LDA     (gp),Y
-        STA     $4000 + R * $400,X
-        .if R < 7
-        INY
-        .endif
-        .endrepeat
-        LDY     fp_y
-        RTS
-
+; ht_diff_row / ht_fast_put: dev/lib/hgr/hgr_text8_fast.asm (the code above
+; falls into ht_diff_row).
+ht_fp_src    = srcp
+ht_fp_shadow = shp
+ht_fp_end    = dend
+ht_fp_glyph  = gp
+ht_fp_y      = fp_y
+.include "hgr_text8_fast.asm"
 ; the message line (row 8) on the selected page: its changed characters
 draw_msg:
         LDX     msg
@@ -1072,7 +1018,7 @@ draw_msg:
         STA     ht_sl
         LDY     #0
         LDA     #40
-        JMP     diff_row
+        JMP     ht_diff_row
 
 .segment "RODATA"
 zone_lo:  .repeat ZONES, I

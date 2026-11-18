@@ -197,9 +197,13 @@ video; `exit.asm` restores the zero page to hand control back to DOS cleanly.
   `$03E3`). The file manager's WRITE range writes one byte more than its
   length: `fm_write` asks for `fm_len` − 1. Needs nothing in the zero
   page and writes `$26`-`$49` (measured list in the header);
-  `FM_KEEP_ZP`, `FM_SEI` as in `rwts.asm`. 401 B for open/write/close,
-  451 B with everything, 27 B of variables. C mirror: `../apple2c/apple2fm.h`
-  (`a2_fm_*`). No user yet.
+  `FM_KEEP_ZP`, `FM_SEI` as in `rwts.asm`. 387 B for open/write/close,
+  437 B with everything, 27 B of variables. `fm_bload` / `fm_bsave` (A/Y =
+  name, `fm_hdr` = address + length) are BLOAD / BSAVE of a whole binary
+  file: 475 B for both, all included; `fm_bload_retry` calls the program's
+  `FM_RETRY_HOOK` after a failure (message, key, try again: ARKABREAKOUT). C mirror: `../apple2c/apple2fm.h`
+  (`a2_fm_*`). ARKABREAKOUT and MAZE3D (every file: `dos.asm` gone), SNAKE
+  through the C mirror.
   `python3 dev/tests/test_fm.py` (write-protected and full disks too).
 
 `sound.asm`, `joy.asm` and `dos.asm` were taken out of MICRO-SOKOBAN so the other games (sounds,

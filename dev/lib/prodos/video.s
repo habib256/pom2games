@@ -24,10 +24,9 @@ ok:     lda #0
         rts
 bad_policy:
         lda #2
-        ldx #0
-        rts
+        .byte $2C              ; BIT abs: skips the LDA
 busy:   lda #1
-        ldx #0
+ret_a:  ldx #0
         rts
 discover:
         ldy $BF31              ; count minus one, $FF means empty
@@ -36,8 +35,7 @@ discover:
         cpy #14
         bcc scan
         lda #3                 ; malformed list: leave claim untouched
-        ldx #0
-        rts
+        bne ret_a              ; always
 scan:   lda $BF32,y
         and #$F0
         sta tmp2
@@ -64,13 +62,9 @@ next:   dey
 
 _prodos_video_release:
         lda ram_unit
-        beq released
+        beq busy               ; (returns 1)
         ldy #0
         sty ram_unit           ; release once, including failed FORMAT
         cmp #1
-        beq released
+        beq busy
         jmp _prodos_format_ram
-released:
-        lda #1
-        ldx #0
-        rts

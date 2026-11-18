@@ -17,7 +17,20 @@
 ; byte is 0. A/X/Y, tmp1-tmp4, ptr1/ptr2 destroyed; non-reentrant, never from an
 ; IRQ. DHGR_SPR_PACK_TABLES is accepted and has no effect (one table now).
 .include "apple2.inc"
-.export _dhgr_spr_blit, _dhgr_spr_goff, _dhgr_spr_gend, dhgr_cv_patch
+; DHGR_SPR_CANVAS = 1: the canvas is the program's symbol dhgr_spr_canvas
+; (the buffer it always gives dhgr_spr_init), assembled into the operands:
+; no dhgr_cv_patch and no patch tables (-104 bytes, ~26 cycles an update).
+.ifndef DHGR_SPR_CANVAS
+DHGR_SPR_CANVAS = 0
+.endif
+.export _dhgr_spr_blit, _dhgr_spr_goff, _dhgr_spr_gend
+.if DHGR_SPR_CANVAS
+.import dhgr_spr_canvas
+.define CV(k) dhgr_spr_canvas+k
+.else
+.export dhgr_cv_patch
+.define CV(k) $FFFF             ; patched by dhgr_cv_patch
+.endif
 .export spr_row, spr_ovhook
 .import _dhgr_cv_buf, _dhgr_cv_y0, _dhgr_cv_h, cv_seq
 .import _dhgr_spr_ov_on, _dhgr_spr_ovr_jmp, _dhgr_spr_ovg_jmp
@@ -68,26 +81,26 @@ b_row:   ldy spr_row
 :       ldy _dhgr_spr_goff
         sty tmp4
 b_group:
-c1:     ldy $FFFF,x             ; n1
+c1:     ldy CV(1),x             ; n1
         lda t4,y
-c0:     ora $FFFF,x
+c0:     ora CV(0),x
         and #$7F
         sta tmp1                ; b0
         cpy #8                  ; C = n1 bit 3
-c3:     ldy $FFFF,x
+c3:     ldy CV(3),x
         lda t4,y
-c2:     ora $FFFF,x
+c2:     ora CV(2),x
         rol a
         and #$7F
         sta tmp2                ; b1
-c6:     ldy $FFFF,x
+c6:     ldy CV(6),x
         lda t4,y
-c5:     ora $FFFF,x
+c5:     ora CV(5),x
         lsr a                   ; b3, C = n5 bit 0 for b2
         sta ptr2
-c4:     ldy $FFFF,x
+c4:     ldy CV(4),x
         lda t4,y
-c3b:    ora $FFFF,x
+c3b:    ora CV(3),x
         ror a
         lsr a
         sta tmp3                ; b2
@@ -123,6 +136,7 @@ b_rowend:
         jmp b_row
 :       rts
 
+.if !DHGR_SPR_CANVAS
 ; Patch every canvas operand (pack above, fill sequence in dhgr_cv_asm.s)
 ; unless c0 already holds the canvas address. ptr1, A/X/Y destroyed.
 dhgr_cv_patch:
@@ -150,6 +164,8 @@ dhgr_cv_patch:
         bpl @op                 ; (c0, entry 0, last)
 @done:  rts
 
+.endif
+
 .if .defined(DHGR_SPR_CODE_SEGMENT)
 .if !DHGR_SPR_CODE_SEGMENT
 .rodata
@@ -157,6 +173,7 @@ dhgr_cv_patch:
 .else
 .rodata
 .endif
+.if !DHGR_SPR_CANVAS
 ; Parallel arrays keep one index per operand (c0 is patched last).
 patch_lo:
         .lobytes c0+1,c1+1,c2+1,c3+1,c3b+1,c4+1,c5+1,c6+1
@@ -176,6 +193,7 @@ patch_off:
 PATCHES = * - patch_off
 .assert patch_hi-patch_lo = PATCHES, error, "low patch table length"
 .assert patch_off-patch_hi = PATCHES, error, "high patch table length"
+.endif
 t4:
 .repeat 16, N
         .byte N << 4

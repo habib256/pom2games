@@ -9,9 +9,10 @@ save_status: .res 1             ; 0 none, 1 saved, 2 write protected
 record_initials: .res 4
 .code
 records_load:
-        lda #<records_load_command
-        ldy #>records_load_command
-        jsr dos_cmd_line
+        lda #<records_name
+        ldy #>records_name
+        jsr fm_bload            ; missing or unreadable: an empty table
+        bcs @empty
         lda record_data
         cmp #'A'
         bne @empty
@@ -160,11 +161,18 @@ records_submit:
         lda difficulty
         sta record_data+5,y
 records_save:
-        jsr disk_protected
+        lda #<record_data       ; BSAVE RECORDS,A$1B00,L$0037
+        sta fm_hdr
+        lda #>record_data
+        sta fm_hdr+1
+        lda #55
+        sta fm_hdr+2
+        lda #0
+        sta fm_hdr+3
+        lda #<records_name
+        ldy #>records_name
+        jsr fm_bsave            ; protected, full, I/O error: a code
         bcs @protected
-        lda #<records_save_command
-        ldy #>records_save_command
-        jsr dos_cmd_line
         lda #1
         sta save_status
         rts
@@ -215,8 +223,7 @@ records_show:
         jsr show_graphics
         jmp wait_key
 .rodata
-records_load_command: .asciiz "BLOAD RECORDS,A$1B00"
-records_save_command: .asciiz "BSAVE RECORDS,A$1B00,L$0037"
+records_name: .asciiz "RECORDS"
 record_new: .asciiz "A NEW HIGH SCORE!"
 record_prompt: .asciiz "TYPE THREE LETTERS FOR YOUR NAME"
 record_accept: .asciiz "ENTER / SPACE ACCEPTS AAA"

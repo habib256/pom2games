@@ -8,7 +8,8 @@ past the range), a seek past its last sector then a read (END OF DATA), a
 seek + 2-byte rewrite in the middle; lock (DELETE and a write refused,
 fm_type shows the lock), unlock, verify; a missing file with FM_MUST_EXIST; a text file
 created, deleted, deleted again (not found); all three DOS buffers taken
-(the 4th open: NO BUFFER), closed through their saved handles; then a DOS
+(the 4th open: NO BUFFER), closed through their saved handles; fm_bsave
+then fm_bload of a whole binary file (and of a missing one); then a DOS
 BLOAD of the file. The disk saved after the run is read with dos33.py:
 contents, nothing written past the range, every DOS buffer free again.
 The zero page bytes the calls changed must be the ones fm.asm lists.
@@ -55,7 +56,7 @@ PROGRAM = '''
         STA     data+4+256,X
         INX
         BNE     @p
-        LDX     #31
+        LDX     #39
         LDA     #$FF
 @f:     STA     res,X                   ; BSS is not cleared
         STA     res2,X
@@ -196,6 +197,35 @@ PROGRAM = '''
         STA     res+25,X
         DEX
         BPL     @shut
+        ; 5b. whole files: fm_bsave, then fm_bload after wiping the source
+        LDX     #99
+@bs:    TXA
+        EOR     #$3C
+        STA     bsrc,X
+        DEX
+        BPL     @bs
+        LDA     #<bsrc
+        STA     fm_hdr
+        LDA     #>bsrc
+        STA     fm_hdr+1
+        LDA     #100
+        STA     fm_hdr+2
+        LDA     #0
+        STA     fm_hdr+3
+        NAME    n_bs
+        JSR     fm_bsave
+        RES     32
+        LDX     #101
+        LDA     #$EE
+@wipe:  STA     bsrc,X
+        DEX
+        BPL     @wipe
+        NAME    n_bs
+        JSR     fm_bload
+        RES     33
+        NAME    n_none
+        JSR     fm_bload
+        RES     34
 .endif
         LDX     #0                      ; zero page after the calls
 @z:     LDA     $00,X
@@ -211,6 +241,7 @@ done:   JMP     done
 n_save: .byte   "SAVE", 0
 n_none: .byte   "NONE,D1"
 n_tmp:  .byte   "TMP", 0
+n_bs:   .byte   "BS", 0
 n_a:    .byte   "A", 0
 n_b:    .byte   "B", 0
 n_c:    .byte   "C", 0
@@ -220,8 +251,9 @@ names_hi: .hibytes n_a, n_b, n_c, n_d
 c_bload: .byte  "BLOAD SAVE,A$4000", 0
 patch:  .byte   $11, $22
 .bss
-res:    .res    32
-res2:   .res    32
+res:    .res    40
+res2:   .res    40
+bsrc:   .res    102
 many:   .res    1
 handles: .res   8
 data:   .res    {N}+4+256
@@ -236,7 +268,7 @@ zp_after:  .res 256
 .include "dos.asm"
 .endif
 .include "exit.asm"
-.export done, res, res2, back, guard, zp_before, zp_after
+.export done, res, res2, back, guard, zp_before, zp_after, bsrc
 '''
 
 
@@ -257,12 +289,12 @@ def free_sectors(image):
 def run(work, defines, disk=None, extra=(), wp=False):
     L, binary = build(work, defines)
     disk = disk or a2test.build_disk(work, 'FMTEST', binary, extra=extra)
-    r = a2test.run(disk, ['wait:200', L.until('done', 6000), L.peek('res', 32), L.peek('res2', 32),
+    r = a2test.run(disk, ['wait:200', L.until('done', 6000), L.peek('res', 40), L.peek('res2', 40), L.peek('bsrc', 102),
                           L.peek('back', N + 6), L.peek('zp_before', 256), L.peek('zp_after', 256),
                           'peek:4000:304', 'peek:9600:1794', f'dsk:{work / "after.dsk"}'], wp=wp)
     before, after = r.mem(L['zp_before'], 256), r.mem(L['zp_after'], 256)
     zp = [i for i in range(256) if before[i] != after[i]]
-    return L, r, list(r.mem(L['res'], 32)), list(r.mem(L['res2'], 32)), set(zp), \
+    return L, r, list(r.mem(L['res'], 40)), list(r.mem(L['res2'], 40)), set(zp), \
         disk.read_bytes(), (work / 'after.dsk').read_bytes()
 
 
@@ -277,7 +309,8 @@ def check_main(defines, label):
                   14: (0, 0), 15: (0, 0),
                   16: (6, 1), 17: (6, 0), 18: (0, 0), 19: (0, 0), 20: (6, 1),
                   21: (6, 0), 22: (6, 0), 23: (6, 0), 24: (12, 1),   # NO BUFFER
-                  25: (0, None), 26: (0, None), 27: (0, None)}
+                  25: (0, None), 26: (0, None), 27: (0, None),
+                  32: (0, 0), 33: (0, 0), 34: (6, 1)}             # fm_bsave, fm_bload, missing
         for ix, (a, carry) in expect.items():
             assert res[ix] == a and (carry is None or c[ix] == carry), \
                 f'{label}: step {ix}: A={res[ix]} C={c[ix]}, expected A={a} C={carry}'
@@ -291,6 +324,9 @@ def check_main(defines, label):
         assert dos33.read_file(image, 'SAVE') == patched, f'{label}: SAVE on the disk differs'
         raw = b''.join(image[s:s + 256] for s in dos33.file_sectors(image, 'SAVE'))
         assert len(raw) == 512 and raw[N + 4:] == bytes(512 - N - 4), f'{label}: bytes written past the range'
+        whole = bytes(i ^ 0x3C for i in range(100))
+        assert r.mem(L['bsrc'], 102) == whole + b'\xEE\xEE', f'{label}: fm_bload'
+        assert dos33.read_file(image, 'BS') == whole, f'{label}: fm_bsave on the disk'
         names = [e[0] for e in dos33.catalog(image)]
         assert 'SAVE' in names and 'TMP' not in names and 'NONE' not in names, names
         assert {'A', 'B', 'C'} <= set(names) and 'D' not in names, names

@@ -24,7 +24,13 @@ _dhgr_cursor_w = cur_nw
 .import _dhgr_cv_x0, _dhgr_cv_y0, _dhgr_cv_w, _dhgr_cv_h, _dhgr_cv_x1, _dhgr_cv_y1
 .import _dhgr_cv_shape, _dhgr_cv_sx, _dhgr_cv_sy, _dhgr_cv_flags, _dhgr_cv_pal
 .import _dhgr_cv_solid, _dhgr_cv_paint, _dhgr_cv_buf, cv_begin
-.import _dhgr_spr_blit, _dhgr_spr_goff, _dhgr_spr_gend, dhgr_cv_patch
+.import _dhgr_spr_blit, _dhgr_spr_goff, _dhgr_spr_gend
+.ifndef DHGR_SPR_CANVAS
+DHGR_SPR_CANVAS = 0
+.endif
+.if !DHGR_SPR_CANVAS
+.import dhgr_cv_patch
+.endif
 .import incsp4
 .importzp sp, tmp1
 DOUBLE .set 0
@@ -274,7 +280,9 @@ group:  tay
 
 ; void dhgr_spr_update(void)
 _dhgr_spr_update:
+.if !DHGR_SPR_CANVAS
         jsr dhgr_cv_patch
+.endif
         ldx #0
 @slot:  lda _dhgr_spr_dirty,x
         beq @next

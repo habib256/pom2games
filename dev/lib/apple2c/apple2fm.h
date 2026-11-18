@@ -35,7 +35,7 @@
  * Drive: a2_fm_slot / a2_fm_drive, 0 = DOS's last access (the program's
  * disk); set both to name another (slot 1-7, drive 1-2). Interrupts: a
  * program that enables them assembles apple2fm.s with -D FM_SEI=1.
- * 560 bytes of code, 27 of variables (dev/tests/test_fm_c.py). */
+ * 546 bytes of code, 27 of variables (dev/tests/test_fm_c.py). */
 #ifndef APPLE2FM_H
 #define APPLE2FM_H
 
@@ -68,6 +68,14 @@ unsigned char __fastcall__ a2_fm_delete(const char *name);
 unsigned char __fastcall__ a2_fm_lock(const char *name);
 unsigned char __fastcall__ a2_fm_unlock(const char *name);
 unsigned char __fastcall__ a2_fm_verify(const char *name);
+
+/* apple2fmfile.s (APPLE2C_FM_FILE_SRCS, on its own: no need for apple2fm.s):
+ * whole binary files, the error-returning BLOAD / BSAVE. 0 or an error code.
+ * a2_fm_save writes the 4-byte header (buf, len) then len bytes, creating
+ * the file if missing; a2_fm_load reads the first len data bytes into buf
+ * (the header is skipped); the file must exist (A2_FM_ERR_NOT_FOUND). */
+unsigned char __fastcall__ a2_fm_load(const char *name, void *buf, unsigned len);
+unsigned char __fastcall__ a2_fm_save(const char *name, const void *buf, unsigned len);
 
 extern unsigned a2_fm_file;               /* handle of the open file */
 extern unsigned char a2_fm_type;          /* its type, A2_FM_LOCKED bit too */

@@ -25,11 +25,11 @@ CFLAGS  += -DSNAKE_FIXED_SEED=$(FIXED_SEED)
 endif
 
 # crt0_apple2 FIRST: it provides __STARTUP__ / _exit instead of none.lib's crt0.
-# Speaker + joystick (apple2game), DOS commands for the record (apple2dos),
-# the vapor lock for the pace (apple2vapor); the LFSR (apple2rand), the
-# stick check (apple2stick) and BLOAD / BSAVE (apple2dosbin).
-HGRC_EXTRA_SRCS := $(APPLE2C_SRCS) $(APPLE2C_GAME_SRCS) $(APPLE2C_DOS_SRCS) $(APPLE2C_VAPOR_SRCS) \
-                   $(APPLE2C_RAND_SRCS) $(APPLE2C_STICK_SRCS) $(APPLE2C_DOSBIN_SRCS)
+# Speaker + joystick (apple2game), the record through DOS's file manager
+# (apple2fmfile: a2_fm_load / a2_fm_save), the vapor lock for the pace
+# (apple2vapor); the LFSR (apple2rand) and the stick check (apple2stick).
+HGRC_EXTRA_SRCS := $(APPLE2C_SRCS) $(APPLE2C_GAME_SRCS) $(APPLE2C_FM_FILE_SRCS) $(APPLE2C_VAPOR_SRCS) \
+                   $(APPLE2C_RAND_SRCS) $(APPLE2C_STICK_SRCS)
 OBJS := $(BUILD)/crt0_apple2.o $(BUILD)/snake.o
 
 vpath %.c src $(HGRC) $(GFX) $(APPLE2C)
@@ -69,6 +69,4 @@ test-long:
 	@echo "snake: no long tests"
 .PHONY: test test-long
 
-# $6000-$8DFF is full: the DOS command buffers go to LOWBSS ($1000-$1FFF).
-HGRC_AFLAGS += -D DOS_LOWBSS=1
 include $(HGRC)/hgrc_build.mk

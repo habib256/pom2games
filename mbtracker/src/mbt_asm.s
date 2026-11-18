@@ -148,6 +148,7 @@ kbd_idle:
 ; under SEI), on these variables (ax_aux, ax_len, consumed; the music
 ; interrupt touches none of them).
 AUXMEM_FETCH_CHUNK = 128
+AUXMEM_CHUNK_NATIVE = 1          ; a zero-page loop instead of the ROM's AUXMOVE (2.5 times faster)
 auxmem_fsrc = ptr1
 auxmem_fdst = _ax_aux            ; aux_put: the aux destination
 auxmem_flen = _ax_len
