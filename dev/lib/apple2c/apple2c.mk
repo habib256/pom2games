@@ -45,6 +45,11 @@ APPLE2C_RAND_SRCS := $(APPLE2C)/apple2rand.s
 APPLE2C_RAND_DEPS :=
 APPLE2C_STICK_SRCS := $(APPLE2C)/apple2stick.s
 APPLE2C_DOSBIN_SRCS := $(APPLE2C)/apple2dosbin.s
+# DOS 3.3 files by name with error codes (apple2fm.h, dev/lib/apple2/fm.asm):
+# a2_fm_open / read / write / seek / close / delete... 560 B code, 27 B
+# variables. Assemble with $(APPLE2C_AFLAGS) (-D FM_SEI=1 if IRQs are on).
+APPLE2C_FM_SRCS := $(APPLE2C)/apple2fm.s
+APPLE2C_FM_DEPS := $(APPLE2C)/../apple2/fm.asm
 # 80-column text written directly (apple2t80.h, //e 80-column card / //c,
 # 65C02): t80_init / putc / puts / fill / scroll. The pointer cell on it
 # (apple2t80_ptr.s) needs apple2t80.s assembled with $(APPLE2C_T80_PTR_AFLAGS).
