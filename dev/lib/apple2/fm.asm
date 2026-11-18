@@ -27,9 +27,15 @@
 ;   fm_bsave   A/Y = name, fm_hdr = address (2 bytes) then length (2), as
 ;              BSAVE name,A,L: open (created if missing), header, data,
 ;              close. Both: C = 1, A = the first error; the file is
-;              closed in every case. One of them alone: 472 B in all (with
-;              the open / read or write / close it uses); both: 497 B,
-;              and 4 B of BSS (fm_hdr).
+;              closed in every case. One of them or both: 475 B in all (with
+;              the open, read, write and close they use), and 5 B of
+;              BSS (fm_hdr, fm_bmode).
+;   fm_bload_retry  A/Y = name: fm_bload until it succeeds. After each
+;              failure it calls the program's FM_RETRY_HOOK (defined
+;              before the include; A = the error): show "cannot read the
+;              disk", wait for a key, return C = 0 to try again or C = 1
+;              to give up (fm_bload_retry then returns C = 1). 22 B more,
+;              2 B of BSS.
 ; All return C = 0 on success, or C = 1 and A = the error:
 ;   FM_ERR_PROTECTED 4, FM_ERR_END 5 (end of data: a read past the file's
 ;   last sector), FM_ERR_NOT_FOUND 6, FM_ERR_VOLUME 7, FM_ERR_IO 8,
@@ -79,7 +85,7 @@
 ; Interrupts: FM_SEI = 1 masks them during each call (RWTS's disk timing),
 ; the caller's I flag put back: for programs that enable IRQs.
 ;
-; Size: 401 bytes for fm_open + fm_write (fm_read) + fm_close, 451 with
+; Size: 387 bytes for fm_open + fm_write (fm_read) + fm_close, 437 with
 ; everything; BSS 25 bytes (fm_len, fm_type, fm_file, fm_pl, fm_call_x,
 ; fm_op), DATA 2 (fm_slot, fm_drive). The name, the DOS buffer and DOS's
 ; parameter list are reached through patched absolute operands.
@@ -135,7 +141,7 @@ DOS_ZP_LEN = 256
 .endif
 .endif
 
-.if .referenced(fm_open) .or .referenced(fm_close) .or .referenced(fm_read) .or .referenced(fm_write) .or .referenced(fm_seek) .or .referenced(fm_delete) .or .referenced(fm_lock) .or .referenced(fm_unlock) .or .referenced(fm_verify) .or .referenced(fm_bload) .or .referenced(fm_bsave)
+.if .referenced(fm_open) .or .referenced(fm_close) .or .referenced(fm_read) .or .referenced(fm_write) .or .referenced(fm_seek) .or .referenced(fm_delete) .or .referenced(fm_lock) .or .referenced(fm_unlock) .or .referenced(fm_verify) .or .referenced(fm_bload) .or .referenced(fm_bsave) .or .referenced(fm_bload_retry)
 
 .segment "BSS"
 .ifndef fm_len
@@ -168,6 +174,21 @@ fm_drive:   .byte 0
 
 ; ---------------------------------------------------------------- whole files
 ; (first: their calls must come before the .ifref blocks below)
+.ifref fm_bload_retry
+.segment "BSS"
+fm_rname:   .res 2
+.segment "CODE"
+fm_bload_retry:
+        STA     fm_rname
+        STY     fm_rname+1
+@try:   LDA     fm_rname
+        LDY     fm_rname+1
+        JSR     fm_bload
+        BCC     @rts
+        JSR     FM_RETRY_HOOK           ; A = the error; C = 0: again
+        BCC     @try
+@rts:   RTS
+.endif
 .if .referenced(fm_bload) .or .referenced(fm_bsave)
 fm_bsave:
         LDX     #FM_BINARY              ; bit 7 clear: write

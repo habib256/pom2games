@@ -27,7 +27,7 @@ $(BUILD)/title.lz4fh: assets/title.hgr $(FHPACK)
 	cmp $< $(BUILD)/title.roundtrip.hgr
 	$(PYTHON) -c 'from pathlib import Path; assert Path("$@").stat().st_size <= 0xE00, "title exceeds the buffer before MAZESCORE"'
 
-$(BUILD)/packed_sprites.inc: tools/pack_sprites.py $(DEV)/tools/assets/pack_hgr_sprites.py src/maze3d.s src/sprites_trollkind.asm src/sprites_characters.asm
+$(BUILD)/packed_sprites.inc: tools/pack_sprites.py $(DEV)/tools/assets/pack_hgr_sprites.py src/maze3d.s $(DEV)/lib/tms9918/sprites_trollkind.asm $(DEV)/lib/tms9918/sprites_characters.asm
 	@mkdir -p $(BUILD)
 	$(PYTHON) tools/pack_sprites.py
 

@@ -13,16 +13,25 @@
 ;   .include "hgr_scanline_ram.asm"
 ;   ...     JSR hgr_scanline_init          ; before any drawing
 ; Clobbers A, X, Y.
+; Options: hgr_lo (and hgr_hi) defined before the include: the caller's own
+; tables, no HGR_SCANLINE_SEGMENT needed. HGR_SCANLINE_HI2 = 1: the same
+; loop also fills hgr_hi2 (page 2's high bytes, hgr_pages.asm's table or the
+; caller's): +9 bytes here, and no hgr_pages_init to keep in resident code.
 ; =============================================
 
 .ifndef _HGR_SCANLINE_RAM_LOADED_
 _HGR_SCANLINE_RAM_LOADED_ = 1
 
+.ifndef HGR_SCANLINE_HI2
+HGR_SCANLINE_HI2 = 0
+.endif
+.ifndef hgr_lo
 .pushseg
 .segment HGR_SCANLINE_SEGMENT
 hgr_lo: .res 192
 hgr_hi: .res 192
 .popseg
+.endif
 
 hgr_scanline_init:
         LDX     #0
@@ -53,6 +62,12 @@ hgr_scanline_init:
         CLC
         ADC     hgr_sl_third,Y
         STA     hgr_lo,X
+.if HGR_SCANLINE_HI2
+        LDA     hgr_hi,X                ; page 2: + $2000
+        CLC
+        ADC     #$20
+        STA     hgr_hi2,X
+.endif
         INX
         CPX     #192
         BNE     @y

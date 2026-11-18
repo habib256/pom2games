@@ -35,7 +35,7 @@
  * Drive: a2_fm_slot / a2_fm_drive, 0 = DOS's last access (the program's
  * disk); set both to name another (slot 1-7, drive 1-2). Interrupts: a
  * program that enables them assembles apple2fm.s with -D FM_SEI=1.
- * 560 bytes of code, 27 of variables (dev/tests/test_fm_c.py). */
+ * 546 bytes of code, 27 of variables (dev/tests/test_fm_c.py). */
 #ifndef APPLE2FM_H
 #define APPLE2FM_H
 

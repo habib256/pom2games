@@ -11,7 +11,8 @@ What is done is in [CHANGELOG.md](CHANGELOG.md).
 
 ## Ideas
 
-- Swap the private 8 px font (TMS bit order, 512 bytes) for the shared
-  Beautiful Boot font in `../dev/lib/font` and define `HGR_TEXT8_HGR_ORDER`:
-  drops `ht_rev` and the 256-byte `rev7_tab` from the text path. A graphic
-  choice: the current font is part of the game's look.
+- Show a message when the title, the texts or the state file cannot be
+  read (disk removed or damaged): `fm_bload` returns the error and the
+  game goes on with what is in memory. `fm_bload_retry` and a
+  `FM_RETRY_HOOK` (ARKABREAKOUT's pattern) need a text routine that works
+  while the drawn page is hidden.

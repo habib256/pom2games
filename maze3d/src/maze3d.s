@@ -80,8 +80,8 @@
         ; HGR port: tms9918_pad12 / vdp_display_off / vdp_display_on are
         ; local no-op stubs (next to the clear routines) — the GEN2 card
         ; has no VDP bus timing and no display-enable bit.
-        ; SCROLL-O-SPRITES 16x16 monster patterns (src/sprites_trollkind.asm and
-        ; src/sprites_characters.asm, linked by the Makefile) — drawn as BITMAPS into the
+        ; SCROLL-O-SPRITES 16x16 monster patterns (dev/lib/tms9918's
+        ; sprites_trollkind.asm and sprites_characters.asm, packed by the Makefile) — drawn as BITMAPS into the
         ; Graphics II pattern table by draw_sprite16_x2/_x4, NOT as hardware
         ; sprites. Layout: 32 bytes = left column rows 0..15, right column
         ; rows 0..15; bit 7 = leftmost (same bit order as the bitmap).

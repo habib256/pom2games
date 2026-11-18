@@ -116,8 +116,7 @@ pool = __OVL_START__
 ; render_init -- once: page-2 row table, row writers, 3 * row, div7 / mod7
 ; ---------------------------------------------------------------------------
 .segment "INIT"                 ; boot only: overwritten by the pool
-render_init:
-        JSR     hgr_pages_init
+render_init:                            ; (hgr_hi2: hgr_scanline_init, HGR_SCANLINE_HI2)
         LDA     #<fill1                 ; row writers: $99 lo hi per row
         STA     rptr
         LDA     #>fill1

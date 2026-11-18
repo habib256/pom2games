@@ -6,7 +6,7 @@ MUSIC_BANK = $1400
 music_load:
         lda #<music_name
         ldy #>music_name
-        jmp fm_bload
+        jmp fm_bload_retry
 music_title:
         lda #$80
         sta DUET_KEYS

@@ -252,7 +252,12 @@ Options of this kind (measurements: hgrc bench, or the commit that introduced th
 | `__STACKSIZE__` (link, `-Wl -D,`) | `dev/cc65/apple2_dhgr_prodos_c.cfg` | The C stack below `$BF00` (default `$0100`); RAM ends where it starts: `0x0080` gives 128 B more | chromabreak |
 | `DHGR_SPR_CANVAS` | hgrc DHGR compositor `dhgr_spr_asm.s`, `dhgr_cv_asm.s`, `dhgr_spr_update.s` | The canvas is the program's symbol `dhgr_spr_canvas`, assembled into the operands: no `dhgr_cv_patch` nor its tables, −102 B, ~26 cycles less an update | robotspacestation |
 | `apple2tone.s` (object) | `apple2c` | `a2_tone` alone, in place of `apple2game_asm.s`: 24 B instead of 131 | robotspacestation |
-| `apple2fmfile.s` (object) | `apple2c` | `a2_fm_load` / `a2_fm_save` alone (whole binary files, error codes), in place of `apple2dos_asm.s` + `apple2dosbin.s`: 567 B code + 35 B variables against ~300 B code + 298 B BSS | snake |
+| `apple2fmfile.s` (object) | `apple2c` | `a2_fm_load` / `a2_fm_save` alone (whole binary files, error codes), in place of `apple2dos_asm.s` + `apple2dosbin.s`: 570 B code + 36 B variables against ~300 B code + 298 B BSS | snake |
+| `CRT0_ZP_SAVE` | `dev/cc65/crt0_prodos.s` | Zero-page bytes saved for the way back to ProDOS (default `$50`: `$00-$4F`; 256 = all): −176 B of RAM | chromabreak, wargalagaii, robotspacestation, mbtracker (default) |
+| `HGRC_ROWLO_FIXED` | hgrc `hgr_build_rows.s` | `_hgr_rowlo` is `hgr_fixed_rows.s`'s constant table: −192 B BSS, −5 B, 1,344 cycles less to build (a program that does not link the fixed table would load 192 B more) | light3dball |
+| `AUXMEM_CHUNK_NATIVE` | `apple2/auxmem.asm` | `aux_fetch_chunked` / `aux_store_chunked` through an 18-byte zero-page loop instead of the ROM's AUXMOVE: 45.4 → 18.5 cycles a byte on a //e (64-byte chunks), +18 B of zero page | wargalagaii, mbtracker |
+| `HGR_SCANLINE_HI2` / caller's `hgr_lo` | `hgr_scanline_ram.asm` | The boot loop also fills `hgr_hi2` (+9 B there, no resident `hgr_pages_init`: −17 B) / the tables are the caller's own | dirtbike, wargalagaii |
+| `FM_RETRY_HOOK` | `apple2/fm.asm` | `fm_bload_retry`: the program's routine after a failed load (message, key; C = 0 tries again): 22 B + the hook | arkabreakout |
 | `DOS_CMD_HEX_IFREF` | `dos.asm` | `dos_cmd_hex` assembled only if referenced: −48 B | arkabreakout, maze3d |
 | `EXIT_USE_NATIVE_VIDEO` | `exit.asm` | Reuses `native_video` from `hgr.asm`: −21 B | arkabreakout, maze3d, micro-sokoban |
 | `SOUND_GATE` | `sound.asm` | Sound muted by one byte: −7 B and −10 cycles per note against an envelope in the program | maze3d |

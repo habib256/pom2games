@@ -652,6 +652,18 @@ ending:
         text save_failed, 3, 176
 :       jmp show_graphics
 
+; fm_bload_retry's hook: the disk was removed or cannot be read. Say so,
+; wait for a key, try again (C = 0): the game needs these files.
+.export disk_retry
+disk_retry:
+        jsr clear_pages
+        text disk_error1, 10, 80
+        text disk_error2, 7, 104
+        jsr show_graphics
+        jsr wait_key
+        clc
+        rts
+
 load_level:
         jsr fetch_level
         lda level
@@ -1959,11 +1971,14 @@ APPLE2_EXIT_HOOK = mouse_shutdown
 EXIT_USE_NATIVE_VIDEO = 1        ; hgr.asm's native_video, above
 .include "exit.asm"
 FM_SEI = 1                        ; the //c mouse runs with IRQs on (interface.inc)
+FM_RETRY_HOOK = disk_retry        ; a level pack or the music cannot be read
 .include "fm.asm"                 ; files through DOS's file manager: errors are codes
 .include "mouse_context.asm"
 .include "hgr_text8.asm"          ; again: hgr_puts8_at, after its callers
 
 .rodata
+disk_error1: .asciiz "CANNOT READ THE DISK"
+disk_error2: .asciiz "CHECK IT, THEN PRESS A KEY"
 best_text: .asciiz "BEST SCORE  "
 subtitle: .asciiz "60 SECTORS TO CLEAR"
 title_options: .asciiz "ESC : MENU"

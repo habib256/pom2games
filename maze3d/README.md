@@ -222,8 +222,8 @@ Build a2shot once with `make` in `../dev/tools/a2shot`.
     src/narrator.asm           original narrator lines (all 96 retained)
     src/ux.inc                objectives, feedback and narrator decoder
     tools/pack_narrator.py     lossless five-bit text -> MAZETEXT at $1100
-    src/sprites_trollkind.asm  goblin, orc (SCROLL-O-SPRITES)
-    src/sprites_characters.asm dark mage (SCROLL-O-SPRITES)
+    ../dev/lib/tms9918/sprites_trollkind.asm   goblin, orc (SCROLL-O-SPRITES)
+    ../dev/lib/tms9918/sprites_characters.asm  dark mage (SCROLL-O-SPRITES)
     src/maze3d.cfg             ld65 config: ZP $50-$FF, maze grid at $1000, text at $1100, state helper at $1B93, code at $6000
     src/hello.bas              BLOAD record/preferences, BRUN MAZE3D
     src/save.inc              resident profile, checkpoint and preference code

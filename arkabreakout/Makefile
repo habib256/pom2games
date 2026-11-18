@@ -74,6 +74,7 @@ test: all $(A2RUN) $(if $(A2SHOT_HOST),$(BUILD)/mouse_probe)
 	$(PYTHON) tests/test_bonus_visuals.py --disk $(DISK) --labels $(BUILD)/game.lbl
 	$(PYTHON) tests/test_game.py --disk $(DISK) --labels $(BUILD)/game.lbl
 	$(PYTHON) tests/test_records.py --disk $(DISK) --labels $(BUILD)/game.lbl
+	$(PYTHON) tests/test_disk_error.py --disk $(DISK) --labels $(BUILD)/game.lbl
 ifneq ($(A2SHOT_HOST),)
 	$(PYTHON) tests/test_mouse.py --probe $(BUILD)/mouse_probe --roms $(DEV)/tools/a2shot/roms --disk $(DISK) --labels $(BUILD)/game.lbl
 endif

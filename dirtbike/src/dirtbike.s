@@ -873,6 +873,7 @@ TUNE_MUTE = snd_on                      ; S: notes become rests, same tempo
 
 .segment "RODATA"
 .define HGR_SCANLINE_SEGMENT "SYSBSS"    ; hgr_lo / hgr_hi at $0200 (dirtbike.cfg)
+HGR_SCANLINE_HI2 = 1                     ; and hgr_hi2 in the same boot loop: no resident hgr_pages_init
 .pushseg
 .segment "INIT"
 .include "hgr_scanline_ram.asm"

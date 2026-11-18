@@ -87,7 +87,7 @@ fetch_level:
         sta pack_name+6
         lda #<pack_name
         ldy #>pack_name
-        jsr fm_bload
+        jsr fm_bload_retry
         lda pack_number
         sta current_pack
 @address:

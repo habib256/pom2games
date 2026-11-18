@@ -16,8 +16,5 @@ AppleMouse II ROMs; a complete Relax campaign is played by paddle steering.
   48 KB budget permits; the victory text and two-voice fanfare already exist.
 - Improve miniature brick visibility on physical composite displays; sector
   previews, names and mouse navigation are implemented.
-- Show a message when a level pack or the music cannot be read (disk
-  removed or damaged): files now go through DOS's file manager
-  (`fm_bload` / `fm_bsave`), which returns an error code instead of
-  stopping at the `]` prompt; only the records use it so far (missing
-  file: empty table; any write error: "NOT SAVED").
+- Tell a full disk from a protected one when the records cannot be saved
+  (`fm_bsave` returns the code; the message says "WRITE PROTECTED").
