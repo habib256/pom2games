@@ -53,8 +53,10 @@
 ; BSS +37 (115 bytes now in reserve here).
 ; 2026-11-18, dev/lib/prodos/video.s shares its return tails: -8 library
 ; CODE bytes, RODATA +8.
+; 2026-11-19, dev/lib/prodos/file.asm returns X = 0 itself: file.s's C
+; entries are aliases (-19 library CODE bytes), RODATA +19.
 CODE_SPARE   = 59
-RODATA_SPARE = 125
+RODATA_SPARE = 144
 BSS_SPARE    = 37
 
 .code

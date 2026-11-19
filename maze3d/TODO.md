@@ -11,8 +11,4 @@ What is done is in [CHANGELOG.md](CHANGELOG.md).
 
 ## Ideas
 
-- Show a message when the title, the texts or the state file cannot be
-  read (disk removed or damaged): `fm_bload` returns the error and the
-  game goes on with what is in memory. `fm_bload_retry` and a
-  `FM_RETRY_HOOK` (ARKABREAKOUT's pattern) need a text routine that works
-  while the drawn page is hidden.
+Nothing open.

@@ -175,7 +175,10 @@ thin coloured lines alias exactly as on real hardware. White (15) stays white.
     src/bubble.asm        the SAY speech bubble
     src/buffer_editor.asm the EDIT procedure editor
     src/math.asm          sine table, LFSR random, decimal output
-    src/sprite_helpers.asm, src/sprites_emotes.asm, src/tms9918.inc
+    src/sprite_helpers.asm, src/sprites_emotes.asm
+                          module names for ../dev/lib/tms9918's files of
+                          the same names (included, not copied)
+    src/tms9918.inc
     src/logo.cfg          ld65 configuration (memory map above)
     src/hello.bas         HELLO: 10 PRINT CHR$(4);"BRUN LOGO"
     ../dist/LOGO.dsk      the disk image
