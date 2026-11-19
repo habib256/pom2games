@@ -9,6 +9,7 @@
 .export _hgr_tile_restore
 .import popa,popax,hgr_fixed_rowlo,hgr_fixed_rowhi
 .importzp ptr1,ptr2,ptr3,ptr4,tmp1,tmp2,tmp3,tmp4
+.include "hgr_clip_axes.inc"
 .macpack longbranch
 base = ptr4
 col = ptr4+1
@@ -66,20 +67,8 @@ page_ready:
  jeq bad
  lda height
  jeq bad
- lda #40
- sec
- sbc col
- cmp width
- bcs clip_height
- sta width
-clip_height:
- lda #24
- sec
- sbc row
- cmp height
- bcs context
- sta height
-context:
+ hgr_clip_extent 40, col, width, width
+ hgr_clip_extent 24, row, height, height
  ldy #0
  lda (ptr1),y
  sta map

@@ -6,22 +6,10 @@
 .import _gfx_plot, _gfx_hline, _gfx_vline, _gfx_width, _gfx_height
 .import pusha, pushax, incsp5
 .importzp sp, tmp1, tmp2, tmp3, tmp4
+.include "gfx_line_axes.inc"
 .code
 _gfx_line:
-        sta tmp4
-        ldy #2
-        cmp (sp),y
-        beq horizontal
-        ldy #0
-        lda (sp),y
-        ldy #3
-        cmp (sp),y
-        bne diagonal
-        ldy #1
-        lda (sp),y
-        ldy #4
-        cmp (sp),y
-        beq vertical
+        gfx_line_classify tmp4, horizontal, vertical, diagonal
 diagonal:
         lda tmp4
         cmp _gfx_height
@@ -53,29 +41,7 @@ accepted:
         jmp prepare
 rejected:
         jmp incsp5
-horizontal:
-        ldy #1
-        lda (sp),y
-        iny
-        sta (sp),y
-        ldy #0
-        lda (sp),y
-        iny
-        sta (sp),y
-        inc sp
-        bne :+
-        inc sp+1
-:       lda tmp4
-        jmp _gfx_hline
-vertical:
-        clc
-        lda sp
-        adc #2
-        sta sp
-        bcc :+
-        inc sp+1
-:       lda tmp4
-        jmp _gfx_vline
+        gfx_line_spans tmp4, horizontal, vertical
 
 ; 13-byte frame: err(2), dx(2), -dy low, sx, sy, ye, xe(2), y, x(2).
 ; Both endpoints have byte y coordinates, and axes were dispatched already:

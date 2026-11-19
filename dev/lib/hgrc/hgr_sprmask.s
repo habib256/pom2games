@@ -37,6 +37,9 @@
 ; The caller guarantees x <= 279 / y <= 191 and stride, h >= 1 (the kernels
 ; still edge-clip on the right/bottom).
 
+.include "hgr_sprite_geometry.inc"
+.include "hgr_clip_axes.inc"
+.include "hgr_sprite_row.inc"
         .export   _hgr_ms_run
         .export   _hgr_ms_save_run
         .export   _hgr_ms_restore_run
@@ -94,24 +97,7 @@ ms_setup_under:
 ms_setup_common:
         ; Raw callers may only have selected the draw page (row tables).
         ; Prepare optional x tables before using any shared scratch.
-        jsr _hgr_build_columns
-        jsr _hgr_build_phases
-        ; col = hgr_col7[x] ; phase = hgr_phase7[x] (LUTs, no divide).
-        ; x >= 256 (only 256..279 on a 280-px screen) indexes the tables at
-        ; +256 with the low byte -- a 6502 index register is 8-bit.
-        lda _hgr_ms_x+1
-        bne @xhi
-        ldx _hgr_ms_x
-        lda _hgr_col7,x
-        ldy _hgr_phase7,x
-        jmp @xset
-@xhi:
-        ldx _hgr_ms_x
-        lda _hgr_col7+256,x
-        ldy _hgr_phase7+256,x
-@xset:
-        sta ms_col
-        sty tmp1                  ; tmp1 = phase (0..6)
+        hgr_sprite_column_phase _hgr_ms_x, ms_col, tmp1
         ; Geometry is shared by all entries. Data/mask pointers are needed
         ; only by drawing; ptr1 retains the descriptor until that branch.
         lda _hgr_ms_spr
@@ -126,22 +112,8 @@ ms_setup_common:
         lda (ptr1),y              ; h
         sta ms_h                  ; default h
         sta tmp3                  ; tmp3 = full h (for the phase offset)
-        ; Right clip against the remaining columns: no overflowing sum.
-        lda #40
-        sec
-        sbc ms_col
-        cmp ms_stride
-        bcs @wok
-        sta ms_w
-@wok:
-        ; Bottom clip against the remaining rows, preserving full source h.
-        lda #192
-        sec
-        sbc _hgr_ms_y
-        cmp tmp3
-        bcs @hok
-        sta ms_h
-@hok:
+        hgr_clip_extent 40, ms_col, ms_stride, ms_w
+        hgr_clip_extent 192, _hgr_ms_y, tmp3, ms_h
         lda ms_under_only
         bne @poff               ; save/restore never consume data or mask
         ldy #0
@@ -236,76 +208,83 @@ ms_rowbase:
 ; ms_rowbase leaves C=0: row low <=$D0 plus clipped column <=39.
 ; The byte loops (including unrolled widths) preserve it until this entry.
 ms_next_row:
-        lda ptr2                ; data += stride
-        adc ms_stride
-        sta ptr2
-        bcc @m
-        inc ptr2+1
-@m:
+        hgr_add_stride ptr2, ms_stride
         clc
-        lda ptr3                ; mask += stride
-        adc ms_stride
-        sta ptr3
-        bcc @u
-        inc ptr3+1
-@u:
+        hgr_add_stride ptr3, ms_stride
         ; Save/restore enters this same tail, without data/mask advancement.
         clc                     ; data/mask advances may have carried
 ; Direct save/restore callers also arrive with C=0 from ms_rowbase.
 ms_next_under:
-        lda ptr4                ; under += stride (linear buffer, row-major)
-        adc ms_stride
-        sta ptr4
-        bcc @y
-        inc ptr4+1
-@y:
+        hgr_add_stride ptr4, ms_stride
         inc ms_yy
         dec ms_h                ; Z = done (flags survive the RTS)
         rts
 
-; --- _hgr_ms_run : masked pre-shifted blit (no save-under) -------------------
-; Per byte: dst = (dst & mask) | data. Generic loop 26 cycles/byte:
-;     lda (ptr1),y 5 / and (ptr3),y 5 / ora (ptr2),y 5 / sta (ptr1),y 6
-;     dey 2 / bpl 3
-; mask bit 7 = 1 by ABI, so the background's palette-group bit is preserved.
+; Byte operations preserve carry from ms_rowbase for the next-row helpers.
+.macro blend_pixel_byte
+        and (ptr3),y
+        ora (ptr2),y
+        sta (ptr1),y
+.endmacro
+
+.macro draw_byte
+        lda (ptr1),y
+        blend_pixel_byte
+.endmacro
+
+.macro save_byte
+        lda (ptr1),y
+        sta (ptr4),y
+.endmacro
+
+.macro restore_byte
+        lda (ptr4),y
+        sta (ptr1),y
+.endmacro
+
+.macro save_draw_byte
+        save_byte
+        blend_pixel_byte
+.endmacro
+
+; Generic rows walk backward from the clipped width. The two common fixed
+; widths walk forward with unrolled copies. Both advance by the source stride.
+.macro sprite_rows operation, advance, width
+        .local row, column
+row:
+        jsr ms_rowbase
+        .ifblank width
+        ldy ms_w
+        dey
+column:
+        operation
+        dey
+        bpl column
+        .else
+        ldy #0
+        .repeat width, col
+          .if col > 0
+            iny
+          .endif
+          operation
+        .endrepeat
+        .endif
+        jsr advance
+        bne row
+        rts
+.endmacro
+
+; Masked draw (26 cycles/byte in the generic loop).
 _hgr_ms_run:
         jsr ms_setup
-@row:
-        jsr ms_rowbase
-        ldy ms_w
-        dey                     ; clipped width <=40: Y is offset and counter
-@col:
-        lda (ptr1),y            ; background byte              5
-        and (ptr3),y            ; & mask (1-bits KEEP)         5
-        ora (ptr2),y            ; | pre-shifted sprite data    5
-        sta (ptr1),y            ;                              6
-        dey                     ;                              2
-        bpl @col                ;                              3  = 26 cyc/byte
-        jsr ms_next_row
-        bne @row
-        rts
+        sprite_rows draw_byte, ms_next_row
 
-; --- _hgr_ms_save_run : copy the covered rect framebuffer -> under buffer ----
-; Backward copy, 16 cycles/byte (lda (ptr1),y 5 / sta (ptr4),y 6 / dey 2 /
-; bpl 3). Row r lands at under[r*stride]; clipped tail bytes untouched.
+; Save the visible bytes. Clipped tail bytes in the under buffer stay intact.
 _hgr_ms_save_run:
         jsr ms_setup_under
-@row:
-        jsr ms_rowbase
-        ldy ms_w
-        dey                     ; clipped width <=40: Y is offset and counter
-@col:
-        lda (ptr1),y            ; framebuffer                  5
-        sta (ptr4),y            ; -> under buffer              6
-        dey                     ;                              2
-        bpl @col                ;                              3  = 16 cyc/byte
-        jsr ms_next_under
-        bne @row
-        rts
+        sprite_rows save_byte, ms_next_under
 
-; --- _hgr_ms_restore_run : copy the under buffer -> framebuffer --------------
-; Exact inverse of _hgr_ms_save_run (16 cycles/byte). Call with the SAME
-; (x, y, spr, under) the save/draw used and the background is byte-identical.
+; Restore the same rectangle (16 cycles/byte in the generic loop).
 _hgr_ms_restore_run:
         jsr ms_setup_under
         lda ms_w
@@ -313,50 +292,13 @@ _hgr_ms_restore_run:
         beq restore2
         cmp #4
         beq restore4
-restore_generic:
-@row:
-        jsr ms_rowbase
-        ldy ms_w
-        dey                     ; clipped width <=40: Y is offset and counter
-@col:
-        lda (ptr4),y            ; under buffer                 5
-        sta (ptr1),y            ; -> framebuffer               6
-        dey                     ;                              2
-        bpl @col                ;                              3  = 16 cyc/byte
-        jsr ms_next_under
-        bne @row
-        rts
-
-; Narrow rectangles dominate game sprites. Unroll without changing stride or
-; clipping: ms_w chooses the visible width, ms_stride advances the pool rows.
-.macro restore_rows count
-@row:
-        jsr ms_rowbase
-        ldy #0
-        .repeat count, col
-          .if col > 0
-            iny
-          .endif
-          lda (ptr4),y
-          sta (ptr1),y
-        .endrepeat
-        jsr ms_next_under
-        bne @row
-        rts
-.endmacro
+        sprite_rows restore_byte, ms_next_under
 restore2:
-        restore_rows 2
+        sprite_rows restore_byte, ms_next_under, 2
 restore4:
-        restore_rows 4
+        sprite_rows restore_byte, ms_next_under, 4
 
-; --- _hgr_msu_run : save-under + masked draw, ONE pass -----------------------
-; The engine's hot path: per row the background byte is copied to the under
-; buffer and immediately replaced by (dst & mask) | data -- one row-base
-; computation, one Y walk, instead of a save pass followed by a draw pass.
-; Generic loop 32 cycles/byte:
-;     lda (ptr1),y 5 / sta (ptr4),y 6 / and (ptr3),y 5 / ora (ptr2),y 5 /
-;     sta (ptr1),y 6 / dey 2 / bpl 3
-; (vs 16 + 26 = 42 for separate save + draw passes, plus a second setup).
+; Save and draw in one pass (32 cycles/byte in the generic loop).
 _hgr_msu_run:
         jsr ms_setup
         lda ms_w
@@ -364,41 +306,8 @@ _hgr_msu_run:
         beq draw2
         cmp #4
         beq draw4
-draw_generic:
-@row:
-        jsr ms_rowbase
-        ldy ms_w
-        dey                     ; clipped width <=40: Y is offset and counter
-@col:
-        lda (ptr1),y            ; background byte              5
-        sta (ptr4),y            ; save it under                6
-        and (ptr3),y            ; & mask (1-bits KEEP)         5
-        ora (ptr2),y            ; | pre-shifted sprite data    5
-        sta (ptr1),y            ;                              6
-        dey                     ;                              2
-        bpl @col                ;                              3  = 32 cyc/byte
-        jsr ms_next_row
-        bne @row
-        rts
-.macro draw_rows count
-@row:
-        jsr ms_rowbase
-        ldy #0
-        .repeat count, col
-          .if col > 0
-            iny
-          .endif
-          lda (ptr1),y
-          sta (ptr4),y
-          and (ptr3),y
-          ora (ptr2),y
-          sta (ptr1),y
-        .endrepeat
-        jsr ms_next_row
-        bne @row
-        rts
-.endmacro
+        sprite_rows save_draw_byte, ms_next_row
 draw2:
-        draw_rows 2
+        sprite_rows save_draw_byte, ms_next_row, 2
 draw4:
-        draw_rows 4
+        sprite_rows save_draw_byte, ms_next_row, 4

@@ -5,47 +5,11 @@
 .export _gfx_line
 .import _gfx_hline, _gfx_vline, _hgr_line
 .importzp sp, tmp1
+.include "gfx_line_axes.inc"
 .code
 _gfx_line:
-        sta tmp1
-        ldy #2
-        cmp (sp),y
-        beq horizontal
-        ldy #0
-        lda (sp),y
-        ldy #3
-        cmp (sp),y
-        bne diagonal
-        ldy #1
-        lda (sp),y
-        ldy #4
-        cmp (sp),y
-        beq vertical
+        gfx_line_classify tmp1, horizontal, vertical, diagonal
 diagonal:
         lda tmp1
         jmp _hgr_line
-horizontal:
-        ; Replace y0 with x1hi and move x1lo up one slot, then drop a byte.
-        ldy #1
-        lda (sp),y
-        iny
-        sta (sp),y
-        ldy #0
-        lda (sp),y
-        iny
-        sta (sp),y
-        inc sp
-        bne :+
-        inc sp+1
-:       lda tmp1
-        jmp _gfx_hline
-vertical:
-        ; Discard x1: y0,x0lo,x0hi already match the vertical signature.
-        clc
-        lda sp
-        adc #2
-        sta sp
-        bcc :+
-        inc sp+1
-:       lda tmp1
-        jmp _gfx_vline
+        gfx_line_spans tmp1, horizontal, vertical

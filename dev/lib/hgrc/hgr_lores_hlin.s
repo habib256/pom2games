@@ -1,5 +1,6 @@
 ; VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root).
 ; Inclusive LORES horizontal span: x0,x1,y on C stack, colour in A.
+.include "hgr_lores_span.inc"
 .export _hgr_lores_hlin
 .import hgr_lores_draw, incsp3
 .importzp sp, ptr2, tmp2, tmp3, tmp4
@@ -15,18 +16,7 @@ _hgr_lores_hlin:
         adc #1                  ; successful bound check left C clear
         sta tmp4                ; bottom, exclusive
         iny
-        lda (sp),y              ; x1, inclusive
-        cmp #40
-        bcc :+
-        lda #39
-:       tax
-        inx
-        stx ptr2+1              ; right, exclusive
-        iny
-        lda (sp),y              ; x0
-        cmp ptr2+1
-        bcs done                ; reversed or off-screen span
-        sta ptr2
+        lores_clip_span 40, ptr2, ptr2+1, done
         lda ptr2+1
         sbc ptr2                ; C clear: right - x0 - 1
         sta ptr2+1              ; width minus one

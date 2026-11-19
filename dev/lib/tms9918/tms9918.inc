@@ -97,6 +97,50 @@ name: .res 1
         EZ_WRT_DATA_VAL val
 .endmacro
 
+; Set the Graphics I/II VRAM cursor. Keep the 18-cycle entry pad.
+.macro TMS9918_SET_ADDRESS addr_lo, addr_hi, writing
+        JSR     ez_pad18
+        LDA     addr_lo
+        JSR     ez_ctrl_w
+        LDA     addr_hi
+.if writing
+        ORA     #$40
+.endif
+        JSR     ez_ctrl_w
+.endmacro
+
+; Mark the first sprite as the terminator and park all remaining SAT bytes.
+.macro TMS9918_DISABLE_SPRITES sat_base
+        JSR     ez_pad18
+        LDA     #<sat_base
+        JSR     ez_ctrl_w
+        LDA     #(>sat_base | $40)
+        JSR     ez_ctrl_w
+        LDA     #$D0
+        JSR     ez_data_w
+        LDX     #127
+        LDA     #$D1
+:       JSR     ez_data_w
+        DEX
+        BNE     :-
+.endmacro
+
+; Select the Graphics II colour byte corresponding to the pattern address.
+; Return the foreground/background byte in A for one or more data writes.
+.macro TMS9918_PREPARE_COLOR
+        LDA     pix_addr_lo
+        JSR     ez_ctrl_w
+        LDA     pix_addr_hi
+        ORA     #$60            ; colour table at $2000, write enabled
+        JSR     ez_ctrl_w
+        LDA     pen_color
+        ASL
+        ASL
+        ASL
+        ASL
+        ORA     #$01            ; foreground in high nibble, background 1
+.endmacro
+
 ; Frame flag polling through BIT (A kept; the status read clears F, 5S, C).
 .macro WAIT_VBLANK
         EZ_WAIT_VBLANK

@@ -1,6 +1,7 @@
 ; VERHILLE Arnaud — GPL-3.0. One 140x192 color pixel: four bits of the
 ; color's byte pattern, in one byte or across an aux/main pair. Off-screen
 ; pixels are ignored. IRQs are masked only around auxiliary accesses.
+.include "dhgr_pixel_address.inc"
 .include "apple2.inc"
 .export _dhgr_plot_color, _dhgr_color_dot
 .import _dhgr_dot_x, _dhgr_dot_color
@@ -47,10 +48,7 @@ plot:   cpx #140
         bcs @out
         cpy #192
         bcs @out
-        lda dhgr_rowlo,y
-        sta ptr1
-        lda dhgr_rowhi,y
-        ora _dhgr_base
+        dhgr_scanline_address
         sta ptr1+1
         lda _dhgr_cellbyte,x
         sta tmp1

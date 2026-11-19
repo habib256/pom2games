@@ -7,6 +7,7 @@
 .import _hgr_set_carrier, _hgr_colorize_asm, incsp5
 .importzp sp, ptr2, tmp3, tmp4
 .importzp _hgr_z_col0, _hgr_z_ncols, _hgr_z_y0, _hgr_z_rows
+.include "hgr_clip_axes.inc"
 .code
 _hgr_colorize:
         sta tmp4
@@ -25,18 +26,7 @@ _hgr_colorize:
         cmp #192
         bcs outside
         sta _hgr_z_y0
-        ldy #4
-        lda (sp),y
-        cmp #2
-        bcs outside
-        sta ptr2+1
-        tax
-        dey
-        lda (sp),y
-        sta ptr2
-        cpx #0
-        beq valid
-        cmp #24
+        hgr_load_pixel_x 4, ptr2, valid, outside
         bcc valid
 outside:
         jmp incsp5
@@ -45,13 +35,7 @@ valid:
         jsr _hgr_set_carrier     ; preserves ptr2/tmp3; rejects without mutation
         cmp #0                  ; C return value is A/X, not processor flags
         beq outside
-        lda #192
-        sec
-        sbc _hgr_z_y0
-        cmp _hgr_z_rows
-        bcs height_ready
-        sta _hgr_z_rows
-height_ready:
+        hgr_clip_extent 192, _hgr_z_y0, _hgr_z_rows, _hgr_z_rows
         ldy ptr2
         lda ptr2+1
         bne left_high

@@ -161,18 +161,7 @@ wipe_all_vram:
 ;   rendering of slot 1+. Mirrors tms9918m2.asm::disable_sprites.
 ; ----------------------------------------------------------------------------
 disable_sprites:
-        JSR     ez_pad18   ; MANUAL caller-gap cushion (18c)
-        LDA     #$00
-        JSR     ez_ctrl_w
-        LDA     #$5B            ; $1B | $40 = write at $1B00
-        JSR     ez_ctrl_w
-        LDA     #$D0            ; SAT[0].Y = chain terminator
-        JSR     ez_data_w
-        LDX     #127            ; SAT[1..127] = off-screen Y via auto-inc
-        LDA     #$D1
-@sat:   JSR     ez_data_w
-        DEX
-        BNE     @sat
+        TMS9918_DISABLE_SPRITES $1B00
         RTS
 .endif
 
@@ -213,11 +202,7 @@ clear_name_table:
 ;   Caller reads via JSR ez_data_r after this returns.
 ; ----------------------------------------------------------------------------
 vdp_set_read:
-        JSR     ez_pad18   ; MANUAL caller-gap cushion (18c)
-        LDA     vdp_lo
-        JSR     ez_ctrl_w
-        LDA     vdp_hi          ; bit 6 = 0 → read
-        JSR     ez_ctrl_w
+        TMS9918_SET_ADDRESS vdp_lo, vdp_hi, 0
         RTS                     ; ≥ 30c after the cmd byte
 .endif
 .endif
@@ -263,12 +248,7 @@ print_at_rc:
 ;   Caller writes data via JSR ez_data_w after this returns.
 ; ----------------------------------------------------------------------------
 vdp_set_write:
-        JSR     ez_pad18   ; MANUAL caller-gap cushion (18c)
-        LDA     vdp_lo
-        JSR     ez_ctrl_w
-        LDA     vdp_hi
-        ORA     #$40            ; bit 6 = write
-        JSR     ez_ctrl_w
+        TMS9918_SET_ADDRESS vdp_lo, vdp_hi, 1
         RTS                     ; ≥ 30c after the cmd byte (18c+6c+6c=30c gap)
 .endif
 .endif

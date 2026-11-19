@@ -1,6 +1,8 @@
 ; VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root).
 ; hgr_text16_asm.s — Apple II HGR kernel; linked independently from hgrc.lib.
 ; Blitter destroys A/X/Y, ptr1..ptr4/tmp1..tmp4. Non-reentrant.
+.include "hgr_glyph_double.inc"
+.include "hgr_text_run.inc"
 .export _hgr_blit_glyph, _hgr_puts_run
 .import _hgr_rowhi, _hgr_rowlo, glyph_addr, hgr_dbl_lo, hgr_dbl_hi
 .importzp _hgr_g_col, _hgr_g_glyph, _hgr_g_bit, _hgr_g_y, _hgr_t_bit, _hgr_t_col, _hgr_t_font, _hgr_t_n, _hgr_t_s, _hgr_z_ce, _hgr_z_co, _hgr_z_hi
@@ -18,6 +20,18 @@ gbc_car2 = gbc_car0          ; the carriers repeat every two byte columns
 gbc_car3 = gbc_car1
 gbc_m1 = ptr4                ; byte 1 (bits 8..15)
 gbc_m2 = ptr4+1              ; bits 16..21, shifted to bits 14..21 for cell 2
+
+; Apply the colour carrier and overlay the same bits on both scanlines.
+.macro overlay_glyph_pair carrier
+        and carrier
+        ora _hgr_z_hi
+        sta gr_or
+        ora (ptr1),y
+        sta (ptr1),y
+        lda gr_or
+        ora (ptr2),y
+        sta (ptr2),y
+.endmacro
 
 .segment "CODE"
 ; --- _hgr_blit_glyph : row-at-a-time 16x16 glyph blitter, white or tinted --
@@ -58,56 +72,15 @@ _hgr_blit_glyph:
         jmp @c3sk              ; a blank source row touches neither scanline
 @visible:
         tax
-        ; ptr1 = scanline yy ; ptr2 = scanline yy+1 (paired pixel-doubling).
-        lda rowcnt
-        asl a                  ; row * 2; row < 8, so C=0
-        adc _hgr_g_y          ; yy = y + 2*row
-        tay
-        lda _hgr_rowlo,y
-        sta ptr1
-        lda _hgr_rowhi,y
-        sta ptr1+1
-        iny                    ; yy + 1
-        lda _hgr_rowlo,y
-        sta ptr2
-        lda _hgr_rowhi,y
-        sta ptr2+1
-        ; Expand 8 source bits to 16 doubled bits shifted left by `bit`, by
-        ; two nibble lookups (hgr_glyph_shift.s). The bits occupy positions
-        ; bit..bit+15 (<= 21), so m2 bits 6..7 stay zero.
+        hgr_glyph_row_pair rowcnt
         txa
-        and #$0F
-        ora gbc_bit
-        tay
-        lda hgr_dbl_lo,y
-        sta gbc_m0             ; doubled bits 0..7
-        lda hgr_dbl_hi,y
-        sta gbc_m1
-        txa
-        lsr a
-        lsr a
-        lsr a
-        lsr a
-        ora gbc_bit
-        tay
-        lda hgr_dbl_lo,y
-        ora gbc_m1
-        sta gbc_m1             ; doubled bits 8..15
-        lda hgr_dbl_hi,y
-        sta gbc_m2             ; doubled bits 16..23
+        hgr_expand_glyph_row gbc_bit, gbc_m0, gbc_m1, gbc_m2
         ldy _hgr_g_col          ; walk the four destination columns once
         ; --- Cell 0 (column g_col): doubled bits 0..6 = m0 & $7F ------------
         lda gbc_m0
         and #$7F
         beq @c0sk
-        and gbc_car0
-        ora _hgr_z_hi
-        sta gr_or
-        ora (ptr1),y
-        sta (ptr1),y
-        lda gr_or
-        ora (ptr2),y
-        sta (ptr2),y
+        overlay_glyph_pair gbc_car0
 @c0sk:
         iny
         ; --- Cell 1 (column g_col+1): doubled bits 7..13 -------------------
@@ -118,14 +91,7 @@ _hgr_blit_glyph:
         rol a                  ; A = (m1 << 1) | (m0 bit 7)
         and #$7F
         beq @c1sk
-        and gbc_car1
-        ora _hgr_z_hi
-        sta gr_or
-        ora (ptr1),y
-        sta (ptr1),y
-        lda gr_or
-        ora (ptr2),y
-        sta (ptr2),y
+        overlay_glyph_pair gbc_car1
 @c1sk:
         iny
         ; --- Cell 2 (column g_col+2): doubled bits 14..20 ------------------
@@ -139,14 +105,7 @@ _hgr_blit_glyph:
         lda gbc_m2
         and #$7F
         beq @c2sk
-        and gbc_car2
-        ora _hgr_z_hi
-        sta gr_or
-        ora (ptr1),y
-        sta (ptr1),y
-        lda gr_or
-        ora (ptr2),y
-        sta (ptr2),y
+        overlay_glyph_pair gbc_car2
 @c2sk:
         iny
         ; --- Cell 3 (column g_col+3): doubled bit 21 only, set iff bit = 6 -
@@ -154,14 +113,7 @@ _hgr_blit_glyph:
         lda gbc_m2
         bpl @c3sk
         lda #1
-        and gbc_car3
-        ora _hgr_z_hi
-        sta gr_or
-        ora (ptr1),y
-        sta (ptr1),y
-        lda gr_or
-        ora (ptr2),y
-        sta (ptr2),y
+        overlay_glyph_pair gbc_car3
 @c3sk:
         inc rowcnt
         lda rowcnt
@@ -177,48 +129,21 @@ _hgr_blit_glyph:
 ; font address font+(c-$20)*8, set hgr_g_col/bit, JSR the blitter (the
 ; carriers decide white or colour), then step the 18px pen (bit+=4, col+=2,
 ; +1 col on wrap). hgr_g_y set by the caller.
-_hgr_puts_run:
-@loop:
-        lda _hgr_t_n
-        beq @done
-        ldy #0
-        lda (_hgr_t_s),y       ; c = *s
-        bne @go
-@done:
-        rts
-@go:
-        cmp #$20                ; clamp non-printable -> space
-        bcc @space
-        cmp #$80
-        bcc @okc
-@space:
-        lda #$20
-@okc:
-        sec                     ; hgr_g_glyph = font + (c-$20)*8
-        sbc #$20
-        jsr glyph_addr
-        lda _hgr_t_col
-        sta _hgr_g_col
-        lda _hgr_t_bit
-        sta _hgr_g_bit
-        jsr _hgr_blit_glyph
+.macro advance_pen_16
         lda _hgr_t_bit         ; pen: bit += 4 (+ carry into col on wrap)
         clc
         adc #4
         cmp #7
-        bcc @nowrap
+        bcc :+
         sbc #7                  ; carry set by cmp (>=7): A = bit+4-7
-@nowrap:
+:
         sta _hgr_t_bit
         lda _hgr_t_col
         ; CMP leaves C=0 without wrap; SBC leaves C=1 after wrap.
         ; STA/LDA preserve it, so this adds either two or three columns.
         adc #2
         sta _hgr_t_col
-@adv2:
-        inc _hgr_t_s           ; ++s
-        bne @sok
-        inc _hgr_t_s+1
-@sok:
-        dec _hgr_t_n
-        jmp @loop
+.endmacro
+
+_hgr_puts_run:
+        hgr_text_run _hgr_blit_glyph, advance_pen_16

@@ -1,4 +1,5 @@
 ; VERHILLE Arnaud — GPL-3.0. Interleaved byte coordinate -> bank address.
+.include "dhgr_transfer_row.inc"
 .export _dhgr_byte_address
 .import _dhgr_addr, _dhgr_aux, _dhgr_base, dhgr_rowlo, dhgr_rowhi, incsp1
 .importzp sp
@@ -11,15 +12,7 @@ _dhgr_byte_address:
         lda (sp),y
         lsr                     ; C = odd = main
         tay
-        lda #0
-        rol
-        eor #1
-        sta _dhgr_aux
+        dhgr_select_byte_bank
         tya
-        clc
-        adc dhgr_rowlo,x        ; row offsets end at $F7: no carry
-        sta _dhgr_addr
-        lda dhgr_rowhi,x
-        ora _dhgr_base
-        sta _dhgr_addr+1
+        dhgr_set_row_address
         jmp incsp1

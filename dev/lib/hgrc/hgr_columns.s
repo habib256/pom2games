@@ -4,10 +4,7 @@
 ; code instead of 130 B for three, but always 841 B of BSS and ~10k cycles on
 ; first use). Default: one member per table (hgr_masks.s, hgr_phases.s), a
 ; program reserves only the tables it references.
-; Boolean switches: zero and undefined select the default implementation.
-.ifndef HGRC_X7_FOLDED
-HGRC_X7_FOLDED = 0
-.endif
+.include "hgr_x7_table.inc"
 .if HGRC_X7_FOLDED
 ; x -> byte column (x / 7), bit mask (1 << x % 7) and phase (x % 7), x = 0..279,
 ; built together. This option saves code and initialization time when all
@@ -64,21 +61,7 @@ _hgr_build_columns:
 bits:   .byte 1,2,4,8,16,32,64
 .else
 ; No inputs. Clobbers A/X/Y and ptr1 only; not reentrant.
-.export _hgr_build_columns, _hgr_col7
-.importzp ptr1
-.bss
-_hgr_col7: .res 280
-ready: .res 1
-.code
-_hgr_build_columns:
-        lda ready
-        beq @build
-        rts
-@build:
-        lda #<_hgr_col7
-        sta ptr1
-        lda #>_hgr_col7
-        sta ptr1+1
+        hgr_x7_begin _hgr_build_columns, _hgr_col7
         ldx #0
 @group:
         txa                     ; one column value for its seven pixels
@@ -87,15 +70,7 @@ _hgr_build_columns:
         sta (ptr1),y
         dey
         bpl @pixel
-        ; Advance by one seven-pixel column. Indirect indexing and the
-        ; carry below also work when the table starts inside a page.
-        clc
-        lda ptr1
-        adc #7
-        sta ptr1
-        bcc @next
-        inc ptr1+1
-@next:
+        hgr_x7_next_column
         inx
         cpx #40
         bne @group

@@ -1,20 +1,13 @@
 ; VERHILLE Arnaud — GPL-3.0. DHGR compositor: dhgr_spr_palette (dhgr.h),
 ; a member of its own: linked by the programs that call it. A/X/Y, ptr1,
 ; tmp1 destroyed; non-reentrant.
+.include "dhgr_spr_segment.inc"
 .export _dhgr_spr_palette
 .import _dhgr_spr_dirty, _dhgr_spr_pal, dhgr_spr_slots
 .import popa
 .importzp ptr1, tmp1
 
-.if .defined(DHGR_SPR_CODE_SEGMENT)
-.if DHGR_SPR_CODE_SEGMENT
-.segment "DHGRSPRCODE"
-.else
-.code
-.endif
-.else
-.code
-.endif
+dhgr_spr_segment "CODE"
 
 ; void dhgr_spr_palette(id, four): four in A/X, id on the C stack.
 _dhgr_spr_palette:

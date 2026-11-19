@@ -1,5 +1,7 @@
 ; VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root).
 ; hgr_preshift_asm.s — Apple II HGR kernel; linked independently from hgrc.lib.
+.include "hgr_sprite_geometry.inc"
+.include "hgr_clip_axes.inc"
 .export _hgr_xs_run, _hgr_xs_setup
 .exportzp _hgr_xs_x, _hgr_xs_y, _hgr_xs_spr
 .import _hgr_col7, _hgr_phase7, _hgr_rowhi, _hgr_rowlo
@@ -23,22 +25,7 @@ _hgr_xs_spr:  .res 2        ; pointer to the hgr_sprite_t {bits, stride, h}
 ; Setup clobbers A/X/Y, ptr1/ptr2, tmp1/tmp2/tmp3 and hgr_b_* parameters.
 ; tmp4 is preserved, including through the normal/folded table builders.
 _hgr_xs_setup:
-        jsr _hgr_build_columns
-        jsr _hgr_build_phases
-        ; col = hgr_col7[x] -> _hgr_b_col ; phase = hgr_phase7[x] -> tmp1
-        lda _hgr_xs_x+1
-        bne @xhi
-        ldx _hgr_xs_x
-        lda _hgr_col7,x
-        ldy _hgr_phase7,x
-        jmp @xset
-@xhi:
-        ldx _hgr_xs_x
-        lda _hgr_col7+256,x
-        ldy _hgr_phase7+256,x
-@xset:
-        sta _hgr_b_col
-        sty tmp1                  ; tmp1 = phase (0..6)
+        hgr_sprite_column_phase _hgr_xs_x, _hgr_b_col, tmp1
         ; deref spr -> ptr2 ; read bits/stride/h
         lda _hgr_xs_spr
         sta ptr2
@@ -61,22 +48,8 @@ _hgr_xs_setup:
         sta tmp3                  ; tmp3 = full h (for the phase offset)
         lda _hgr_xs_y
         sta _hgr_b_y
-        ; Right clip against the remaining columns: no overflowing sum.
-        lda #40
-        sec
-        sbc _hgr_b_col
-        cmp tmp2
-        bcs @wok
-        sta _hgr_b_w
-@wok:
-        ; Bottom clip against the remaining rows, preserving full source h.
-        lda #192
-        sec
-        sbc _hgr_xs_y
-        cmp tmp3
-        bcs @hok
-        sta _hgr_b_h
-@hok:
+        hgr_clip_extent 40, _hgr_b_col, tmp2, _hgr_b_w
+        hgr_clip_extent 192, _hgr_xs_y, tmp3, _hgr_b_h
         ; src += phase * (h * stride). Phase zero needs no product.
         ldx tmp1
         beq @offdone

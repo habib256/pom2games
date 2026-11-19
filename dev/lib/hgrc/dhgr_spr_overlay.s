@@ -8,6 +8,7 @@
 ; ever drawn, `under` is not used and dhgr_spr_cursor.s is not linked.
 ; A/X/Y, ptr1/ptr2, tmp1-tmp4 destroyed; non-reentrant, never from an IRQ.
 ; DHGR_SPR_CODE_SEGMENT=1: code and tables in segment DHGRSPRCODE.
+.include "dhgr_spr_segment.inc"
 .export _dhgr_spr_overlay, cur_args, cur_take
 .import cur_nbx, cur_ny, cur_nw, cur_nh, cur_bits, cur_under
 .import _dhgr_spr_v_dirty, _dhgr_spr_cur_jmp, _dhgr_spr_ov_on, _dhgr_spr_add
@@ -34,15 +35,7 @@ t_bits: .res 2
 t_under: .res 2
 NONE = $FF
 
-.if .defined(DHGR_SPR_CODE_SEGMENT)
-.if DHGR_SPR_CODE_SEGMENT
-.segment "DHGRSPRCODE"
-.else
-.code
-.endif
-.else
-.code
-.endif
+dhgr_spr_segment "CODE"
 
 ; Pop (bx, y, w, h, bits, under) into t_*; w = 0 unless the box is on the
 ; screen with w * h <= 127. For dhgr_cursor and dhgr_spr_overlay.
@@ -256,13 +249,7 @@ ov_group:
         rts
 
 
-.if .defined(DHGR_SPR_CODE_SEGMENT)
-.if !DHGR_SPR_CODE_SEGMENT
-.rodata
-.endif
-.else
-.rodata
-.endif
+dhgr_spr_segment "RODATA"
 vectors:                        ; _dhgr_spr_cur_jmp, ovd, ovr, ovg
 .if INSIDE
         rts                     ; (no save-under pass)

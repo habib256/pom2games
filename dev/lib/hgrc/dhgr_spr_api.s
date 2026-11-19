@@ -4,6 +4,7 @@
 ; They only record; dhgr_spr_update draws (dhgr_spr_init is in
 ; dhgr_spr_update.s).
 ; cc65 C calling convention; A/X/Y, ptr1, tmp1-tmp3 destroyed; non-reentrant.
+.include "dhgr_spr_segment.inc"
 .export _dhgr_spr_set, _dhgr_spr_invalidate, _dhgr_spr_solid, dhgr_spr_group
 .import _dhgr_spr_shlo, _dhgr_spr_shhi, _dhgr_spr_x, _dhgr_spr_y
 .import _dhgr_spr_x1, _dhgr_spr_y1, _dhgr_spr_flags, _dhgr_spr_dirty
@@ -19,15 +20,7 @@ MAX = DHGR_SPR_MAX
 NONE = $FF
 HIDDEN = 2
 
-.if .defined(DHGR_SPR_CODE_SEGMENT)
-.if DHGR_SPR_CODE_SEGMENT
-.segment "DHGRSPRCODE"
-.else
-.code
-.endif
-.else
-.code
-.endif
+dhgr_spr_segment "CODE"
 
 ; unsigned char dhgr_spr_set(id, shape, x, y, flags): C stack y 0, x 1,
 ; shape 2-3, id 4; flags in A. 0 for a bad id; unchanged: not dirty.

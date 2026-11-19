@@ -1,5 +1,6 @@
 ; VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root).
 ; hgr_bitmap_asm.s — Apple II HGR kernel; linked independently from hgrc.lib.
+.include "hgr_sprite_row.inc"
 .export _hgr_blit_run
 .exportzp _hgr_b_mask
 .import _hgr_rowhi, _hgr_rowlo
@@ -63,17 +64,7 @@ _hgr_blit_run:
         jmp @px
 @rowdone:
         jsr apply               ; final byte, partial or complete
-        clc                     ; next source row + next scanline
-        lda _hgr_b_src
-        adc _hgr_b_stride
-        sta _hgr_b_src
-        bcc @nyc
-        inc _hgr_b_src+1
-@nyc:
-        inc _hgr_b_y
-        dec _hgr_b_h
-        bne @row
-        rts
+        hgr_blit_next_row @row
 
 ; Apply `acc` at column curcol on scanline ptr1 (SET/CLEAR/XOR), clear it.
 apply:

@@ -95,6 +95,22 @@ _VL_COFF = vl_oxf - vl_xf               ; a point's old position: X + _VL_COFF
 .assert vl_oxf - vl_xf = vl_oyf - vl_yf, error, "verlet_circ: vl_ox*, vl_oy* at the same offset from vl_x*, vl_y*"
 .assert VL_NPOINTS - 1 + _VL_COFF < 256, error, "verlet_circ: old points out of X range"
 _VL_CQLIM = 1 << (VL_CIRC_Q - 1)        ; |d| hi byte >= this: q >= 128
+
+.include "verlet_contact.inc"
+
+; Input A:vl_w0 is the unsigned 8.8 distance on one axis. Reject before
+; shifting if the result cannot fit, then compare in circle-radius units.
+.macro _VL_CONTACT_DISTANCE result, reject
+        CMP     #_VL_CQLIM
+        BCS     reject
+.repeat 8 - VL_CIRC_Q
+        ASL     vl_w0
+        ROL     A
+.endrepeat
+        CMP     vl_crad
+        BCS     reject
+        STA     result
+.endmacro
 .endif
 
 ; ----------------------------------------------------------------------------
@@ -143,6 +159,40 @@ vl_contact_all:
 .ifndef VL_NBOX
 .error "vl_contact_box: define VL_NBOX (and the vl_box_x0/y0/x1/y1 tables)"
 .endif
+; X indexes the point, Y the box. Save the fractional distance in low
+; and leave the whole part in A for the caller's comparison or store.
+.macro _VL_POINT_MINUS_FACE frac, whole, face, low
+        LDA     frac,X
+        STA     low
+        SEC
+        LDA     whole,X
+        SBC     face,Y
+.endmacro
+
+.macro _VL_FACE_MINUS_POINT frac, whole, face, low
+        SEC
+        LDA     #0
+        SBC     frac,X
+        STA     low
+        LDA     face,Y
+        SBC     whole,X
+.endmacro
+
+; Target coordinate in vl_val = integer face +/- radius (vl_vx, 8.8).
+.macro _VL_BOX_EXIT face, op
+        .if .xmatch({op}, {SBC})
+        SEC
+        .else
+        CLC
+        .endif
+        LDA     #0
+        op      vl_vx
+        STA     vl_val
+        LDA     face,Y
+        op      vl_vx+1
+        STA     vl_val+1
+.endmacro
+
 vl_contact_box:
         STX     vl_cur
         LDA     vl_rad,X
@@ -193,30 +243,13 @@ vl_cbox1:
         BNE     @xin
         LDA     vl_xf,X
         BEQ     @xin
-@xr:    LDA     vl_xf,X                 ; |d| = x - x1
-        STA     vl_w0
-        SEC
-        LDA     vl_xl,X
-        SBC     vl_box_x1,Y
+@xr:    _VL_POINT_MINUS_FACE vl_xf, vl_xl, vl_box_x1, vl_w0
         LDX     #$02
         BNE     @xq
-@xl:    SEC                             ; |d| = x0 - x
-        LDA     #0
-        SBC     vl_xf,X
-        STA     vl_w0
-        LDA     vl_box_x0,Y
-        SBC     vl_xl,X
+@xl:    _VL_FACE_MINUS_POINT vl_xf, vl_xl, vl_box_x0, vl_w0
         LDX     #$82
 @xq:    STX     vl_csgn
-        CMP     #_VL_CQLIM
-        BCS     @no
-.repeat 8 - VL_CIRC_Q
-        ASL     vl_w0
-        ROL     A
-.endrepeat
-        CMP     vl_crad
-        BCS     @no
-        STA     vl_qx
+        _VL_CONTACT_DISTANCE vl_qx, @no
         LDX     vl_cur
 @xin:   LDA     vl_yh,X                 ; y side: above y0, below y1
         CMP     vl_box_y0,Y
@@ -227,34 +260,17 @@ vl_cbox1:
         BNE     @yin
         LDA     vl_yf,X
         BEQ     @yin
-@yb:    LDA     vl_yf,X
-        STA     vl_w0
-        SEC
-        LDA     vl_yh,X
-        SBC     vl_box_y1,Y
+@yb:    _VL_POINT_MINUS_FACE vl_yf, vl_yh, vl_box_y1, vl_w0
         LDX     #$01
         BNE     @yq
-@yt:    SEC
-        LDA     #0
-        SBC     vl_yf,X
-        STA     vl_w0
-        LDA     vl_box_y0,Y
-        SBC     vl_yh,X
+@yt:    _VL_FACE_MINUS_POINT vl_yf, vl_yh, vl_box_y0, vl_w0
         LDX     #$41
 @yq:    PHA
         TXA
         ORA     vl_csgn
         STA     vl_csgn
         PLA
-        CMP     #_VL_CQLIM
-        BCS     @no
-.repeat 8 - VL_CIRC_Q
-        ASL     vl_w0
-        ROL     A
-.endrepeat
-        CMP     vl_crad
-        BCS     @no
-        STA     vl_qy
+        _VL_CONTACT_DISTANCE vl_qy, @no
 @yin:   JSR     vl_cnorm
         BCC     @hit
 @no:    CLC
@@ -293,35 +309,19 @@ vl_cbox1:
         LDA     vl_csgn
         AND     #$03
         BNE     @fout
-        LDA     vl_yf,X                 ; inside: the nearest face
-        STA     vl_pen                  ; (vl_pen: the best depth, vl_qx: face)
-        SEC
-        LDA     vl_yh,X
-        SBC     vl_box_y0,Y
+        ; Inside: start with the top face, then replace it only for a
+        ; strictly smaller depth. This keeps top, left, right, bottom tie order.
+        _VL_POINT_MINUS_FACE vl_yf, vl_yh, vl_box_y0, vl_pen
         STA     vl_pen+1
-        LDA     vl_xf,X                 ; left: x - x0
-        STA     vl_cj
-        SEC
-        LDA     vl_xl,X
-        SBC     vl_box_x0,Y
+        _VL_POINT_MINUS_FACE vl_xf, vl_xl, vl_box_x0, vl_cj
         STA     vl_cj+1
         LDA     #1
         JSR     vl_cmin
-        SEC                             ; right: x1 - x
-        LDA     #0
-        SBC     vl_xf,X
-        STA     vl_cj
-        LDA     vl_box_x1,Y
-        SBC     vl_xl,X
+        _VL_FACE_MINUS_POINT vl_xf, vl_xl, vl_box_x1, vl_cj
         STA     vl_cj+1
         LDA     #2
         JSR     vl_cmin
-        SEC                             ; bottom: y1 - y
-        LDA     #0
-        SBC     vl_yf,X
-        STA     vl_cj
-        LDA     vl_box_y1,Y
-        SBC     vl_yh,X
+        _VL_FACE_MINUS_POINT vl_yf, vl_yh, vl_box_y1, vl_cj
         STA     vl_cj+1
         LDA     #3
         JSR     vl_cmin
@@ -344,23 +344,11 @@ vl_cbox1:
         BCC     @ft
         CMP     #2
         BEQ     @fr
-        CLC                             ; bottom: y = y1 + r
-        LDA     #0
-        ADC     vl_vx
-        STA     vl_val
-        LDA     vl_box_y1,Y
-        ADC     vl_vx+1
-        STA     vl_val+1
+        _VL_BOX_EXIT vl_box_y1, ADC
         LDA     #0
         LDY     #$00
         BEQ     @fy
-@ft:    SEC                             ; top: y = y0 - r
-        LDA     #0
-        SBC     vl_vx
-        STA     vl_val
-        LDA     vl_box_y0,Y
-        SBC     vl_vx+1
-        STA     vl_val+1
+@ft:    _VL_BOX_EXIT vl_box_y0, SBC
         LDA     #0
         LDY     #$40
 @fy:    STA     vl_cnx
@@ -376,22 +364,10 @@ vl_cbox1:
         STA     vl_val+1
         JSR     vl_cadd_y2
         JMP     @fn
-@fr:    CLC                             ; right: x = x1 + r
-        LDA     #0
-        ADC     vl_vx
-        STA     vl_val
-        LDA     vl_box_x1,Y
-        ADC     vl_vx+1
-        STA     vl_val+1
+@fr:    _VL_BOX_EXIT vl_box_x1, ADC
         LDY     #$00
         BEQ     @fx
-@fl:    SEC                             ; left: x = x0 - r
-        LDA     #0
-        SBC     vl_vx
-        STA     vl_val
-        LDA     vl_box_x0,Y
-        SBC     vl_vx+1
-        STA     vl_val+1
+@fl:    _VL_BOX_EXIT vl_box_x0, SBC
         LDY     #$80
 @fx:    STY     vl_csgn
         LDA     #64
@@ -412,47 +388,22 @@ vl_cbox1:
 ; the point's speed: vn, vt on the normal, bounce, friction, rebuilt
 vl_cbvel:
         LDX     vl_cur
-        SEC                             ; v = pos - old
-        LDA     vl_xf,X
-        SBC     vl_oxf,X
-        STA     vl_vx
-        LDA     vl_xl,X
-        SBC     vl_oxl,X
-        STA     vl_vx+1
-        SEC
-        LDA     vl_yf,X
-        SBC     vl_oyf,X
-        STA     vl_vy
-        LDA     vl_yh,X
-        SBC     vl_oyh,X
-        STA     vl_vy+1
-        LDA     vl_vx                   ; vn = (vx nx + vy ny) >> 6
-        LDX     vl_vx+1
-        LDY     vl_csnx
-        JSR     mul_dir
+        _VL_CONTACT_VELOCITY vl_xf, vl_oxf, vl_xl, vl_oxl, vl_vx, vl_vx+1
+        _VL_CONTACT_VELOCITY vl_yf, vl_oyf, vl_yh, vl_oyh, vl_vy, vl_vy+1
+        ; vn = (vx nx + vy ny) >> 6
+        _VL_CONTACT_PRODUCT vl_vx, vl_csnx, 0
         JSR     mul_acc_set
-        LDA     vl_vy
-        LDX     vl_vy+1
-        LDY     vl_csny
-        JSR     mul_dir
+        _VL_CONTACT_PRODUCT vl_vy, vl_csny, 0
         JSR     mul_acc_add
         JSR     mul_acc_shr6
         LDA     mul_p1
         STA     vl_vn
         LDA     mul_p2
         STA     vl_vn+1
-        SEC                             ; vt = (vx (-ny) + vy nx) >> 6
-        LDA     #0
-        SBC     vl_csny
-        TAY
-        LDA     vl_vx
-        LDX     vl_vx+1
-        JSR     mul_dir
+        ; vt = (vx (-ny) + vy nx) >> 6
+        _VL_CONTACT_PRODUCT vl_vx, vl_csny, 1
         JSR     mul_acc_set
-        LDA     vl_vy
-        LDX     vl_vy+1
-        LDY     vl_csnx
-        JSR     mul_dir
+        _VL_CONTACT_PRODUCT vl_vy, vl_csnx, 0
         JSR     mul_acc_add
         JSR     mul_acc_shr6
         LDA     mul_p1
@@ -490,66 +441,23 @@ vl_cbvel:
         LDY     #8 - VL_CIRC_FRICTION
         JSR     vl_damp
 .endif
-        LDA     vl_vn                   ; vx = (vn nx + vt (-ny)) >> 6
-        LDX     vl_vn+1
-        LDY     vl_csnx
-        JSR     mul_dir
+        ; vx = (vn nx + vt (-ny)) >> 6
+        _VL_CONTACT_PRODUCT vl_vn, vl_csnx, 0
         JSR     mul_acc_set
-        SEC
-        LDA     #0
-        SBC     vl_csny
-        TAY
-        LDA     vl_vt
-        LDX     vl_vt+1
-        JSR     mul_dir
+        _VL_CONTACT_PRODUCT vl_vt, vl_csny, 1
         JSR     mul_acc_add
         JSR     mul_acc_shr6
-        LDX     vl_cur                  ; old x = x - vx
-        LDY     #0
-        LDA     mul_p2
-        BPL     :+
-        DEY
-:       STY     vl_w2
-        SEC
-        LDA     vl_xf,X
-        SBC     mul_p1
-        STA     vl_oxf,X
-        LDA     vl_xl,X
-        SBC     mul_p2
-        STA     vl_oxl,X
-        LDA     vl_xh,X
-        SBC     vl_w2
-        STA     vl_oxh,X
-        LDA     vl_vn                   ; vy = (vn ny + vt nx) >> 6
-        LDX     vl_vn+1
-        LDY     vl_csny
-        JSR     mul_dir
+        _VL_CONTACT_OLD_POSITION mul_p1, mul_p2, vl_xf, vl_oxf, vl_xl, vl_oxl, vl_xh, vl_oxh
+        ; vy = (vn ny + vt nx) >> 6
+        _VL_CONTACT_PRODUCT vl_vn, vl_csny, 0
         JSR     mul_acc_set
-        LDA     vl_vt
-        LDX     vl_vt+1
-        LDY     vl_csnx
-        JSR     mul_dir
+        _VL_CONTACT_PRODUCT vl_vt, vl_csnx, 0
         JSR     mul_acc_add
         JSR     mul_acc_shr6
-        LDX     vl_cur                  ; old y = y - vy
 .ifdef VL_Y_HIGH
-        LDY     #0
-        LDA     mul_p2
-        BPL     :+
-        DEY
-:       STY     vl_w2
-.endif
-        SEC
-        LDA     vl_yf,X
-        SBC     mul_p1
-        STA     vl_oyf,X
-        LDA     vl_yh,X
-        SBC     mul_p2
-        STA     vl_oyh,X
-.ifdef VL_Y_HIGH
-        LDA     vl_yu,X
-        SBC     vl_w2
-        STA     vl_oyu,X
+        _VL_CONTACT_OLD_POSITION mul_p1, mul_p2, vl_yf, vl_oyf, vl_yh, vl_oyh, vl_yu, vl_oyu
+.else
+        _VL_CONTACT_OLD_POSITION mul_p1, mul_p2, vl_yf, vl_oyf, vl_yh, vl_oyh
 .endif
         SEC
         RTS
@@ -573,6 +481,83 @@ vl_cmin:
 
 ; ----------------------------------------------------------------------------
 .ifref vl_contact_pair
+; Multiply one component of (velocity B - velocity A) by the signed normal.
+.macro _VL_RELATIVE_PRODUCT frac, old_frac, whole, old_whole, normal
+        LDX     vl_ca
+        _VL_CONTACT_VELOCITY frac, old_frac, whole, old_whole, vl_val, vl_val+1
+        LDX     vl_cb
+        _VL_CONTACT_VELOCITY frac, old_frac, whole, old_whole, vl_w0, vl_w1
+        SEC
+        LDA     vl_w0
+        SBC     vl_val
+        STA     vl_w0
+        LDA     vl_w1
+        SBC     vl_val+1
+        TAX
+        LDA     vl_w0
+        LDY     normal
+        JSR     mul_dir
+.endmacro
+
+; Move both the current and old positions to separate the points without
+; changing velocity. BIT tests the sign of the normal in N (x) or V (y).
+.macro _VL_CONTACT_PUSH normal, branch_negative, add_move, sub_move, done
+        LDA     normal
+        JSR     vl_cpent
+        JSR     vl_cshare
+        LDX     vl_ca
+        BIT     vl_csgn
+        branch_negative :+
+        JSR     sub_move
+        JSR     vl_cvn_val
+        LDX     vl_cb
+        JSR     add_move
+        JMP     done
+:       JSR     add_move
+        JSR     vl_cvn_val
+        LDX     vl_cb
+        JSR     sub_move
+.endmacro
+
+; Apply each point's share of the impulse to its old position. A zero
+; component skips the axis; equal shares reuse the product in vl_val.
+.macro _VL_CONTACT_IMPULSE normal, branch_negative, add_move, sub_move, done
+        LDA     normal
+        BEQ     done
+        LDA     vl_cj
+        LDX     vl_cj+1
+        LDY     normal
+        JSR     vl_cjmul
+        LDA     #_VL_COFF
+        CLC
+        ADC     vl_ca
+        TAX
+        BIT     vl_csgn
+        branch_negative :+
+        JSR     add_move
+        JMP     :++
+:       JSR     sub_move
+:       LDA     vl_vn                   ; b's share: the same product?
+        CMP     vl_cj
+        BNE     :+
+        LDX     vl_vn+1
+        CPX     vl_cj+1
+        BEQ     :++
+:       LDX     vl_vn+1
+        LDY     normal
+        JSR     vl_cjmul
+:
+        LDA     #_VL_COFF
+        CLC
+        ADC     vl_cb
+        TAX
+        BIT     vl_csgn
+        branch_negative :+
+        JSR     sub_move
+        JMP     done
+:       JSR     add_move
+.endmacro
+
 vl_contact_pair:
         STA     vl_crad
         CLC                             ; whole pixels first (mod 256, safe):
@@ -658,15 +643,7 @@ vl_contact_pair:
         LDA     #$80
         STA     vl_csgn
 @xp:    LDA     vl_w1
-        CMP     #_VL_CQLIM
-        BCS     @no
-.repeat 8 - VL_CIRC_Q
-        ASL     vl_w0
-        ROL     A
-.endrepeat
-        CMP     vl_crad
-        BCS     @no
-        STA     vl_qx
+        _VL_CONTACT_DISTANCE vl_qx, @no
         SEC                             ; dy = b - a
         LDA     vl_yf,X
         SBC     vl_yf,Y
@@ -697,15 +674,7 @@ vl_contact_pair:
         ORA     vl_csgn
         STA     vl_csgn
 @yp:    LDA     vl_w1
-        CMP     #_VL_CQLIM
-        BCS     @no
-.repeat 8 - VL_CIRC_Q
-        ASL     vl_w0
-        ROL     A
-.endrepeat
-        CMP     vl_crad
-        BCS     @no
-        STA     vl_qy
+        _VL_CONTACT_DISTANCE vl_qy, @no
         JSR     vl_cnorm
         BCS     @no
         BNE     :+
@@ -716,59 +685,9 @@ vl_contact_pair:
         STA     vl_csgn
 :       JSR     vl_csigned
         ; the relative speed along n (the push moves pos and old: the same)
-        LDX     vl_ca                   ; rvx = (xb - oxb) - (xa - oxa)
-        SEC
-        LDA     vl_xf,X
-        SBC     vl_oxf,X
-        STA     vl_val
-        LDA     vl_xl,X
-        SBC     vl_oxl,X
-        STA     vl_val+1
-        LDX     vl_cb
-        SEC
-        LDA     vl_xf,X
-        SBC     vl_oxf,X
-        STA     vl_w0
-        LDA     vl_xl,X
-        SBC     vl_oxl,X
-        STA     vl_w1
-        SEC
-        LDA     vl_w0
-        SBC     vl_val
-        STA     vl_w0
-        LDA     vl_w1
-        SBC     vl_val+1
-        TAX
-        LDA     vl_w0
-        LDY     vl_csnx
-        JSR     mul_dir
+        _VL_RELATIVE_PRODUCT vl_xf, vl_oxf, vl_xl, vl_oxl, vl_csnx
         JSR     mul_acc_set
-        LDX     vl_ca                   ; rvy
-        SEC
-        LDA     vl_yf,X
-        SBC     vl_oyf,X
-        STA     vl_val
-        LDA     vl_yh,X
-        SBC     vl_oyh,X
-        STA     vl_val+1
-        LDX     vl_cb
-        SEC
-        LDA     vl_yf,X
-        SBC     vl_oyf,X
-        STA     vl_w0
-        LDA     vl_yh,X
-        SBC     vl_oyh,X
-        STA     vl_w1
-        SEC
-        LDA     vl_w0
-        SBC     vl_val
-        STA     vl_w0
-        LDA     vl_w1
-        SBC     vl_val+1
-        TAX
-        LDA     vl_w0
-        LDY     vl_csny
-        JSR     mul_dir
+        _VL_RELATIVE_PRODUCT vl_yf, vl_oyf, vl_yh, vl_oyh, vl_csny
         JSR     mul_acc_add
         JSR     mul_acc_shr6            ; vn = p2:p1
         LDA     mul_p1
@@ -818,36 +737,8 @@ vl_contact_pair:
 @awake:
 .endif
         ; the push: (pen |n|) >> (6 - Q) per axis, shared, pos and old pos
-        LDA     vl_cnx
-        JSR     vl_cpent
-        JSR     vl_cshare
-        LDX     vl_ca
-        BIT     vl_csgn
-        BMI     :+
-        JSR     vl_csub_x2              ; n x > 0: a left, b right
-        JSR     vl_cvn_val
-        LDX     vl_cb
-        JSR     vl_cadd_x2
-        JMP     @py
-:       JSR     vl_cadd_x2
-        JSR     vl_cvn_val
-        LDX     vl_cb
-        JSR     vl_csub_x2
-@py:    LDA     vl_cny
-        JSR     vl_cpent
-        JSR     vl_cshare
-        LDX     vl_ca
-        BIT     vl_csgn
-        BVS     :+
-        JSR     vl_csub_y2
-        JSR     vl_cvn_val
-        LDX     vl_cb
-        JSR     vl_cadd_y2
-        JMP     @imp
-:       JSR     vl_cadd_y2
-        JSR     vl_cvn_val
-        LDX     vl_cb
-        JSR     vl_csub_y2
+        _VL_CONTACT_PUSH vl_cnx, BMI, vl_cadd_x2, vl_csub_x2, @py
+@py:    _VL_CONTACT_PUSH vl_cny, BVS, vl_cadd_y2, vl_csub_y2, @imp
 @imp:   LDA     vl_vy+1
         BMI     @close
         SEC                             ; separating: contact, no impulse
@@ -878,74 +769,8 @@ vl_contact_pair:
 @inel:
 .endif
         JSR     vl_cshare               ; vl_cj = a's part, vl_vn = b's
-        LDA     vl_cnx                  ; x: old a +=, old b -= (j |nx|) >> 6
-        BEQ     @jy
-        LDA     vl_cj
-        LDX     vl_cj+1
-        LDY     vl_cnx
-        JSR     vl_cjmul
-        LDA     #_VL_COFF
-        CLC
-        ADC     vl_ca
-        TAX
-        BIT     vl_csgn
-        BMI     :+
-        JSR     vl_add_xv
-        JMP     :++
-:       JSR     vl_sub_xv
-:       LDA     vl_vn                   ; b's share: the same product?
-        CMP     vl_cj
-        BNE     :+
-        LDX     vl_vn+1
-        CPX     vl_cj+1
-        BEQ     :++
-:       LDX     vl_vn+1
-        LDY     vl_cnx
-        JSR     vl_cjmul
-:
-        LDA     #_VL_COFF
-        CLC
-        ADC     vl_cb
-        TAX
-        BIT     vl_csgn
-        BMI     :+
-        JSR     vl_sub_xv
-        JMP     @jy
-:       JSR     vl_add_xv
-@jy:    LDA     vl_cny                  ; y
-        BEQ     @done
-        LDA     vl_cj
-        LDX     vl_cj+1
-        LDY     vl_cny
-        JSR     vl_cjmul
-        LDA     #_VL_COFF
-        CLC
-        ADC     vl_ca
-        TAX
-        BIT     vl_csgn
-        BVS     :+
-        JSR     vl_add_yv
-        JMP     :++
-:       JSR     vl_sub_yv
-:       LDA     vl_vn                   ; b's share: the same product?
-        CMP     vl_cj
-        BNE     :+
-        LDX     vl_vn+1
-        CPX     vl_cj+1
-        BEQ     :++
-:       LDX     vl_vn+1
-        LDY     vl_cny
-        JSR     vl_cjmul
-:
-        LDA     #_VL_COFF
-        CLC
-        ADC     vl_cb
-        TAX
-        BIT     vl_csgn
-        BVS     :+
-        JSR     vl_sub_yv
-        JMP     @done
-:       JSR     vl_add_yv
+        _VL_CONTACT_IMPULSE vl_cnx, BMI, vl_add_xv, vl_sub_xv, @jy
+@jy:    _VL_CONTACT_IMPULSE vl_cny, BVS, vl_add_yv, vl_sub_yv, @done
 @done:  SEC
         RTS
 

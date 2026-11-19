@@ -322,6 +322,63 @@ vl_lap_len: .word 0
 
 .segment "CODE"
 
+; Signed 16-bit separation of points B and A on both axes. Used inline
+; by fast constraints and by the callable vl_delta_ab entry.
+.macro _VL_DELTA_AB
+        LDX     vl_cb
+        LDY     vl_ca
+        SEC
+        LDA     vl_xf,X
+        SBC     vl_xf,Y
+        STA     vl_dx
+        LDA     vl_xl,X
+        SBC     vl_xl,Y
+        STA     vl_dx+1
+        SEC
+        LDA     vl_yf,X
+        SBC     vl_yf,Y
+        STA     vl_dy
+        LDA     vl_yh,X
+        SBC     vl_yh,Y
+        STA     vl_dy+1
+.endmacro
+
+; A signed 8.8 offset needs a third byte only on a 24-bit axis.
+; Keep that sign in Y so a paired correction can reuse it for both points.
+.macro _VL_OFFSET_SIGN high, wide
+        .if wide
+        LDY     #0
+        LDA     high
+        BPL     :+
+        DEY
+:
+        .endif
+.endmacro
+
+; Apply ADC or SBC to point X. On a wide axis Y holds the sign extension;
+; ADC with the complemented sign propagates a subtraction's borrow.
+.macro _VL_APPLY_OFFSET op, low, high, frac, whole, upper, wide
+        .if .xmatch({op}, {SBC})
+        SEC
+        .else
+        CLC
+        .endif
+        LDA     frac,X
+        op      low
+        STA     frac,X
+        LDA     whole,X
+        op      high
+        STA     whole,X
+        .if wide
+        TYA
+        .if .xmatch({op}, {SBC})
+        EOR     #$FF
+        .endif
+        ADC     upper,X
+        STA     upper,X
+        .endif
+.endmacro
+
 ; ----------------------------------------------------------------------------
 ; VL_CLAMP_VAL lim -- vl_val = clamp(vl_val, -lim, lim), signed; ends in RTS
 ; (the body of vl_clamp_vx / vl_clamp_vy). ~25 cycles.

@@ -151,7 +151,7 @@ SEGMENTS {
         objects=[]
         for src in (source,kernel,DEV/'lib/hgrc/hgr_columns.s',DEV/'lib/hgrc/hgr_phases.s'):
             obj=work/(src.stem+'.o');objects.append(obj)
-            run(['ca65',*(['-D','HGRC_X7_FOLDED=1'] if args.folded else []),'-o',obj,src])
+            run(['ca65','-I',DEV/'lib/hgrc',*(['-D','HGRC_X7_FOLDED=1'] if args.folded else []),'-o',obj,src])
         binary=work/'fixture.bin';labels=work/'fixture.lbl'
         run(['ld65','-C',cfg,'-Ln',labels,'-o',binary,*objects])
         L=a2test.labels(labels);disk=a2test.build_disk(work,'TEST',binary) if args.iie else None

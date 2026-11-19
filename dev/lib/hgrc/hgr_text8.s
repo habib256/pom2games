@@ -2,31 +2,14 @@
 ; hgr_puts8(unsigned x, byte y, string*), cc65 fastcall.
 ; A/X = string pointer, C stack = y, x low, x high.
 ; Native white 8x8 text; retain lazy table builds even on rejected calls.
+.include "hgr_text_origin.inc"
 .export _hgr_puts8
 .import _hgr_build_rows, _hgr_build_columns, _hgr_build_phases
 .import _hgr_col7, _hgr_phase7, _hgr_font, _hgr_puts_run8, incsp3
 .importzp sp, _hgr_g_y, _hgr_t_col, _hgr_t_bit, _hgr_t_n, _hgr_t_s, _hgr_t_font
 .code
 _hgr_puts8:
-        sta _hgr_t_s             ; builders do not touch the string state
-        stx _hgr_t_s+1
-        jsr _hgr_build_rows
-        jsr _hgr_build_columns
-        jsr _hgr_build_phases
-        ldy #0
-        lda (sp),y
-        cmp #185
-        bcs done
-        sta _hgr_g_y
-        ldy #2
-        lda (sp),y
-        beq low_x
-        cmp #1
-        bne done
-        dey
-        lda (sp),y
-        cmp #18
-        bcs done                ; x > 273
+        hgr_text_origin 8, 273, low_x, done
         tax
         lda _hgr_col7+256,x
         ldy _hgr_phase7+256,x

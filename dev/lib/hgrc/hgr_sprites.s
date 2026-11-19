@@ -9,6 +9,7 @@
 .importzp sp, tmp4
 .importzp _hgr_b_col, _hgr_b_mask, _hgr_b_w, _hgr_b_h, _hgr_b_stride
 .importzp _hgr_b_y, _hgr_b_mode, _hgr_b_src
+.include "hgr_blit_frame.inc"
 .code
 _hgr_blit:
         sta tmp4                ; all three builders preserve tmp4
@@ -25,17 +26,7 @@ _hgr_blit:
         dey
         lda (sp),y
         beq outside             ; height zero
-        ldy #6
-        lda (sp),y
-        beq low_x
-        cmp #1
-        bne outside
-        dey
-        lda (sp),y
-        cmp #24
-        bcs outside             ; x >= 280
-        tax
-        lda _hgr_col7+256,x
+        hgr_blit_high_column low_x, outside
         ldy _hgr_mask7+256,x
         bcc column              ; CMP #24 left C=0
 outside:
@@ -75,24 +66,6 @@ column:
         sta _hgr_b_w
 width_ready:
         ldy #4
-        lda (sp),y
-        sta _hgr_b_y
-        lda #192
-        sec
-        sbc _hgr_b_y
-        ldy #2
-        cmp (sp),y              ; min(height, 192-y), without sum overflow
-        bcc height_ready
-        lda (sp),y
-height_ready:
-        sta _hgr_b_h
-        ldy #0
-        lda (sp),y
-        sta _hgr_b_src
-        iny
-        lda (sp),y
-        sta _hgr_b_src+1
-        lda tmp4
-        sta _hgr_b_mode
+        hgr_blit_prepare_rows
         jsr _hgr_blit_run
         jmp incsp7

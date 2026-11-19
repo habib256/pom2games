@@ -16,6 +16,7 @@
 ; stores (~30 cycles); RAMWRT is main again before each plp. Bit 7 of every
 ; byte is 0. A/X/Y, tmp1-tmp4, ptr1/ptr2 destroyed; non-reentrant, never from an
 ; IRQ. DHGR_SPR_PACK_TABLES is accepted and has no effect (one table now).
+.include "dhgr_spr_segment.inc"
 .include "apple2.inc"
 ; DHGR_SPR_CANVAS = 1: the canvas is the program's symbol dhgr_spr_canvas
 ; (the buffer it always gives dhgr_spr_init), assembled into the operands:
@@ -43,15 +44,7 @@ left:   .res 1                  ; rows still to write
 _dhgr_spr_goff: .res 1          ; 2 * first group: the row's first bank offset
 _dhgr_spr_gend: .res 1          ; 2 * (last group + 1)
 
-.if .defined(DHGR_SPR_CODE_SEGMENT)
-.if DHGR_SPR_CODE_SEGMENT
-.segment "DHGRSPRCODE"
-.else
-.code
-.endif
-.else
-.code
-.endif
+dhgr_spr_segment "CODE"
 
 ; void dhgr_spr_blit(void): the piece's rows y0..y0+h-1, groups goff/2 on.
 _dhgr_spr_blit:
@@ -166,13 +159,7 @@ dhgr_cv_patch:
 
 .endif
 
-.if .defined(DHGR_SPR_CODE_SEGMENT)
-.if !DHGR_SPR_CODE_SEGMENT
-.rodata
-.endif
-.else
-.rodata
-.endif
+dhgr_spr_segment "RODATA"
 .if !DHGR_SPR_CANVAS
 ; Parallel arrays keep one index per operand (c0 is patched last).
 patch_lo:

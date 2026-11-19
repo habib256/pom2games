@@ -4,6 +4,7 @@
 ; dhgr_spr_update's background jump by the setters, so a program that keeps
 ; a solid background does not link this member. The C callback may use any
 ; cc65 scratch; the loop keeps its state in BSS. Non-reentrant, no IRQ.
+.include "dhgr_spr_segment.inc"
 .export _dhgr_spr_cells, _dhgr_spr_tiles, _dhgr_cv_rect
 .import _dhgr_cellbyte, pusha, popa, popax, incsp4
 .import cv_rx, cv_ry, cv_nib, cv_nibble, dhgr_cv_fill
@@ -28,15 +29,7 @@ crow:   .res 1
 cg0:    .res 1
 clast:  .res 1
 
-.if .defined(DHGR_SPR_CODE_SEGMENT)
-.if DHGR_SPR_CODE_SEGMENT
-.segment "DHGRSPRCODE"
-.else
-.code
-.endif
-.else
-.code
-.endif
+dhgr_spr_segment "CODE"
 
 ; void dhgr_spr_tiles(ox, oy, cell_h, map, map_w, set): set in A/X.
 _dhgr_spr_tiles:
