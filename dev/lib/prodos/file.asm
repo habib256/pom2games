@@ -56,12 +56,30 @@ PF_LOAD = 1
 PF_LOAD = 0
 .endif
 
-prodos_open:
+; The static MLI command and parameter address follow the JSR inline.
+.macro pf_mli command, params
+        jsr $BF00
+        .byte command
+        .word params
+.endmacro
+
+.macro pf_clear_actual
         stz pf_got
         stz pf_got+1
-        jsr $BF00
-        .byte $C8                ; OPEN
-        .word pf_open
+.endmacro
+
+; Save or restore the 24 bitmap bytes covering main RAM below $C000.
+.macro pf_copy_bitmap src, dst
+        ldx #23
+:       lda src,x
+        sta dst,x
+        dex
+        bpl :-
+.endmacro
+
+prodos_open:
+        pf_clear_actual
+        pf_mli $C8, pf_open           ; OPEN
         bcs pf_fail
         lda pf_ref
         sta pf_rw_ref
@@ -69,9 +87,7 @@ prodos_open:
         bra pf_result
 
 prodos_close:
-        jsr $BF00
-        .byte $CC                ; CLOSE
-        .word pf_close
+        pf_mli $CC, pf_close          ; CLOSE
 
 pf_result:
         bcs pf_fail
@@ -92,9 +108,7 @@ prodos_save:
         sta pf_create_name
         lda pf_name+1
         sta pf_create_name+1
-        jsr $BF00
-        .byte $C0                ; CREATE
-        .word pf_create
+        pf_mli $C0, pf_create         ; CREATE
         bcs pf_fail
         jsr prodos_open
         bcs pf_load_done
@@ -106,9 +120,7 @@ prodos_save:
         sta pf_eof_pos
         lda pf_got+1
         sta pf_eof_pos+1
-        jsr $BF00
-        .byte $D0                ; SET_EOF (truncate an existing longer file)
-        .word pf_eof
+        pf_mli $D0, pf_eof            ; SET_EOF (truncate an existing longer file)
         bra pf_finish_close
 .endif
 
@@ -119,9 +131,7 @@ prodos_load_at:
         bcs pf_load_done
         lda pf_rw_ref
         sta pf_mark_ref
-        jsr $BF00
-        .byte $CE                ; SET_MARK
-        .word pf_mark_list
+        pf_mli $CE, pf_mark_list      ; SET_MARK
         bcs pf_finish_close      ; A = its error code
         bra pf_load_read         ; OPEN already cleared the actual count
 .endif
@@ -244,11 +254,7 @@ prodos_read_free:
         bcs @bad_buffer
         sta pf_last
         phy
-        ldx #23
-:       lda $BF58,x
-        sta pf_bitmap,x
-        dex
-        bpl :-
+        pf_copy_bitmap $BF58, pf_bitmap
         ldy pf_buf+1
 @page:  tya
         lsr a
@@ -271,18 +277,13 @@ prodos_read_free:
 @read:  jsr prodos_read
         php
         pha
-        ldx #23
-:       lda pf_bitmap,x
-        sta $BF58,x
-        dex
-        bpl :-
+        pf_copy_bitmap pf_bitmap, $BF58
         pla
         plp
         ply
         rts
 @bad_buffer:
-        stz pf_got
-        stz pf_got+1
+        pf_clear_actual
         lda #$56
         jmp pf_fail
 pf_last = @last+1
@@ -291,22 +292,16 @@ pf_bits:    .byte $80, $40, $20, $10, $08, $04, $02, $01
 
 .if .referenced(prodos_read) .or .referenced(prodos_read_free) .or PF_LOAD
 prodos_read:
-        stz pf_got
-        stz pf_got+1
+        pf_clear_actual
 pf_read_from_open:
-        jsr $BF00
-        .byte $CA                ; READ
-        .word pf_rw
+        pf_mli $CA, pf_rw             ; READ
         jmp pf_result
 .endif
 
 .ifref prodos_write
 prodos_write:
-        stz pf_got
-        stz pf_got+1
-        jsr $BF00
-        .byte $CB                ; WRITE
-        .word pf_rw
+        pf_clear_actual
+        pf_mli $CB, pf_rw             ; WRITE
         jmp pf_result
 .endif
 
@@ -349,3 +344,8 @@ pa_page:    .byte 0
 .ifref prodos_read_free
 pf_bitmap:  .res 24
 .endif
+
+; A client can include a second copy in another scope.
+.delmacro pf_copy_bitmap
+.delmacro pf_clear_actual
+.delmacro pf_mli

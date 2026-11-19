@@ -54,7 +54,7 @@ HGRC_ALL_SRCS := $(sort $(HGRC_CORE_SRCS) $(HGRC_PIXEL_SRCS) $(HGRC_RECT_SRCS) \
 HGRC_INCS := -I $(HGRC) -I $(GFX)
 HGRC_AFLAGS := -I $(HGRC) -I $(HGRC)/../apple2
 HGRC_HEADERS := $(wildcard $(HGRC)/*.h $(HGRC)/*.inc $(HGRC)/../font/*.inc $(HGRC)/../apple2c/*.h $(GFX)/*.h)
-HGRC_ASM_DEPS := $(wildcard $(HGRC)/*.inc $(HGRC)/../apple2/*.inc $(HGRC)/../apple2/*.asm)
+HGRC_ASM_DEPS := $(wildcard $(GFX)/*.inc $(HGRC)/*.inc $(HGRC)/../apple2/*.inc $(HGRC)/../apple2/*.asm)
 
 # X2 C references: hgr_x2.c (host), hgr_x2_target_ref.c (cc65); native members above.
 # IIe/IIc DHGR stays opt-in, independent from HGR and gfx.

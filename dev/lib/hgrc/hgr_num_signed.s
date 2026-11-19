@@ -2,36 +2,13 @@
 ; hgr_puti(x,y,value), cc65 fastcall: A/X=signed value, C stack=y,xlo,xhi.
 ; Seven-byte local buffer, including sign and NUL. Relocate the coordinates
 ; to the new top so the text call consumes them without a second copy.
+.include "hgr_num_frame.inc"
 .export _hgr_puti
 .import addysp, _hgr_utoa, _hgr_puts
 .importzp sp, _hgr_u_lo, _hgr_u_hi, _hgr_u_ptr, _hgr_t_s
 .code
 _hgr_puti:
-        sta _hgr_u_lo
-        stx _hgr_u_hi
-        ; Value bytes are saved; A need not survive the reservation.
-        lda sp
-        sec
-        sbc #7
-        sta sp
-        bcs allocated
-        dec sp+1
-allocated:
-        .repeat 3, I
-        ldy #7+I
-        lda (sp),y
-        ldy #I
-        sta (sp),y
-        .endrepeat
-        clc
-        lda sp
-        adc #3
-        sta _hgr_u_ptr
-        sta _hgr_t_s             ; retain the buffer start if digits follow '-'
-        lda sp+1
-        adc #0
-        sta _hgr_u_ptr+1
-        sta _hgr_t_s+1
+        hgr_decimal_frame 7, _hgr_t_s
         lda _hgr_u_hi
         bpl convert
         ldy #0
@@ -53,6 +30,4 @@ convert:
         jsr _hgr_utoa            ; preserves the existing text-source pointer
         lda _hgr_t_s
         ldx _hgr_t_s+1
-        jsr _hgr_puts
-        ldy #7                  ; text already consumed the three coordinates
-        jmp addysp
+        hgr_draw_number _hgr_puts, 7

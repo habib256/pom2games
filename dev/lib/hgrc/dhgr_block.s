@@ -1,4 +1,5 @@
 ; VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root).
+.include "dhgr_transfer_row.inc"
 .export dhgr_transfer
 .import _dhgr_addr, _dhgr_aux, _dhgr_base, _dhgr_buffer, _dhgr_count
 .import dhgr_rowlo, dhgr_rowhi, _dhgr_read_block_asm, _dhgr_write_block_asm
@@ -57,10 +58,7 @@ dhgr_transfer:
         lda tmp3
         lsr
         sta tmp3
-        lda #0
-        rol
-        eor #1
-        sta _dhgr_aux
+        dhgr_select_byte_bank
         lda tmp3
         ora tmp2
         ldy #5
@@ -72,18 +70,9 @@ dhgr_transfer:
         iny
         lda (sp),y
         and #$3F
-        clc
-        adc dhgr_rowlo,x        ; visible row + column never carries
-        sta _dhgr_addr
-        lda dhgr_rowhi,x
-        ora _dhgr_base
-        sta _dhgr_addr+1
+        dhgr_set_row_address
         ldy #0
-        lda (sp),y
-        sta _dhgr_buffer
-        iny
-        lda (sp),y
-        sta _dhgr_buffer+1
+        dhgr_load_buffer_pointer _dhgr_buffer
         ldy #5
         lda (sp),y
         bmi @read
@@ -91,17 +80,7 @@ dhgr_transfer:
         jmp @advance
 @read: jsr _dhgr_read_block_asm
 @advance:
-        ldy #2
-        lda (sp),y
-        sec
-        sbc #1
-        sta (sp),y
-        beq @done
-        ldy #4
-        lda (sp),y
-        clc
-        adc #1
-        sta (sp),y
+        dhgr_next_transfer_row 2, 4, @done
         ldy #3
         lda (sp),y
         ldy #0
@@ -113,10 +92,4 @@ dhgr_transfer:
         adc #0
         sta (sp),y
         jmp @row
-@done: lda sp
-        clc
-        adc #6
-        sta sp
-        bcc :+
-        inc sp+1
-:       rts
+@done:  dhgr_return_from_transfer 6

@@ -1,4 +1,5 @@
 ; VERHILLE Arnaud — GPL-3.0. Shared DHGR point address, bank and mask.
+.include "dhgr_pixel_address.inc"
 .export dhgr_locate
 .import _dhgr_base, dhgr_rowlo, dhgr_rowhi, _dhgr_cellbyte, _dhgr_cellphase
 .importzp ptr1, tmp1, tmp2
@@ -19,21 +20,9 @@ dhgr_locate:
 @in:    sta tmp1
         and #3
         sta tmp2
-        lda dhgr_rowlo,y
-        sta ptr1
-        lda dhgr_rowhi,y
-        ora _dhgr_base
+        dhgr_scanline_address
         sta ptr1+1
-        txa
-        lsr
-        ror tmp1
-        lsr
-        ror tmp1
-        ldx tmp1                ; x >> 2: color cell 0..139
-        lda _dhgr_cellphase,x
-        clc
-        adc tmp2
-        tay
+        dhgr_pixel_cell_phase
         lda bitmask,y
         sta tmp2
         cpy #7                  ; C = the bit lies in the next byte

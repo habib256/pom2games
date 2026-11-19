@@ -4,6 +4,7 @@
 ; 7-bit bytes, so a glyph row is four table lookups ORed into 5-6 bytes.
 ; Non-reentrant; destroys A/X/Y, ptr1..ptr4/tmp1..tmp3. aux_read preserves
 ; the row geometry in ptr4; the string cursor lives separately in ptr3.
+.include "dhgr_pixel_address.inc"
 .include "apple2.inc"
 .export _dhgr_puts
 .import _hgr_font, _dhgr_base, dhgr_rowlo, dhgr_rowhi, _dhgr_cellbyte, _dhgr_cellphase
@@ -179,10 +180,7 @@ _dhgr_puts:
         clc
         adc ypos
         tay
-        lda dhgr_rowlo,y
-        sta ptr1
-        lda dhgr_rowhi,y
-        ora _dhgr_base
+        dhgr_scanline_address
         sta ptr1+1
         ldx #0
         php

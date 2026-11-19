@@ -3,6 +3,7 @@
 ; A = ASCII digit or space. Main RAM/ZP, D=0. IRQ flags/banks unchanged.
 ; Reuses text parameters, destroys A/X/Y, ptr1..ptr4/tmp1..tmp4.
 ; Non-reentrant; the controller restores its field pointer after each cell.
+.include "hgr_glyph_double.inc"
 .export _hgr_hud_cell_run, _hgr_hud_cell_width
 .import _hgr_font, _hgr_rowlo, _hgr_rowhi, glyph_addr, hgr_dbl_lo, hgr_dbl_hi
 .importzp _hgr_g_col, _hgr_g_bit, _hgr_g_y, _hgr_g_glyph, _hgr_t_font
@@ -76,42 +77,11 @@ _hgr_hud_cell_run:
         dex
         sta keep_tail-2,x       ; last column is 2 or 3 (width 16/18)
 @rows:
-        lda row
-        asl                     ; row < 8, so C=0 for the addition
-        adc _hgr_g_y
-        tay
-        lda _hgr_rowlo,y
-        sta ptr1
-        lda _hgr_rowhi,y
-        sta ptr1+1
-        iny
-        lda _hgr_rowlo,y
-        sta ptr2
-        lda _hgr_rowhi,y
-        sta ptr2+1
-        ; Doubled and shifted by the pen bit through hgr_glyph_shift.s.
+        hgr_glyph_row_pair row
         ldy row
         lda (_hgr_g_glyph),y
         tax
-        and #15
-        ora shift
-        tay
-        lda hgr_dbl_lo,y
-        sta m0
-        lda hgr_dbl_hi,y
-        sta m1
-        txa
-        lsr
-        lsr
-        lsr
-        lsr
-        ora shift
-        tay
-        lda hgr_dbl_lo,y
-        ora m1
-        sta m1
-        lda hgr_dbl_hi,y
-        sta m2
+        hgr_expand_glyph_row shift, m0, m1, m2
         ldy _hgr_g_col
         lda m0
         and #$7f

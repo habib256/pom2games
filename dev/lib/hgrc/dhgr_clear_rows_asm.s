@@ -9,6 +9,7 @@
 ; five cycles a byte. Only the page byte of those operands is patched, while
 ; RAMWRT is main (under RAMWRTON the write would reach the auxiliary copy
 ; of this code).
+.include "dhgr_pixel_address.inc"
 .include "apple2.inc"
 .export _dhgr_clear_row_asm, _dhgr_clear_rows_asm
 .import _dhgr_addr, _dhgr_pattern, _dhgr_base, dhgr_rowlo, dhgr_rowhi
@@ -21,10 +22,7 @@ _dhgr_clear_rows_asm:
         sta tmp4
         stx tmp3
 @row:   ldy tmp4
-        lda dhgr_rowlo,y
-        sta ptr1
-        lda dhgr_rowhi,y
-        ora _dhgr_base
+        dhgr_scanline_address
         jsr clear_row
         inc tmp4
         dec tmp3

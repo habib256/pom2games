@@ -7,6 +7,7 @@
 .import _hgr_line_asm, _hgr_hline, _hgr_vline, incsp1, incsp2, incsp5
 .import _hgr_l_x0, _hgr_l_x1, _hgr_l_y0, _hgr_l_y1
 .importzp sp
+.include "hgr_clip_axes.inc"
 .code
 rejected:
         jmp incsp5
@@ -19,32 +20,10 @@ _hgr_line:
         cmp #192
         bcs rejected
         sta _hgr_l_y0
-        ldy #4
-        lda (sp),y
-        cmp #2
-        bcs rejected
-        sta _hgr_l_x0+1
-        tax
-        dey
-        lda (sp),y
-        sta _hgr_l_x0
-        cpx #0
-        beq x0_ready
-        cmp #24
+        hgr_load_pixel_x 4, _hgr_l_x0, x0_ready, rejected
         bcs rejected
 x0_ready:
-        ldy #1
-        lda (sp),y
-        cmp #2
-        bcs rejected
-        sta _hgr_l_x1+1
-        tax
-        dey
-        lda (sp),y
-        sta _hgr_l_x1
-        cpx #0
-        beq x1_ready
-        cmp #24
+        hgr_load_pixel_x 1, _hgr_l_x1, x1_ready, rejected
         bcs rejected
 x1_ready:
         lda _hgr_l_y0

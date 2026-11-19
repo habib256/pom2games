@@ -85,72 +85,21 @@ _VERLET_CON_ASM_LOADED_ = 1
 :       LDA     #180
 :
 .endmacro
-; point vl_ca x += c, point vl_cb x -= c, c = mul_p1:mul_p2 (signed 8.8)
-.macro _VL_CORR_X
-        LDY     #0
-        LDA     mul_p2
-        BPL     :+
-        DEY
-:       LDX     vl_ca
-        CLC
-        LDA     vl_xf,X
-        ADC     mul_p1
-        STA     vl_xf,X
-        LDA     vl_xl,X
-        ADC     mul_p2
-        STA     vl_xl,X
-        TYA                             ; keep the sign in Y, without staging
-        ADC     vl_xh,X
-        STA     vl_xh,X
-        LDX     vl_cb
-        SEC
-        LDA     vl_xf,X
-        SBC     mul_p1
-        STA     vl_xf,X
-        LDA     vl_xl,X
-        SBC     mul_p2
-        STA     vl_xl,X
-        TYA                             ; SBC sign = ADC complemented sign
-        EOR     #$FF
-        ADC     vl_xh,X
-        STA     vl_xh,X
-.endmacro
-; the same on y (16 bits; VL_Y_HIGH: 24)
-.macro _VL_CORR_Y
-.ifdef VL_Y_HIGH
-        LDY     #0
-        LDA     mul_p2
-        BPL     :+
-        DEY
-:
-.endif
+; Apply opposite signed 8.8 corrections to the two ends of a constraint.
+.macro _VL_CORR_AXIS frac, whole, upper, wide
+        _VL_OFFSET_SIGN mul_p2, wide
         LDX     vl_ca
-        CLC
-        LDA     vl_yf,X
-        ADC     mul_p1
-        STA     vl_yf,X
-        LDA     vl_yh,X
-        ADC     mul_p2
-        STA     vl_yh,X
-.ifdef VL_Y_HIGH
-        TYA
-        ADC     vl_yu,X
-        STA     vl_yu,X
-.endif
+        _VL_APPLY_OFFSET ADC, mul_p1, mul_p2, frac, whole, upper, wide
         LDX     vl_cb
-        SEC
-        LDA     vl_yf,X
-        SBC     mul_p1
-        STA     vl_yf,X
-        LDA     vl_yh,X
-        SBC     mul_p2
-        STA     vl_yh,X
-.ifdef VL_Y_HIGH
-        TYA
-        EOR     #$FF
-        ADC     vl_yu,X
-        STA     vl_yu,X
-.endif
+        _VL_APPLY_OFFSET SBC, mul_p1, mul_p2, frac, whole, upper, wide
+.endmacro
+
+.macro _VL_CORR_X
+        _VL_CORR_AXIS vl_xf, vl_xl, vl_xh, 1
+.endmacro
+
+.macro _VL_CORR_Y
+        _VL_CORR_AXIS vl_yf, vl_yh, vl_yu, .defined(VL_Y_HIGH)
 .endmacro
 .endif
 
@@ -221,22 +170,7 @@ vl_constrain:
         STA     vl_cidx
 .endif
 .ifdef VL_CON_FAST
-        LDX     vl_cb                   ; vl_delta_ab, inline
-        LDY     vl_ca
-        SEC
-        LDA     vl_xf,X
-        SBC     vl_xf,Y
-        STA     vl_dx
-        LDA     vl_xl,X
-        SBC     vl_xl,Y
-        STA     vl_dx+1
-        SEC
-        LDA     vl_yf,X
-        SBC     vl_yf,Y
-        STA     vl_dy
-        LDA     vl_yh,X
-        SBC     vl_yh,Y
-        STA     vl_dy+1
+        _VL_DELTA_AB
         _VL_QABS vl_dy, vl_dy+1         ; qy
         STA     vl_qx
         _VL_QABS vl_dx, vl_dx+1         ; qx

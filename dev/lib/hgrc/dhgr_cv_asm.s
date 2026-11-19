@@ -11,6 +11,7 @@
 ; w x h). Main RAM only: no bank switch, no IRQ masking. A/X/Y, ptr1-ptr4,
 ; tmp1 destroyed; non-reentrant, never from an IRQ.
 ; DHGR_SPR_CODE_SEGMENT=1: code and tables in segment DHGRSPRCODE.
+.include "dhgr_spr_segment.inc"
 .export _dhgr_cv_paint, _dhgr_cv_solid, dhgr_cv_fill, cv_seq, cv_nibble, cv_begin
 .ifndef DHGR_SPR_CANVAS
 DHGR_SPR_CANVAS = 0             ; 1: canvas = the program's dhgr_spr_canvas (dhgr_spr_asm.s)
@@ -69,15 +70,7 @@ sh:     .res 1
 cv_count:
 count:  .res 1
 
-.if .defined(DHGR_SPR_CODE_SEGMENT)
-.if DHGR_SPR_CODE_SEGMENT
-.segment "DHGRSPRCODE"
-.else
-.code
-.endif
-.else
-.code
-.endif
+dhgr_spr_segment "CODE"
 
 ; The piece is set (dhgr_cv_x0..y1): row offsets, the fill's row advance.
 cv_begin:
@@ -355,13 +348,7 @@ r_clip: tay                     ; x
         jsr fill_a
         jmp r_next
 
-.if .defined(DHGR_SPR_CODE_SEGMENT)
-.if !DHGR_SPR_CODE_SEGMENT
-.rodata
-.endif
-.else
-.rodata
-.endif
+dhgr_spr_segment "RODATA"
 jlo:                            ; f_run's entry for 1..8 columns
 .repeat 8, W
         .byte <(cv_seq + 3 * (7 - W))

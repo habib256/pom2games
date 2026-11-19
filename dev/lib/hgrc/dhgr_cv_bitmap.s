@@ -3,6 +3,7 @@
 ; TILE (w x h DHGR_NIB nibbles, opaque, copied straight). Called by
 ; dhgr_cv_paint with the shape's data in ptr2; not linked when the library
 ; is built with DHGR_SPR_RECTS_ONLY=1. A/X/Y, ptr1, ptr2, tmp1 destroyed.
+.include "dhgr_spr_segment.inc"
 .export dhgr_cv_bitmap
 .import _dhgr_cv_x0, _dhgr_cv_y0, _dhgr_cv_x1, _dhgr_cv_y1, _dhgr_cv_sx, _dhgr_cv_sy, _dhgr_cv_w
 .import _dhgr_cv_flags, _dhgr_cv_buf, cv_rowoff
@@ -18,15 +19,7 @@ cnt:    .res 1
 ridx:   .res 1
 kind:   .res 1
 
-.if .defined(DHGR_SPR_CODE_SEGMENT)
-.if DHGR_SPR_CODE_SEGMENT
-.segment "DHGRSPRCODE"
-.else
-.code
-.endif
-.else
-.code
-.endif
+dhgr_spr_segment "CODE"
 
 ; CHUNKY (1): sw x sh colours, DHGR_CLEAR ($80) transparent, mirror.
 ; TILE (2): sw x sh DHGR nibbles, opaque, no mirror: a straight copy.

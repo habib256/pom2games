@@ -141,7 +141,7 @@ mul_sqr2_hi = MUL_TABLES + $600
         STA     mul_p2
 .endmacro
 
-.macro MUL_K16 k
+.macro _MUL_K16_PRODUCT k, signed
         .assert k >= 0 .and k <= 255, error, "MUL_K16: k is 0..255"
         .if k = 0
                 LDA     #0
@@ -154,6 +154,12 @@ mul_sqr2_hi = MUL_TABLES + $600
                 LDA     mul_x+1
                 STA     mul_p1
                 LDA     #0
+                .if signed
+                        BIT     mul_x+1
+                        BPL     :+
+                        LDA     #$FF
+:
+                .endif
                 STA     mul_p2
         .elseif k = 2 .or k = 4 .or k = 8
                 ; First shift keeps both input bytes in A, then only
@@ -165,7 +171,13 @@ mul_sqr2_hi = MUL_TABLES + $600
                 ROL     A
                 STA     mul_p1
                 LDA     #0
-                ROL     A
+                .if signed
+                        BCC     :+      ; carry holds the original sign bit
+                        LDA     #$FF
+:
+                .else
+                        ROL     A
+                .endif
                 STA     mul_p2
                 .repeat k / 4           ; k=2/4/8: 0/1/2 further shifts
                         ASL     mul_p0
@@ -195,99 +207,54 @@ mul_sqr2_hi = MUL_TABLES + $600
                 .repeat 4
                         LSR A
                 .endrepeat
+                .if signed
+                        BIT     mul_x+1
+                        BPL     :+
+                        ORA     #$F0
+:
+                .endif
                 STA     mul_p2
         .elseif k = 32 .or k = 64 .or k = 128
-                _MUL_K16_RIGHT k, 0
+                _MUL_K16_RIGHT k, signed
         .else
-        LDX     mul_x+1
-        SEC
-        LDA     mul_sqr1_lo + (k), X
-        SBC     mul_sqr2_lo + 255 - (k), X
-        STA     mul_p1
-        LDA     mul_sqr1_hi + (k), X
-        SBC     mul_sqr2_hi + 255 - (k), X
-        STA     mul_p2
-        LDX     mul_x                   ; C = 1: exact 16-bit product, no borrow
-        LDA     mul_sqr1_lo + (k), X
-        SBC     mul_sqr2_lo + 255 - (k), X
-        STA     mul_p0
-        LDA     mul_sqr1_hi + (k), X
-        SBC     mul_sqr2_hi + 255 - (k), X
-        CLC
-        ADC     mul_p1
-        STA     mul_p1
-        BCC     :+
-        INC     mul_p2
+                LDX     mul_x+1
+                SEC
+                LDA     mul_sqr1_lo + (k), X
+                SBC     mul_sqr2_lo + 255 - (k), X
+                STA     mul_p1
+                LDA     mul_sqr1_hi + (k), X
+                SBC     mul_sqr2_hi + 255 - (k), X
+                STA     mul_p2
+                LDX     mul_x                   ; C = 1: exact 16-bit product, no borrow
+                LDA     mul_sqr1_lo + (k), X
+                SBC     mul_sqr2_lo + 255 - (k), X
+                STA     mul_p0
+                LDA     mul_sqr1_hi + (k), X
+                SBC     mul_sqr2_hi + 255 - (k), X
+                CLC
+                ADC     mul_p1
+                STA     mul_p1
+                BCC     :+
+                INC     mul_p2
 :
+                .if signed
+                        BIT     mul_x+1
+                        BPL     :+
+                        SEC
+                        LDA     mul_p2
+                        SBC     #(k)
+                        STA     mul_p2
+:
+                .endif
         .endif
 .endmacro
 
+.macro MUL_K16 k
+        _MUL_K16_PRODUCT k, 0
+.endmacro
+
 .macro MUL_KS16 k
-        .if k = 1
-                LDA     mul_x
-                STA     mul_p0
-                LDA     mul_x+1
-                STA     mul_p1
-                LDA     #0
-                BIT     mul_x+1
-                BPL     :+
-                LDA     #$FF
-:               STA     mul_p2
-        .elseif k = 2 .or k = 4 .or k = 8
-                LDA     mul_x
-                ASL     A
-                STA     mul_p0
-                LDA     mul_x+1
-                ROL     A
-                STA     mul_p1
-                LDA     #0
-                BCC     :+
-                LDA     #$FF
-:               STA     mul_p2
-                .repeat k / 4
-                        ASL     mul_p0
-                        ROL     mul_p1
-                        ROL     mul_p2
-                .endrepeat
-        .elseif k = 16
-                LDA     mul_x
-                .repeat 4
-                        ASL A
-                .endrepeat
-                STA     mul_p0
-                LDA     mul_x+1
-                .repeat 4
-                        ASL A
-                .endrepeat
-                STA     mul_p1
-                LDA     mul_x
-                .repeat 4
-                        LSR A
-                .endrepeat
-                ORA     mul_p1
-                STA     mul_p1
-                LDA     mul_x+1
-                .repeat 4
-                        LSR A
-                .endrepeat
-                BIT     mul_x+1
-                BPL     :+
-                ORA     #$F0
-:               STA     mul_p2
-        .elseif k = 32 .or k = 64 .or k = 128
-                _MUL_K16_RIGHT k, 1
-        .else
-        MUL_K16 k
-        .if k <> 0
-        BIT     mul_x+1
-        BPL     :+
-        SEC
-        LDA     mul_p2
-        SBC     #(k)
-        STA     mul_p2
-:
-        .endif
-        .endif
+        _MUL_K16_PRODUCT k, 1
 .endmacro
 
 .endif  ; _MATH_INC_LOADED_

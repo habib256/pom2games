@@ -11,6 +11,7 @@
 ; Saved/source pointers are biased by -bx once, then advanced only after a
 ; row covered by their box. Rows between the boxes touch neither buffer.
 ; A/X/Y, ptr1-ptr4, tmp1-tmp4 destroyed; non-reentrant, never from an IRQ.
+.include "dhgr_spr_segment.inc"
 .include "apple2.inc"
 .export _dhgr_cursor, dhgr_spr_pass
 .import cur_nbx, cur_ny, cur_nw, cur_nh, cur_bits, cur_under, cur_obx, cur_args, cur_take
@@ -53,15 +54,7 @@ bank:   .res 1                  ; 0 or 6: this page's cur_bank entry
 usave:  .res 2                  ; cur_under during page 2's pass
 .endif
 
-.if .defined(DHGR_SPR_CODE_SEGMENT)
-.if DHGR_SPR_CODE_SEGMENT
-.segment "DHGRSPRCODE"
-.else
-.code
-.endif
-.else
-.code
-.endif
+dhgr_spr_segment "CODE"
 
 .if DOUBLE
 ; DHGR_SPR_DOUBLE: each page has its own cursor on screen (obx..oh, osave

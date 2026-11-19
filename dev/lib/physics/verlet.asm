@@ -248,111 +248,36 @@ vl_clamp_vy: VL_CLAMP_VAL VL_VMAX_Y
 
 .ifref vl_add_xv
 vl_add_xv:
-        LDY     #0
-        LDA     vl_val+1
-        BPL     @p
-        DEY
-@p:     CLC
-        LDA     vl_xf,X
-        ADC     vl_val
-        STA     vl_xf,X
-        LDA     vl_xl,X
-        ADC     vl_val+1
-        STA     vl_xl,X
-        TYA
-        ADC     vl_xh,X
-        STA     vl_xh,X
+        _VL_OFFSET_SIGN vl_val+1, 1
+        _VL_APPLY_OFFSET ADC, vl_val, vl_val+1, vl_xf, vl_xl, vl_xh, 1
         RTS
 .endif
 
 .ifref vl_sub_xv
 vl_sub_xv:
-        LDY     #0
-        LDA     vl_val+1
-        BPL     @p
-        DEY
-@p:     SEC
-        LDA     vl_xf,X
-        SBC     vl_val
-        STA     vl_xf,X
-        LDA     vl_xl,X
-        SBC     vl_val+1
-        STA     vl_xl,X
-        TYA                             ; subtract sign via its complement
-        EOR     #$FF
-        ADC     vl_xh,X
-        STA     vl_xh,X
+        _VL_OFFSET_SIGN vl_val+1, 1
+        _VL_APPLY_OFFSET SBC, vl_val, vl_val+1, vl_xf, vl_xl, vl_xh, 1
         RTS
 .endif
 
 .ifref vl_add_yv
 vl_add_yv:
-.ifdef VL_Y_HIGH
-        LDY     #0
-        LDA     vl_val+1
-        BPL     @p
-        DEY
-@p:
-.endif
-        CLC
-        LDA     vl_yf,X
-        ADC     vl_val
-        STA     vl_yf,X
-        LDA     vl_yh,X
-        ADC     vl_val+1
-        STA     vl_yh,X
-.ifdef VL_Y_HIGH
-        TYA
-        ADC     vl_yu,X
-        STA     vl_yu,X
-.endif
+        _VL_OFFSET_SIGN vl_val+1, .defined(VL_Y_HIGH)
+        _VL_APPLY_OFFSET ADC, vl_val, vl_val+1, vl_yf, vl_yh, vl_yu, .defined(VL_Y_HIGH)
         RTS
 .endif
 
 .ifref vl_sub_yv
 vl_sub_yv:
-.ifdef VL_Y_HIGH
-        LDY     #0
-        LDA     vl_val+1
-        BPL     @p
-        DEY
-@p:
-.endif
-        SEC
-        LDA     vl_yf,X
-        SBC     vl_val
-        STA     vl_yf,X
-        LDA     vl_yh,X
-        SBC     vl_val+1
-        STA     vl_yh,X
-.ifdef VL_Y_HIGH
-        TYA                             ; Y still holds the sign extension
-        EOR     #$FF
-        ADC     vl_yu,X
-        STA     vl_yu,X
-.endif
+        _VL_OFFSET_SIGN vl_val+1, .defined(VL_Y_HIGH)
+        _VL_APPLY_OFFSET SBC, vl_val, vl_val+1, vl_yf, vl_yh, vl_yu, .defined(VL_Y_HIGH)
         RTS
 .endif
 
 .ifref vl_delta_ab
 ; dx/dy = point cb - point ca (low 16 bits of x)
 vl_delta_ab:
-        LDX     vl_cb
-        LDY     vl_ca
-        SEC
-        LDA     vl_xf,X
-        SBC     vl_xf,Y
-        STA     vl_dx
-        LDA     vl_xl,X
-        SBC     vl_xl,Y
-        STA     vl_dx+1
-        SEC
-        LDA     vl_yf,X
-        SBC     vl_yf,Y
-        STA     vl_dy
-        LDA     vl_yh,X
-        SBC     vl_yh,Y
-        STA     vl_dy+1
+        _VL_DELTA_AB
         RTS
 .endif
 
@@ -362,94 +287,61 @@ vl_delta_ab:
 .endif
 ; d = (v_b - v_a) >> VL_PAIR_DAMP per axis (16-bit velocities), old b += d,
 ; old a -= d
+.macro _VL_DAMP_AXIS frac, whole, old_frac, old_whole, old_upper
+        SEC
+        LDA     frac+VL_PAIR_B
+        SBC     old_frac+VL_PAIR_B
+        STA     vl_w0
+        LDA     whole+VL_PAIR_B
+        SBC     old_whole+VL_PAIR_B
+        STA     vl_w1
+        SEC
+        LDA     frac+VL_PAIR_A
+        SBC     old_frac+VL_PAIR_A
+        STA     vl_val
+        LDA     whole+VL_PAIR_A
+        SBC     old_whole+VL_PAIR_A
+        STA     vl_val+1
+        SEC
+        LDA     vl_w0
+        SBC     vl_val
+        STA     vl_val
+        LDA     vl_w1
+        SBC     vl_val+1
+        STA     vl_val+1
+        JSR     vl_sd_shift
+        CLC                             ; old B += d
+        LDA     old_frac+VL_PAIR_B
+        ADC     vl_val
+        STA     old_frac+VL_PAIR_B
+        LDA     old_whole+VL_PAIR_B
+        ADC     vl_val+1
+        STA     old_whole+VL_PAIR_B
+        .ifnblank old_upper
+        LDA     old_upper+VL_PAIR_B
+        ADC     vl_w2
+        STA     old_upper+VL_PAIR_B
+        .endif
+        SEC                             ; old A -= d
+        LDA     old_frac+VL_PAIR_A
+        SBC     vl_val
+        STA     old_frac+VL_PAIR_A
+        LDA     old_whole+VL_PAIR_A
+        SBC     vl_val+1
+        STA     old_whole+VL_PAIR_A
+        .ifnblank old_upper
+        LDA     old_upper+VL_PAIR_A
+        SBC     vl_w2
+        STA     old_upper+VL_PAIR_A
+        .endif
+.endmacro
+
 vl_pair_damp:
-        SEC                             ; x: d = (xb - oxb) - (xa - oxa)
-        LDA     vl_xf+VL_PAIR_B
-        SBC     vl_oxf+VL_PAIR_B
-        STA     vl_w0
-        LDA     vl_xl+VL_PAIR_B
-        SBC     vl_oxl+VL_PAIR_B
-        STA     vl_w1
-        SEC
-        LDA     vl_xf+VL_PAIR_A
-        SBC     vl_oxf+VL_PAIR_A
-        STA     vl_val
-        LDA     vl_xl+VL_PAIR_A
-        SBC     vl_oxl+VL_PAIR_A
-        STA     vl_val+1
-        SEC
-        LDA     vl_w0
-        SBC     vl_val
-        STA     vl_val
-        LDA     vl_w1
-        SBC     vl_val+1
-        STA     vl_val+1
-        JSR     vl_sd_shift
-        CLC                             ; oxb += d (24 bits)
-        LDA     vl_oxf+VL_PAIR_B
-        ADC     vl_val
-        STA     vl_oxf+VL_PAIR_B
-        LDA     vl_oxl+VL_PAIR_B
-        ADC     vl_val+1
-        STA     vl_oxl+VL_PAIR_B
-        LDA     vl_oxh+VL_PAIR_B
-        ADC     vl_w2
-        STA     vl_oxh+VL_PAIR_B
-        SEC                             ; oxa -= d
-        LDA     vl_oxf+VL_PAIR_A
-        SBC     vl_val
-        STA     vl_oxf+VL_PAIR_A
-        LDA     vl_oxl+VL_PAIR_A
-        SBC     vl_val+1
-        STA     vl_oxl+VL_PAIR_A
-        LDA     vl_oxh+VL_PAIR_A
-        SBC     vl_w2
-        STA     vl_oxh+VL_PAIR_A
-        SEC                             ; y: d = (yb - oyb) - (ya - oya)
-        LDA     vl_yf+VL_PAIR_B
-        SBC     vl_oyf+VL_PAIR_B
-        STA     vl_w0
-        LDA     vl_yh+VL_PAIR_B
-        SBC     vl_oyh+VL_PAIR_B
-        STA     vl_w1
-        SEC
-        LDA     vl_yf+VL_PAIR_A
-        SBC     vl_oyf+VL_PAIR_A
-        STA     vl_val
-        LDA     vl_yh+VL_PAIR_A
-        SBC     vl_oyh+VL_PAIR_A
-        STA     vl_val+1
-        SEC
-        LDA     vl_w0
-        SBC     vl_val
-        STA     vl_val
-        LDA     vl_w1
-        SBC     vl_val+1
-        STA     vl_val+1
-        JSR     vl_sd_shift
-        CLC
-        LDA     vl_oyf+VL_PAIR_B
-        ADC     vl_val
-        STA     vl_oyf+VL_PAIR_B
-        LDA     vl_oyh+VL_PAIR_B
-        ADC     vl_val+1
-        STA     vl_oyh+VL_PAIR_B
+        _VL_DAMP_AXIS vl_xf, vl_xl, vl_oxf, vl_oxl, vl_oxh
 .ifdef VL_Y_HIGH
-        LDA     vl_oyu+VL_PAIR_B
-        ADC     vl_w2
-        STA     vl_oyu+VL_PAIR_B
-.endif
-        SEC
-        LDA     vl_oyf+VL_PAIR_A
-        SBC     vl_val
-        STA     vl_oyf+VL_PAIR_A
-        LDA     vl_oyh+VL_PAIR_A
-        SBC     vl_val+1
-        STA     vl_oyh+VL_PAIR_A
-.ifdef VL_Y_HIGH
-        LDA     vl_oyu+VL_PAIR_A
-        SBC     vl_w2
-        STA     vl_oyu+VL_PAIR_A
+        _VL_DAMP_AXIS vl_yf, vl_yh, vl_oyf, vl_oyh, vl_oyu
+.else
+        _VL_DAMP_AXIS vl_yf, vl_yh, vl_oyf, vl_oyh
 .endif
         RTS
 .endif

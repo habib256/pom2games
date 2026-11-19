@@ -2,6 +2,7 @@
 ; Doubled white/color text, cc65 fastcall. One shared rendering path.
 ; puts: A/X = string, C stack = y, x low, x high.
 ; color: A = color, C stack = string low/high, y, x low/high.
+.include "hgr_text_origin.inc"
 .export _hgr_puts, _hgr_puts_color
 .import _hgr_set_carrier, popax, incsp3
 .import _hgr_build_rows, _hgr_build_columns, _hgr_build_phases
@@ -24,25 +25,7 @@ _hgr_puts:
         ldy #0
         sty _hgr_z_hi
 common:
-        sta _hgr_t_s             ; builders preserve text and carrier parameters
-        stx _hgr_t_s+1
-        jsr _hgr_build_rows
-        jsr _hgr_build_columns
-        jsr _hgr_build_phases
-        ldy #0
-        lda (sp),y
-        cmp #177
-        bcs done
-        sta _hgr_g_y
-        ldy #2
-        lda (sp),y
-        beq low_x
-        cmp #1
-        bne done
-        dey
-        lda (sp),y
-        cmp #9
-        bcs done                ; x > 264
+        hgr_text_origin 16, 264, low_x, done
         tax
         lda #1                  ; x=256..264 always fits one cell
         sta _hgr_t_n

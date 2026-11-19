@@ -1,4 +1,5 @@
 ; VERHILLE Arnaud — GPL-3.0 (see LICENSE at repository root).
+.include "dhgr_transfer_row.inc"
 .export _dhgr_sprite
 .import pushax, _dhgr_cellbyte, _dhgr_cellphase, dhgr_rowlo, dhgr_rowhi
 .import _dhgr_addr, _dhgr_aux, _dhgr_base, _dhgr_buffer, _dhgr_sprite_mask, _dhgr_count
@@ -74,10 +75,7 @@ _dhgr_sprite:
         lsr
         ldy #8
         sta (sp),y
-        lda #0
-        rol
-        eor #1
-        sta _dhgr_aux
+        dhgr_select_byte_bank
         ; Bank offsets use the original height, before bottom clipping.
         ldx tmp1
         beq @offset_done
@@ -146,36 +144,13 @@ _dhgr_sprite:
         tax
         iny
         lda (sp),y
-        clc
-        adc dhgr_rowlo,x
-        sta _dhgr_addr
-        lda dhgr_rowhi,x
-        ora _dhgr_base
-        sta _dhgr_addr+1
+        dhgr_set_row_address
         ldy #0
-        lda (sp),y
-        sta _dhgr_sprite_mask
+        dhgr_load_buffer_pointer _dhgr_sprite_mask
         iny
-        lda (sp),y
-        sta _dhgr_sprite_mask+1
-        iny
-        lda (sp),y
-        sta _dhgr_buffer
-        iny
-        lda (sp),y
-        sta _dhgr_buffer+1
+        dhgr_load_buffer_pointer _dhgr_buffer
         jsr _dhgr_sprite_asm
-        ldy #5
-        lda (sp),y
-        sec
-        sbc #1
-        sta (sp),y
-        beq @done
-        ldy #7
-        lda (sp),y
-        clc
-        adc #1
-        sta (sp),y
+        dhgr_next_transfer_row 5, 7, @done
         ldy #4
         lda (sp),y
         sta tmp1
@@ -193,10 +168,4 @@ _dhgr_sprite:
         cpy #4
         bne @next_pointer
         jmp @row
-@done: lda sp
-        clc
-        adc #9
-        sta sp
-        bcc :+
-        inc sp+1
-:       rts
+@done:  dhgr_return_from_transfer 9

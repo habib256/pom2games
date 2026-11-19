@@ -191,6 +191,8 @@ _sg_d    = vl_vn                        ; d of the candidate; best d: vl_pen
         STA     mul_p2
 .endmacro
 
+.include "verlet_ground_response.inc"
+
 vl_seg_ground:
         STX     vl_cur
         LDA     #0
@@ -373,154 +375,7 @@ vl_seg_ground:
         LDA     #>VL_RADIUS
         SBC     vl_pen+1
         STA     vl_pen+1
-        ; --- the resolve, as vl_ground (verlet_hmap.asm) -------------------
-        LDA     vl_pen                  ; x += (pen * nx) >> 6
-        LDX     vl_pen+1
-        LDY     vl_nx
-        JSR     mul_dir
-        JSR     mul_shr6
-        LDA     mul_p1
-        STA     vl_val
-        LDA     mul_p2
-        STA     vl_val+1
-        LDX     vl_cur
-        JSR     vl_add_xv
-        LDA     vl_pen                  ; y += (pen * ny) >> 6
-        LDX     vl_pen+1
-        LDY     vl_ny
-        JSR     mul_dir
-        JSR     mul_shr6
-        LDA     mul_p1
-        STA     vl_val
-        LDA     mul_p2
-        STA     vl_val+1
-        LDX     vl_cur
-        JSR     vl_add_yv
-        SEC                             ; v = pos - old
-        LDA     vl_xf,X
-        SBC     vl_oxf,X
-        STA     vl_vx
-        LDA     vl_xl,X
-        SBC     vl_oxl,X
-        STA     vl_vx+1
-        SEC
-        LDA     vl_yf,X
-        SBC     vl_oyf,X
-        STA     vl_vy
-        LDA     vl_yh,X
-        SBC     vl_oyh,X
-        STA     vl_vy+1
-        LDA     vl_vx                   ; vn = (vx nx + vy ny) >> 6
-        LDX     vl_vx+1
-        LDY     vl_nx
-        JSR     mul_dir
-        _SG_ACC
-        LDA     vl_vy
-        LDX     vl_vy+1
-        LDY     vl_ny
-        JSR     mul_dir
-        _SG_SUM6
-        LDA     mul_p1
-        STA     vl_vn
-        LDA     mul_p2
-        STA     vl_vn+1
-        SEC                             ; vt = (vx (-ny) + vy nx) >> 6
-        LDA     #0
-        SBC     vl_ny
-        TAY
-        LDA     vl_vx
-        LDX     vl_vx+1
-        JSR     mul_dir
-        _SG_ACC
-        LDA     vl_vy
-        LDX     vl_vy+1
-        LDY     vl_nx
-        JSR     mul_dir
-        _SG_SUM6
-        LDA     mul_p1
-        STA     vl_vt
-        LDA     mul_p2
-        STA     vl_vt+1
-        LDA     vl_vn+1                 ; bounce: vn < 0 -> (-vn * VL_BOUNCE) >> 8
-        BPL     @nob
-        SEC
-        LDA     #0
-        SBC     vl_vn
-        PHA
-        LDA     #0
-        SBC     vl_vn+1
-        TAX
-        PLA
-        LDY     #VL_BOUNCE
-        JSR     mul_dir
-        LDA     mul_p1
-        STA     vl_vn
-        LDA     mul_p2
-        STA     vl_vn+1
-@nob:   VL_GROUND_TANGENT
-        LDA     vl_vn                   ; vx = (vn nx + vt (-ny)) >> 6
-        LDX     vl_vn+1
-        LDY     vl_nx
-        JSR     mul_dir
-        _SG_ACC
-        SEC
-        LDA     #0
-        SBC     vl_ny
-        TAY
-        LDA     vl_vt
-        LDX     vl_vt+1
-        JSR     mul_dir
-        _SG_SUM6
-        LDA     mul_p1
-        STA     vl_val
-        LDA     mul_p2
-        STA     vl_val+1
-        LDX     vl_cur                  ; old x = x - vx
-        LDY     #0
-        LDA     vl_val+1
-        BPL     @xp
-        DEY
-@xp:    STY     vl_w2
-        SEC
-        LDA     vl_xf,X
-        SBC     vl_val
-        STA     vl_oxf,X
-        LDA     vl_xl,X
-        SBC     vl_val+1
-        STA     vl_oxl,X
-        LDA     vl_xh,X
-        SBC     vl_w2
-        STA     vl_oxh,X
-        LDA     vl_vn                   ; vy = (vn ny + vt nx) >> 6
-        LDX     vl_vn+1
-        LDY     vl_ny
-        JSR     mul_dir
-        _SG_ACC
-        LDA     vl_vt
-        LDX     vl_vt+1
-        LDY     vl_nx
-        JSR     mul_dir
-        _SG_SUM6
-        LDX     vl_cur                  ; old y = y - vy
-.ifdef VL_Y_HIGH
-        LDY     #0
-        LDA     mul_p2
-        BPL     @yp
-        DEY
-@yp:    STY     vl_w2
-.endif
-        SEC
-        LDA     vl_yf,X
-        SBC     mul_p1
-        STA     vl_oyf,X
-        LDA     vl_yh,X
-        SBC     mul_p2
-        STA     vl_oyh,X
-.ifdef VL_Y_HIGH
-        LDA     vl_yu,X
-        SBC     vl_w2
-        STA     vl_oyu,X
-.endif
+        _VL_GROUND_RESOLVE _SG_ACC, _SG_SUM6
         VL_GROUND_AFTER
 @rts:   RTS
 .endif

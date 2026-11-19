@@ -8,6 +8,7 @@
 ; first) and written once by dhgr_spr_blit. Main RAM only; the cell callback
 ; (C) may use any cc65 scratch: the loops keep their state here. A/X/Y,
 ; ptr1, ptr2, tmp1-tmp4 destroyed; non-reentrant, never from an IRQ.
+.include "dhgr_spr_segment.inc"
 .export _dhgr_spr_update, _dhgr_spr_add, _dhgr_spr_init
 .export _dhgr_spr_shlo, _dhgr_spr_shhi, _dhgr_spr_x, _dhgr_spr_y
 .export _dhgr_spr_x1, _dhgr_spr_y1, _dhgr_spr_flags, _dhgr_spr_dirty
@@ -147,15 +148,7 @@ g1 = _dhgr_spr_rg1
 y0 = _dhgr_spr_ry0
 y1 = _dhgr_spr_ry1
 
-.if .defined(DHGR_SPR_CODE_SEGMENT)
-.if DHGR_SPR_CODE_SEGMENT
-.segment "DHGRSPRCODE"
-.else
-.code
-.endif
-.else
-.code
-.endif
+dhgr_spr_segment "CODE"
 
 ; unsigned char dhgr_spr_init(canvas, bytes, groups): C stack bytes 0-1,
 ; canvas 2-3; groups in A. 0 unless 1 <= groups <= 20 and min(bytes, 255)

@@ -223,9 +223,8 @@ clear_bitmap:
 .endif
 
 .ifref disable_sprites
-; disable_sprites: defensive SAT.Y init — fill every Y attribute with
-;   $D1 (= displayed row 210, off-screen, NOT a chain terminator), then
-;   patch SAT[0].Y to $D0 so the chain stops at slot 0. After that even
+; disable_sprites: write the $D0 terminator, then fill the rest of the SAT
+;   with $D1 (off-screen Y). After that even
 ;   when the caller later writes a real sprite into SAT[0] (e.g. Logo's
 ;   SETSHAPE turtle), SAT[1].Y = $D1 aborts visible rendering of slot 1+.
 ;   Mode II SAT base = $3B00 (R5 = $76 in vdp2_regs).
@@ -234,18 +233,7 @@ clear_bitmap:
 ;   insufficient in May 2026 silicon-strict POM1 testing (LOGO demo2 +
 ;   Life CodeTank showed ghost sprites from noise SAT entries past slot 0).
 disable_sprites:
-        JSR     ez_pad18   ; MANUAL caller-gap cushion
-        LDA     #$00
-        JSR     ez_ctrl_w
-        LDA     #$3B | $40      ; $7B = write at $3B00 (Mode II SAT base)
-        JSR     ez_ctrl_w
-        LDA     #$D0            ; SAT[0].Y = chain terminator
-        JSR     ez_data_w
-        LDX     #127            ; SAT[1..127] = off-screen Y via auto-inc
-        LDA     #$D1
-@sat:   JSR     ez_data_w
-        DEX
-        BNE     @sat
+        TMS9918_DISABLE_SPRITES $3B00
         RTS
 .endif
 
@@ -398,39 +386,20 @@ plot_set:
         ; address = $2000 + pix_addr (same offset as pattern cell). The
         ; auto-increment from the data-port write above advanced VRAM
         ; address by 1, so re-prime the control port now.
-        LDA pix_addr_lo
-        JSR     ez_ctrl_w
-        LDA pix_addr_hi
-        ORA #$60                ; $60 = $20 (table base) | $40 (write enable)
-        JSR     ez_ctrl_w
-        LDA pen_color
-        ASL
-        ASL
-        ASL
-        ASL                     ; pen_color in high nibble
-        ORA #$01                ; transparent background (Mode-2 colour 1)
+        TMS9918_PREPARE_COLOR
         JSR     ez_data_w
 @done:  RTS
 .endif
 
 .ifref vdp_set_write
 vdp_set_write:
-        JSR     ez_pad18   ; MANUAL caller-gap cushion (18c)
-        LDA pix_addr_lo
-        JSR     ez_ctrl_w
-        LDA pix_addr_hi
-        ORA #$40
-        JSR     ez_ctrl_w
+        TMS9918_SET_ADDRESS pix_addr_lo, pix_addr_hi, 1
         RTS                     ; ≥30c after cmd (18c+6c+6c=30c gap)
 .endif
 
 .ifref vdp_set_read
 vdp_set_read:
-        JSR     ez_pad18   ; MANUAL caller-gap cushion (18c)
-        LDA pix_addr_lo
-        JSR     ez_ctrl_w
-        LDA pix_addr_hi
-        JSR     ez_ctrl_w
+        TMS9918_SET_ADDRESS pix_addr_lo, pix_addr_hi, 0
         RTS                     ; ≥30c after cmd
 .endif
 

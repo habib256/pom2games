@@ -2,6 +2,7 @@
 ; hgr_blit7_asm.s — Apple II HGR kernel; linked independently from hgrc.lib.
 ; Both entries require clipped parameters: 1 <= hgr_b_w <= 40,
 ; hgr_b_col+hgr_b_w <= 40 and 1 <= hgr_b_h <= 192-hgr_b_y.
+.include "hgr_sprite_row.inc"
 .export _hgr_blit7_run, _hgr_preshift_xor_run
 .import _hgr_rowhi, _hgr_rowlo
 .importzp _hgr_b_col, _hgr_b_h, _hgr_b_mode, _hgr_b_src, _hgr_b_stride, _hgr_b_w, _hgr_b_y
@@ -13,7 +14,7 @@ rowcnt = tmp4
 
 .segment "CODE"
 .macro  BLIT7_LOOP m
-        .local  row, col, nyc
+        .local  row, col
 row:    ldy     _hgr_b_y               ; ptr1 = rowbase(y) + col
         lda     _hgr_rowlo,y
         clc
@@ -37,16 +38,7 @@ col:    lda     (_hgr_b_src),y
         sta     (ptr1),y
         dey
         bpl     col
-        clc                             ; src += stride ; y += 1 ; rows--
-        lda     _hgr_b_src
-        adc     _hgr_b_stride
-        sta     _hgr_b_src
-        bcc     nyc
-        inc     _hgr_b_src+1
-nyc:    inc     _hgr_b_y
-        dec     _hgr_b_h
-        bne     row
-        rts
+        hgr_blit_next_row row
 .endmacro
 
 _hgr_blit7_run:

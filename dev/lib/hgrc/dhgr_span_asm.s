@@ -1,4 +1,5 @@
 ; VERHILLE Arnaud — GPL-3.0. Bank-safe optional DHGR primitive.
+.include "dhgr_pixel_address.inc"
 .include "apple2.inc"
 .code
 .export _dhgr_span_asm, _dhgr_span_x, _dhgr_span_end
@@ -46,16 +47,7 @@ to_bit:
 split:  sta tmp1
         and #3
         sta tmp2
-        txa
-        lsr
-        ror tmp1
-        lsr
-        ror tmp1
-        ldx tmp1
-        lda _dhgr_cellphase,x
-        clc
-        adc tmp2
-        tay
+        dhgr_pixel_cell_phase
         cpy #7
         lda _dhgr_cellbyte,x
         adc #0
@@ -143,10 +135,7 @@ _dhgr_span_asm:
 @row:   php
         sei
         ldy row
-        lda dhgr_rowlo,y
-        sta ptr1
-        lda dhgr_rowhi,y
-        ora _dhgr_base
+        dhgr_scanline_address
         sta ptr1+1
         ldx edges
         beq @aux

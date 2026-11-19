@@ -4,6 +4,7 @@
 .export _hgr_tilemap_init
 .import addysp
 .importzp sp, ptr1, ptr2, tmp1, tmp2
+.include "hgr_stack_pointer.inc"
 .code
 _hgr_tilemap_init:
         sta tmp1
@@ -19,22 +20,8 @@ small_count:
         cmp #0
         beq reject
 pointers:
-        ldy #4
-        lda (sp),y
-        sta ptr2
-        iny
-        lda (sp),y
-        sta ptr2+1
-        ora ptr2
-        beq reject
-        ldy #2
-        lda (sp),y
-        sta ptr1
-        iny
-        lda (sp),y
-        sta ptr1+1
-        ora ptr1
-        beq reject
+        hgr_stack_pointer 4, ptr2, reject
+        hgr_stack_pointer 2, ptr1, reject
         ldy #0
         lda (sp),y
         iny

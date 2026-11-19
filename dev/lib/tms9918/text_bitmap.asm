@@ -90,17 +90,7 @@ text_blit_glyph:
         ;     also tint LABEL/SAY text. The colour table mirrors the
         ;     pattern table layout at base $2000, so we can re-prime the
         ;     VDP cursor with the same pix_addr but the $2000 base bit set.
-        LDA pix_addr_lo
-        JSR     ez_ctrl_w
-        LDA pix_addr_hi
-        ORA #$60                  ; $20 (colour base) | $40 (write enable)
-        JSR     ez_ctrl_w
-        LDA pen_color
-        ASL
-        ASL
-        ASL
-        ASL                       ; pen_color in high nibble
-        ORA #$01                  ; transparent background ($x1)
+        TMS9918_PREPARE_COLOR
         LDX #8
 @col:   JSR     ez_data_w
         DEX

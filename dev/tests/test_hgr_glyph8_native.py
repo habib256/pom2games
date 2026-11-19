@@ -62,7 +62,7 @@ def build_native(work, kernel):
     objects = []
     for member in (work / 'stub.s', work / 'kernel.s', DEV / 'lib/hgrc/hgr_text_addr.s'):
         obj = work / (member.stem + '.o')
-        run(['ca65', '-t', 'none', '-o', obj, member])
+        run(['ca65', '-t', 'none', '-I', DEV / 'lib/hgrc', '-o', obj, member])
         objects.append(obj)
     run(['ld65', '-C', work / 'config.cfg', '-o', work / 'test.bin',
          '-Ln', work / 'test.lbl', *objects])

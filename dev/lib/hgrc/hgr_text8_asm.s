@@ -3,6 +3,7 @@
 ; _hgr_blit_glyph8: D=0; destroys A/X/Y, ptr1 and tmp1..tmp3.
 ; Glyph arguments, other scratch, banks and IRQ mask are preserved.
 ; The string entry also advances its private text/glyph parameter blocks.
+.include "hgr_text_run.inc"
 .export _hgr_blit_glyph8, _hgr_puts_run8
 .import _hgr_rowhi, _hgr_rowlo
 .import glyph_addr
@@ -69,45 +70,19 @@ _hgr_blit_glyph8:
 ; --- _hgr_puts_run8 : native 8x8 string render (8px pitch) ------------------
 ; Same param block as _hgr_puts_run (hgr_t_col/bit/n/s/font); draws each glyph
 ; with hgr_blit_glyph8 and steps the pen 8px (= 1 byte column + 1 bit).
-_hgr_puts_run8:
-@loop:
-        lda _hgr_t_n
-        beq @done
-        ldy #0
-        lda (_hgr_t_s),y       ; c = *s
-        bne @go
-@done:
-        rts
-@go:
-        cmp #$20                ; clamp non-printable -> space
-        bcc @space
-        cmp #$80
-        bcc @okc
-@space:
-        lda #$20
-@okc:
-        sec                     ; hgr_g_glyph = font + (c-$20)*8
-        sbc #$20
-        jsr glyph_addr
-        lda _hgr_t_col
-        sta _hgr_g_col
-        lda _hgr_t_bit
-        sta _hgr_g_bit
-        jsr _hgr_blit_glyph8
+.macro advance_pen_8
         ; pen += 8px: one column and one bit, with a second column
         ; when bit 6 wraps to 0. No duplicated column arithmetic.
         inc _hgr_t_col
         inc _hgr_t_bit
         lda _hgr_t_bit
         cmp #7
-        bcc @adv2
+        bcc :+
         lda #0
         sta _hgr_t_bit
         inc _hgr_t_col
-@adv2:
-        inc _hgr_t_s           ; ++s
-        bne @sok
-        inc _hgr_t_s+1
-@sok:
-        dec _hgr_t_n
-        jmp @loop
+:
+.endmacro
+
+_hgr_puts_run8:
+        hgr_text_run _hgr_blit_glyph8, advance_pen_8
