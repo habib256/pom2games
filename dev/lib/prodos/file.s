@@ -6,18 +6,10 @@
 .export _prodos_file_buffer := pf_buf, _prodos_file_length := pf_len
 .export _prodos_file_actual := pf_got
 .code
-_prodos_load:
-        jsr prodos_load
-        ldx #0
-        rts
-_prodos_load_free:
-        jsr prodos_load_free
-        ldx #0
-        rts
-_prodos_save:
-        jsr prodos_save
-        ldx #0
-        rts
+; file.asm returns A = the code and X = 0: the C entries are its own.
+_prodos_load := prodos_load
+_prodos_load_free := prodos_load_free
+_prodos_save := prodos_save
 .ifdef PRODOS_FILE_AUX
 ; file_aux.s: prodos_load_aux(aux_dst, max), on apple2c's aux_store.
 .import popax, aux_store
@@ -28,16 +20,11 @@ _prodos_load_aux:
         jsr popax
         sta pa_dst
         stx pa_dst+1
-        jsr prodos_load_aux
-        ldx #0
-        rts
+        jmp prodos_load_aux
 .endif
 .ifdef PRODOS_FILE_AT
 ; file_at.s / file_aux_at.s: prodos_load_at() and prodos_file_mark.
 .export _prodos_load_at, _prodos_file_mark := pf_mark
-_prodos_load_at:
-        jsr prodos_load_at
-        ldx #0
-        rts
+_prodos_load_at := prodos_load_at
 .endif
 .include "file.asm"

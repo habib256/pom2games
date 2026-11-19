@@ -2142,6 +2142,37 @@ draw_direction:
         JMP color_rect
 
 ; =============================================
+; disk_retry: fm_bload_retry's hook. The title, the state code or the texts
+; cannot be read (disk removed or damaged) and the game cannot go on
+; without them. The drawn HGR page is hidden at that point, so the message
+; goes to the 40-column text screen through the monitor (HOME, COUT1: its
+; zero page is below the game's $50); a key, graphics again, another try.
+; =============================================
+disk_retry:
+        BIT $C054               ; text page 1 ($0800 holds HELLO)
+        BIT $C051
+        JSR $FC58               ; HOME
+        LDX #0
+@msg:   LDA str_disk_error,X
+        BEQ @key
+        ORA #$80
+        STX in_src              ; (free here: set after the loads)
+        JSR $FDF0               ; COUT1: the screen, past DOS's hook
+        LDX in_src
+        INX
+        BNE @msg
+@key:   BIT $C010
+@wait:  LDA $C000
+        BPL @wait
+        BIT $C010
+        BIT $C050
+        LDA front_page
+        BEQ @again
+        BIT $C055
+@again: CLC                     ; always try again
+        RTS
+
+; =============================================
 ; show_title: title screen on bitmap
 ; =============================================
 show_title:
@@ -2150,7 +2181,7 @@ show_title:
         ; picture occupies disk sectors, not scarce permanent 48K RAM.
         LDA #<str_title_load
         LDY #>str_title_load
-        JSR fm_bload
+        JSR fm_bload_retry
         LDA #0
         STA in_src
         STA in_dst
@@ -2166,7 +2197,7 @@ show_title:
         JSR unpack_title
         LDA #<str_state_load
         LDY #>str_state_load
-        JSR fm_bload
+        JSR fm_bload_retry
         JSR profiles_init
         JSR profile_load
         ; A compact footer leaves the illustration and title unobstructed.
@@ -4467,6 +4498,7 @@ str_profile_keys: .byte "C CONTINUE  N NEW  1-3 PROFILE",0
 str_profile_new: .byte  "RETURN NEW GAME  1-3 PROFILE ",0
 str_title_load: .byte "MAZETITLE",0       ; binary files: fm_bload at their address
 str_text_load: .byte "MAZETEXT",0
+str_disk_error: .byte "CANNOT READ THE DISK.",13,"CHECK IT, THEN PRESS A KEY.",0
 str_title_keys: .byte "S SEED   R REPLAY   ESC MENU",0
 str_press_any:.byte "PRESS ANY KEY...",0
 
@@ -4711,6 +4743,7 @@ unpack_title = lz4fh_unpack
 
 .include "save.inc"
 .code
+FM_RETRY_HOOK = disk_retry
 .include "fm.asm"                ; files through DOS's file manager (after save.inc: .ifref)
 
 ; Native renderer reuses game scratch without changing its ZP layout.

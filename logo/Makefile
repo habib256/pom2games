@@ -22,7 +22,7 @@ BIN     := $(BUILD)/logo.bin
 # logo.o FIRST: its CODE segment starts with `jmp main`.
 MODS    := logo emote_hgr hgr_logom2 text_bitmap math sprite_helpers sprites_emotes bubble buffer_editor
 OBJS    := $(MODS:%=$(BUILD)/%.o)
-LIBDEPS := Makefile $(wildcard src/*.inc) $(A2_ASM_DEPS)
+LIBDEPS := Makefile $(wildcard src/*.inc) $(A2_ASM_DEPS) $(wildcard ../dev/lib/tms9918/sprite*.asm)
 
 all: $(DISK)
 

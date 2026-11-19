@@ -187,7 +187,8 @@ BOOT segment for it (the records' copy lives in the SHOPM overlay).
 C programs link `$(PRODOS_FILE_SRCS)` (`file.s`): `prodos_file_name`,
 `prodos_file_iobuf`, `prodos_file_buffer`, `prodos_file_length`,
 `prodos_file_actual`, `prodos_load()`, `prodos_load_free()`,
-`prodos_save()` (prodos.h). Users: WARGALAGA II (`HIGHSCORES`, from its
+`prodos_save()` (prodos.h): the assembly entries themselves under their C
+names, `file.asm` returning the code in A with X = 0. Users: WARGALAGA II (`HIGHSCORES`, from its
 title overlay), CHROMABREAK (`HIGHSCORES`, the `ENDING` overlay).
 Make the C object's prerequisites include `$(PRODOS_FILE_DEPS)` so changes
 to the included assembly rebuild `file.s` too.

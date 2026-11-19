@@ -213,7 +213,7 @@ resume_game:
 prepare_text:
         LDA #<str_text_load
         LDY #>str_text_load
-        JMP fm_bload
+        JMP fm_bload_retry
 
 manual_save:
         LDA active_game

@@ -4,6 +4,12 @@ Finished work, moved out of [TODO.md](TODO.md) on 2026-11-16.
 
 ## Done
 
+- 2026-11-19: a title, state-code or text file that cannot be read (disk
+  removed or damaged) shows "CANNOT READ THE DISK. CHECK IT, THEN PRESS A
+  KEY." on the text screen and tries again (`disk_retry`, `fm_bload_retry`),
+  where the game went on with what was in memory.
+  `tests/check_disk_error.py` renames MAZETITLE on a copy of the disk.
+
 - 2026-10-08: simplified combat: centred foe name, no duplicate title or
   initial action message, no secondary statistics, and shorter alerts/results.
 

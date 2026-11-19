@@ -42,7 +42,3 @@ from.
 - **`WAIT N` timing.** `HELP 7` says "pause N seconds", the manual's
   reference card says about 0.6 s per unit. Measure it on the Apple II
   (a2shot `until:` cycle counts) and make the two texts agree.
-- **Sprite modules copied from the library.** `src/sprite_helpers.asm` and
-  `src/sprites_emotes.asm` duplicate `../dev/lib/tms9918`'s files (same
-  bytes emitted). Include the library files instead; `sprites_emotes.asm`
-  there forces `.rodata`, which `logo.cfg` does not have.

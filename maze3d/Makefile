@@ -85,6 +85,7 @@ test: $(DISK)
 	$(PYTHON) tests/check_joystick.py
 	$(PYTHON) tests/check_configuration.py
 	$(PYTHON) tests/check_profiles.py
+	$(PYTHON) tests/check_disk_error.py
 	$(PYTHON) tests/check_ergonomics.py
 	$(PYTHON) tests/check_playthrough.py
 

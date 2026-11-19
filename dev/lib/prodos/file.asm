@@ -11,7 +11,8 @@
 ; Results: C = 1 on an error, A = its MLI code (0 when none), also kept in
 ; pf_err; pf_got = bytes moved by the last READ / WRITE, reset before OPEN
 ; and each transfer (also zero on a rejected read_free range). $4C, end of
-; file, is an error of READ when nothing is left. Clobbers A, X (Y kept).
+; file, is an error of READ when nothing is left. X = 0 on return (Y kept);
+; Z and N are not those of A.
 ; Main RAM, main zero page untouched; not reentrant, not for an IRQ.
 ;
 ;   prodos_open        OPEN pf_name, for the calls below
@@ -75,11 +76,10 @@ prodos_close:
 pf_result:
         bcs pf_fail
         lda #0
-        sta pf_err
-        rts
 pf_fail:
-        sta pf_err
-        sec
+        sta pf_err               ; A = the code, 0 when none
+        ldx #0                   ; (the high byte of file.s's C result)
+        cmp #1                   ; C = (A != 0)
         rts
 
 .ifref prodos_save
@@ -87,7 +87,7 @@ prodos_save:
         jsr prodos_open
         bcc @write
         cmp #$46                 ; file not found
-        bne pf_fail              ; CMP $46 must not clear an OPEN error's C
+        bne pf_fail
         lda pf_name
         sta pf_create_name
         lda pf_name+1
