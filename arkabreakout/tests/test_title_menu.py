@@ -16,6 +16,11 @@ def main():
     boot=[L.until('menu_loop',2000)]
     options=['key:\\e',L.until('title_menu_key')]
     def run(steps):return a2test.run(a.disk,boot+steps)
+    # Finish the first attract-mode board and dismiss the demo.
+    r = run([L.until('loop', 4000), L.poke('remaining', 0), 'wait:12',
+             L.until('loop'), L.peek('level'), 'key:R', L.until('menu_loop'),
+             L.peek('furthest')])
+    assert r.mem(L['level'], 1) == b'\x01' and r.mem(L['furthest'], 1) == b'\x00'
     r=run(['peek:2000:8192']+options+['peek:2000:8192','key:S',L.until('title_menu_key'),L.peek('sound_muted'),'key:S',L.until('title_menu_key'),L.peek('sound_muted'),'key:\\e',L.until('menu_loop'),L.peek('state')])
     assert r.mem(L['sound_muted'],1,0)==b'\1' and r.mem(L['sound_muted'],1,1)==b'\0'
     assert r.mem(L['state'],1)==b'\0'

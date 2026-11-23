@@ -43,6 +43,11 @@ def main():
     assert v(m,'pad_y')==172
     m=get(play([L.poke('pad_y',100),L.poke('pad_x',63)]),['pad_y'])
     assert v(m,'pad_y')>=128
+    # An absolute move from the floor to y=100 crosses row 7 even though
+    # neither endpoint touches it. An empty path still allows full travel.
+    for index, expected_y in [(84, 128), (95, 100)]:
+        m = get(play(board(index) + ['joy:-1,-1', L.poke('mode', 1)]), ['pad_y'])
+        assert v(m, 'pad_y') == expected_y, (index, m)
     # Both pages converge once pause HUD has been presented, then remain frozen.
     r=run(['peek:2000:16384','wait:60','peek:2000:16384'])
     assert r.mem(0x2000,16384,0)==r.mem(0x2000,16384,1)
@@ -77,6 +82,20 @@ def main():
     assert v(m,'ball_live')==0 and v(m,'lives')==2,m
     m=get(play(board()+ball(20,179,dy=0)+[L.poke('extra_balls',120,0),L.poke('extra_balls',140,1),L.poke('extra_balls',1,2)]),['lives','extra_balls'])
     assert v(m,'lives')==3
+    # A lost primary ball must disappear on the very first multiball frame.
+    fixture = ball(21, 179, dy=0) + L.poke('extra_balls', [120, 140, 1])
+    probe = 0x2000 + a2test.hgr_offset(180) + 3
+    r = run(play(fixture) + [L.peek('ball_live'), f'peek:{probe:04X}:1',
+                             f'peek:{probe+8192:04X}:1'])
+    assert r.mem(L['ball_live'], 1) == bytes(1)
+    for addr in (probe, probe + 8192):
+        assert r.mem(addr, 1)[0] & 7 == 0, 'lost ball visible below playfield'
+    # Moving right with a ball caught at the paddle tip must keep all three
+    # pixels inside the wall.
+    fixture = board() + ball(246, 172, dy=0) + [L.poke('effect', 3), L.poke('pad_x', 212)]
+    steps = play(fixture) + ['key:D', 'wait:6', L.until('loop')]
+    m = get(steps, ['ball_x', 'ball_live'])
+    assert v(m, 'ball_live') == 0 and v(m, 'ball_x') == 248, m
     # Space cannot revive a lost primary ball while an extra one is flying.
     fixture=board()+ball(20,179,dy=0)+[L.poke('extra_balls',120,0),L.poke('extra_balls',140,1),L.poke('extra_balls',1,2)]
     m=get(play(fixture)+['key: ']+tick,['lives','ball_x'])
@@ -125,6 +144,16 @@ def main():
     # Enemy contact awards 100 points and makes the ball bounce.
     m=get(play(board()+ball(100,140)+[L.poke('enemy_live',1),L.poke('enemy_x',101),L.poke('enemy_y',140),L.poke('enemy_dx',1)]),['enemy_live','score','ball_diry'])
     assert m['enemy_live'][0]==0 and m['score']==b'000100' and v(m,'ball_diry')==0,m
+    # An enemy beside the right or bottom edge misses by one pixel.
+    # Move the same enemy a pixel closer and the paddle earns the kill.
+    for x, y, killed in [(146, 150, False), (145, 150, True),
+                         (120, 152, False), (120, 151, True)]:
+        fixture = board() + ball(60, 140) + [L.poke('pad_y', 150), L.poke('frames', 0),
+                    L.poke('enemy_live', 1), L.poke('enemy_x', x),
+                    L.poke('enemy_y', y), L.poke('enemy_dx', 1)]
+        m = get(play(fixture), ['enemy_live', 'score'])
+        assert m['enemy_live'][0] == int(not killed), (x, y, m)
+        assert m['score'] == (b'000100' if killed else b'000000'), (x, y, m)
     # Each disk pack equals the authored boards; cross every decade in the real loader.
     spec=importlib.util.spec_from_file_location('arka_levels',ROOT/'arkabreakout/tools/pack_levels.py');packer=importlib.util.module_from_spec(spec);spec.loader.exec_module(packer)
     levels=packer.load();packer.check(levels)
@@ -149,6 +178,11 @@ def main():
         m=get([f'joy:{axis},1','wait:10'],['pad_x','pad_y','mode'],prefix=boot+['key:J',L.until('loop')])
         assert v(m,'pad_x')==px and v(m,'pad_y')==175 and v(m,'mode')==1,m
     m=get(['joy:0,-1','wait:10'],['pad_y'],prefix=boot+['key:J',L.until('loop')]);assert 100<=v(m,'pad_y')<=128
+    for held in (0, 1):
+        steps = [f'btn:{held},1', 'wait:5', L.until('loop'), L.poke('ball_live', 0),
+                 f'btn:{1-held},1', 'wait:8', L.until('loop')]
+        m = get(steps, ['ball_live'], prefix=boot+['key:J', L.until('loop')])
+        assert v(m, 'ball_live') == 1, (held, m)
     # ESC freezes the simulation, R rebuilds pages, Q returns to DOS; RESET too.
     r=run(['key:\\e','wait:15','key:R','wait:8',L.peek('paused')]);assert r.mem(L['paused'],1)==b'\1'
     for steps in [('key:\\e','key:Q'),('reset',)]:
@@ -176,8 +210,21 @@ def main():
             y=48+row*6
             addr=0x2000+(y%8)*1024+((y//8)%8)*128+(y//64)*40+26
             assert r.mem(addr,12)==bytes(colors[c] for c in boards[sector][1][row*12:row*12+12])
-    m=get([L.poke("state",3),L.poke("level",60),L.poke("furthest",59),"key:\\e",L.until("menu_input"),"key:D",L.until("menu_input")],["menu_sector","level"])
-    assert v(m,"menu_sector")==59 and v(m,"level")==60
+    # Enter via the actual victory screen; the idle demo belongs to the title.
+    won = [L.poke('level', 59), L.poke('furthest', 59), L.poke('remaining', 0),
+           'press:P', L.until('menu_loop'), 'wait:2100']
+    menu = ['key:\\e', L.until('menu_input')]
+    r = run(won + [L.peek('state'), 'peek:2000:8192'] + menu +
+            ['key:D', L.until('menu_input'), L.peek('menu_sector'), L.peek('level'),
+             'key:R', L.until('menu_loop'), L.peek('state'), 'peek:2000:8192'] + menu +
+            ['key:A', L.until('menu_input'), 'press: ', L.until('loop'),
+             L.peek('level'), L.peek('furthest'), L.peek('score', 6), L.peek('lives')])
+    assert r.mem(L['state'], 1, 0) == r.mem(L['state'], 1, 1) == bytes([3])
+    assert r.mem(L['menu_sector'], 1) == bytes([59]) and r.mem(L['level'], 1) == bytes([60])
+    before, after = (r.mem(0x2000, 8192, i) for i in (0, 1))
+    assert all(before[i] == after[i] for i in visible)
+    assert r.mem(L['level'], 1, 1) == bytes([58]) and r.mem(L['furthest'], 1) == bytes([59])
+    assert r.mem(L['score'], 6) == b'000000' and r.mem(L['lives'], 1) == bytes([3])
     # Active and stressed frame rates on the 1 MHz 48K machine.
     for name,fixture in [('normal',[]),('multiball',[L.poke('effect',4),L.poke('capsule',4),L.poke('cap_x',120),L.poke('cap_y',169)]),('enemies',[L.poke('enemy_live',1),L.poke('enemy_live',1,1),L.poke('enemy_x',60),L.poke('enemy_x',180,1),L.poke('enemy_y',140),L.poke('enemy_y',145,1)])]:
         r=run(fixture+['press:P']+tick+[L.peek('frames',2),'wait:120',L.peek('frames',2)])

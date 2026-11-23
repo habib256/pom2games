@@ -159,7 +159,7 @@ escape_menu:
 @resume:
         lda menu_origin
         cmp #1
-        bne @title
+        jne draw_ending
         ; Page 1 held the menu. Rebuild pages from simulation state only.
         jsr fetch_level
         jsr clear_pages
@@ -186,9 +186,24 @@ escape_menu:
 quit_game:
         lda furthest
         cmp record_data+4
-        beq @exit
+        bne @changed
+        lda save_status
+        cmp #2
+        bne @exit
+        beq @save               ; the previous submission still exists in RAM
+@changed:
         sta record_data+4
-        jsr records_save
+@save:  jsr records_save
+        lda save_status
+        cmp #2
+        bne @exit
+        jsr clear_pages
+        text save_failed, 12, 80
+        text save_retry, 2, 104
+        jsr show_graphics
+        jsr wait_key
+        cmp #'Q'
+        bne @save
 @exit:  jmp apple2_exit
 
 ; Use page 1 for the menu, retain simulation state across the redraw.
@@ -255,6 +270,8 @@ menu_click:
         asl
         clc
         adc #32
+        cmp #50                 ; title and footer are outside the six menu rows
+        bcc menu_input_none
         cmp #70
         bcc @resume
         cmp #90
@@ -265,6 +282,8 @@ menu_click:
         bcc @sound
         cmp #150
         bcc @title
+        cmp #170
+        bcs menu_input_none
         lda #'Q'
         rts
 @resume:lda #'R'

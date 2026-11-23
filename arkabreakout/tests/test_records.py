@@ -36,6 +36,32 @@ def main():
         assert r.mem(L['furthest'],1)==b'\x14' and r.mem(L['best_score'],6)==b'003200'
         saved=disk.read_bytes();r=submit(5000,'XYZ',wp=True)
         assert r.mem(L['save_status'],1)==b'\2' and disk.read_bytes()==saved,'protected disk changed'
+        pending = r.mem(L['record_data'], 55)
+        # Restore the RAM from the protected submission on a writable drive.
+        # Q must retry even when the sector number already matches the table.
+        quit_keys = ['key:\\e', L.until('title_menu_key'), 'key:Q']
+        r = a2test.run(disk, [L.until('menu_loop'), *L.poke('record_data', pending),
+                             L.poke('save_status', 2), *quit_keys, 'wait:350',
+                             f'dsk:{disk}'])
+        assert dos33.read_file(disk.read_bytes(), 'RECORDS') == pending
+        # A rejected quit-save keeps the player in the game for another try.
+        retry = [L.until('menu_loop'), L.poke('furthest', 21), *quit_keys,
+                 L.until('wait_key'), 'key:R', L.until('wait_key'),
+                 L.peek('save_status'), 'key:Q', 'wait:300', 'peek:03F2:2']
+        r = a2test.run(disk, retry, wp=True)
+        assert r.mem(L['save_status'], 1) == bytes([2])
+        assert r.mem(0x3f2, 2) == bytes([0xbf, 0x9d])
+        damaged = bytearray(saved)
+        records = bytearray(dos33.read_file(damaged, 'RECORDS'))
+        records[10] = ord('X')  # Last digit of the top score: 00320X
+        dos33.replace_file(damaged, 'RECORDS', records)
+        disk.write_bytes(damaged)
+        r = a2test.run(disk, [L.until('menu_loop'), L.peek('record_data', 55),
+                              L.peek('best_score', 6)])
+        empty = b'ABR\x01\x00' + 5 * b'000000AAA\x01'
+        assert r.mem(L['record_data'], 55) == empty
+        best = r.mem(L['best_score'], 6)
+        assert best == b'000000', f'title shows {best!r} after rejecting damaged records'
     assert original.read_bytes()==before,'test modified release disk'
     print('DOS records: six submissions, sort/initials, reload/progression, high-score screen and write protection passed.')
 if __name__=='__main__': main()

@@ -144,23 +144,37 @@ clamp_height:
         lda previous_x
 :       clc
         adc pad_width
-        sta pending_edge
+        bcc :+
+        lda #251
+:       sta pending_edge
 @probe: ldx cx
         lda collision_col,x
         cmp #255
         beq @gap
+        ; The swept paddle (including a held ball) can reach the last
+        ; two rows. Absolute controllers can cross a whole row per tick.
         lda pad_y
-        sec
-        sbc #5
+        cmp #109               ; top = y-5, penultimate row ends at 103
+        bcs @bottom_row
+        lda #103
         sta cy
         jsr point_hit
         bcs @blocked
+@bottom_row:
         lda pad_y
-        clc
-        adc #2
+        cmp #121               ; bottom row spans 108..115
+        bcs @next_col
+        cmp #106               ; bottom = y+2
+        bcs @bottom_hit
+        lda previous_y
+        cmp #106
+        bcc @next_col
+@bottom_hit:
+        lda #115
         sta cy
         jsr point_hit
         bcs @blocked
+@next_col:
         ; Every pixel of this brick column has the same collision result.
         ; Probe the next solid column rather than walking the paddle pixel by pixel.
         ldx cx
@@ -307,7 +321,7 @@ advance_balls:
         ora extra_balls+11
         bne @done
         lda ball_y
-        cmp #180
+        cmp #BALL_LOSS_Y
         bcc @attached
         dec lives
         jsr hud_dirty
@@ -588,6 +602,7 @@ enemies_step:
         adc pad_width
         cmp cx
         bcc @shots
+        beq @shots
         lda cy
         clc
         adc #6
@@ -595,7 +610,7 @@ enemies_step:
         bcc @shots
         lda pad_y
         clc
-        adc #3
+        adc #2
         cmp cy
         bcs @kill
 @shots: ldy #1

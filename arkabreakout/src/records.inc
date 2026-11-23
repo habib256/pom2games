@@ -5,7 +5,6 @@ record_data = $1B00             ; outside the $1800-$1A43 sector pack
 record_rank: .res 1
 record_offset: .res 1
 record_digit: .res 1
-save_status: .res 1             ; 0 none, 1 saved, 2 write protected
 record_initials: .res 4
 .code
 records_load:
@@ -28,18 +27,16 @@ records_load:
         lda record_data+4
         cmp #60
         bcs @empty
-        sta furthest
         ldx #0
-@best:  lda record_data+5,x
+@check: lda record_data+5,x
         cmp #'0'
         bcc @empty
         cmp #':'
         bcs @empty
-        sta best_score,x
         inx
         cpx #6
-        bne @best
-        rts
+        bne @check
+        beq @apply
 @empty: lda #'A'
         sta record_data
         lda #'B'
@@ -50,7 +47,6 @@ records_load:
         sta record_data+3
         lda #0
         sta record_data+4
-        sta furthest
         ldx #0
 @row:   lda #'0'
         ldy #6
@@ -69,6 +65,13 @@ records_load:
         inx
         cpx #50
         bcc @row
+@apply: lda record_data+4
+        sta furthest
+        ldx #5
+@best:  lda record_data+5,x
+        sta best_score,x
+        dex
+        bpl @best
         rts
 records_submit:
         lda demo
@@ -228,4 +231,5 @@ record_new: .asciiz "A NEW HIGH SCORE!"
 record_prompt: .asciiz "TYPE THREE LETTERS FOR YOUR NAME"
 record_accept: .asciiz "ENTER / SPACE ACCEPTS AAA"
 record_title: .asciiz "HIGH SCORES"
-save_failed: .asciiz "DISK WRITE PROTECTED - NOT SAVED"
+save_failed: .asciiz "DISK SAVE FAILED"
+save_retry: .asciiz "Q QUITS UNSAVED / OTHER KEY RETRIES"

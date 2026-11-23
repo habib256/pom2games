@@ -37,7 +37,10 @@ int main(int argc,char** argv) {
       if(iic&&(dx||dy))cycles(10000);
       hostX+=dx;hostY+=dy;core.moveMouse(dx,dy,button);
     };
-    host();cycles(100000);button=true;host();until("loop");check(read("state")==1&&read("ball_live"),"click starts launched game");
+    host();until("loop",60000000); // idle title starts the demo
+    button=true;host();until("menu_loop");cycles(300000);
+    check(read("state")==0,"holding the click that dismisses the demo stays on the title");
+    button=false;host();cycles(100000);button=true;host();until("loop");check(read("state")==1&&read("ball_live"),"click starts launched game");
     button=false;host();core.queueKey('P');cycles(200000);write("ball_live",0);write("enemy_hold",1);core.queueKey('P');until("loop");
     for(int i=0;i<20;i++){x+=10;host();until("loop");}check(read("pad_x")>180,"mouse X moves right");
     for(int i=0;i<50;i++){x+=20;host();until("loop");}check(read("pad_x")==251-read("pad_width"),"full right stays clamped without wrapping");
@@ -77,6 +80,10 @@ int main(int argc,char** argv) {
       }
       check(read("_mouse_y")==target,"mouse menu row");
     };
+    for(int margin : {100,175}){
+      menuY(margin);button=true;host();cycles(100000);until("menu_input");
+      button=false;host();cycles(100000);until("menu_input");
+    }
     menuY(144);auto mute=read("sound_muted");button=true;host();
     for(int i=0;i<5;i++)until("menu_input");
     check(read("sound_muted")==(mute^1),"click toggles sound once while held");
@@ -84,6 +91,14 @@ int main(int argc,char** argv) {
     menuY(110);button=true;host();until("loop");
     check(read("state")==1,"mouse resumes after preview menu");
     button=false;host();until("loop");
+    core.queueKey('J');until("loop");
+    core.setPaddleButton(0,true);until("loop");
+    for(int i=0;i<18;i++)core.write(at("extra_balls")+i,0);
+    write("ball_live",0);
+    core.queueKey(27);until("menu_input");until("menu_input");
+    core.queueKey('R');until("loop");until("loop");
+    check(!read("ball_live"),"a held joystick button stays held across the mouse menu");
+    core.setPaddleButton(0,false);
     // Victory, DOS BSAVE, records, help and returning to the title also
     // stay in HGR. The flag is checked after every CPU instruction.
     write("paused",0);write("level",59);write("remaining",0);write("ball_live",0);

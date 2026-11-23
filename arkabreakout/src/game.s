@@ -38,6 +38,7 @@ extra_balls: .res 18             ; two records matching ball_x..ball_yfrac
 sprite_history: .res 64         ; eight x/y/kind records on each HGR page
 level_name: .res 11
 .assert * <= $1300, lderror, "LOWBSS overlaps music player"
+BALL_LOSS_Y = 180
 collision_row = $1C00
 collision_col = $1D00
 level_pack = $1800              ; ten interleaved 48-byte boards + 10-byte names
@@ -80,7 +81,8 @@ effect: .res 1
 paused: .res 1
 frames: .res 2
 mode: .res 1              ; 0 keyboard, 1 joystick/paddles, 2 AppleMouse II
-button_old: .res 1
+button_old: .res 1        ; mouse button history shared by title, game and menus
+joy_btn_last: .res 1      ; joy_buttons history, cleared with state on startup
 hud1: .res 1
 hud2: .res 1
 dirty_counts: .res 2
@@ -150,6 +152,7 @@ menu_origin: .res 1
 start_request: .res 1
 idle: .res 2
 demo: .res 1
+save_status: .res 1             ; 0 none, 1 saved, 2 pending after a write error
 reset_end:
 
 
@@ -191,11 +194,6 @@ main:
         sta ht_left
         lda #40
         sta ht_wrap
-        lda #'0'
-        ldx #5
-@best:  sta best_score,x
-        dex
-        bpl @best
         lda #112
         sta paddle_max
         lda #5
@@ -234,7 +232,11 @@ menu_loop:
         sta difficulty
         jsr title
         jmp menu_loop
-@menu:  jsr title_menu
+@menu:  lda state
+        beq :+
+        jsr escape_menu
+        jmp menu_loop
+:       jsr title_menu
         jmp @dispatch
 @records:
         jsr records_show
@@ -279,7 +281,9 @@ menu_loop:
         beq @idle
         cmp #0
         bne start_game
-@idle:  inc idle
+@idle:  lda state
+        bne @wait               ; keep the result until the player acts
+        inc idle
         bne :+
         inc idle+1
 :       lda idle+1
@@ -618,6 +622,7 @@ ending:
         jsr music_victory
 :       jsr update_best
         jsr records_submit
+draw_ending:
         jsr clear_pages
         lda state
         cmp #3
@@ -645,11 +650,11 @@ ending:
         cpx #6
         bne @best
         text restart_text, 5, 128
-        text menu6, 5, 152
+        text title_options, 14, 152
         lda save_status
         cmp #2
         bne :+
-        text save_failed, 3, 176
+        text save_failed, 12, 176
 :       jmp show_graphics
 
 ; fm_bload_retry's hook: the disk was removed or cannot be read. Say so,
@@ -666,6 +671,8 @@ disk_retry:
 
 load_level:
         jsr fetch_level
+        lda demo
+        bne :+
         lda level
         cmp furthest
         bcc :+
@@ -776,7 +783,10 @@ attach_ball:
         sbc #1
 :       clc
         adc pad_x
-        sta ball_x
+        cmp #249
+        bcc :+
+        lda #248
+:       sta ball_x
         lda pad_y
         sec
         sbc #5
@@ -803,6 +813,8 @@ input:
         cmp #2
         bne @demo_stick
         lda _mouse_buttons
+        and #$80
+        sta button_old          ; consume this click through the return to title
         jmp @demo_button
 @demo_stick:
         lda BUTN0
@@ -880,22 +892,20 @@ input:
         lda mode
         beq @done
         cmp #2
-        bne @stick_button
+        beq @mouse_button
+        jsr joy_buttons         ; A = held, X = newly pressed, per joystick button
+        cpx #0
+        bne @launch
+        jmp @held
+@mouse_button:
         lda _mouse_buttons
-        jmp @button
-@stick_button:
-        lda BUTN0
-        ora BUTN1
-@button: and #$80
+        and #$80
         cmp button_old
         sta button_old
         bne @edge
-        cmp #0
+@held:  cmp #0
         beq @done
         lda paused
-        bne @done
-        lda effect
-        cmp #5
         bne @done
         jmp fire_lasers
 @edge:  cmp #0
@@ -1127,7 +1137,7 @@ ball_step:
         jne @done
 @bottom:
         lda ball_y
-        cmp #180
+        cmp #BALL_LOSS_Y
         bcc @ybrick
         lda #0
         sta ball_live
@@ -1649,6 +1659,8 @@ old_objects:
         lda old_bx,x
         sta rx
         lda old_by,x
+        cmp #BALL_LOSS_Y       ; lost primary awaiting multiball promotion
+        bcs @capsule
         sta ry
         lda #3
         sta rw
@@ -1990,7 +2002,6 @@ menu5: .asciiz "1 RELAX / 2 ARCADE / 3 EXPERT"
 calibration_text: .asciiz "C CALIBRATE  ? HELP  H RECORDS"
 cal_left: .asciiz "PADDLE LEFT, THEN PRESS A KEY"
 cal_right: .asciiz "PADDLE RIGHT, THEN PRESS A KEY"
-menu6: .asciiz "P : PAUSE   ESC : MENU"
 lost_text: .asciiz "GAME OVER"
 won_text: .asciiz "ALL SECTORS CLEARED!"
 final_text: .asciiz "FINAL SCORE"

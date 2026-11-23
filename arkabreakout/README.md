@@ -100,13 +100,16 @@ ranges fall back to the default. Calibration survives replays.
 During play, the Escape menu offers **R / Escape** to resume, **A / D** or arrows to select
 an already reached sector, **Space / Enter** to start it, **S** to toggle sound,
 **T** for the title and **Q** to save progression and quit to DOS. The selector
-shows a miniature of the selected board and its name. With AppleMouse II,
+shows a miniature of the selected board and its name. Escape also opens this
+selector from the result screen. Resuming there shows the final score again. With AppleMouse II,
 click a menu row to activate it; on the sector row, click the left half for
 the previous sector or the right half for the next. A held click triggers once.
 A high score
 asks for three letters; Space or Enter accepts the remaining default `A`s.
 On a write-protected disk the score stays in RAM and the end screen reports
-that it was not saved.
+that it was not saved. Quitting retries a pending save. If the write fails,
+replace or unprotect the disk and press a key to retry, or press Q to exit
+without saving.
 
 ![Sector preview menu](screenshots/menu.png)
 
