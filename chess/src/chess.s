@@ -46,7 +46,7 @@ PC_W       = 3          ; piece/square width in bytes (21 px)
 PC_H       = 22         ; piece/square height in scanlines
 BOARD_X0   = 2          ; left byte column of the board (col 0..1 = rank digit)
 BOARD_Y0   = 14         ; top scanline of the board
-BLINK_HI   = $40        ; cursor blink half-period (poll-loop iters, hi byte)
+BLINK_HI   = 5          ; ~0.55 s per phase, sampling paddles every 16 polls
 FILL_WHITE = $FF        ; white square / INVERT rop mask
 FILL_BLACK = $80        ; black square / COPY rop mask (bit 7 = HGR palette)
 ; --- right text panel (bbfont) --------------------------------------------
@@ -75,6 +75,7 @@ mptr_hi:   .res 1
 
 .segment "CODE"
 .import init_board, apply_user_move, ai_play_move, game_status, in_check
+.import try_user_move, unmake_move
 .import piece_at, undo_last_move, user_saved_captured
 .import side_to_move, mv_from, mv_to, mv_promo, mv_flags, ai_strategy, ai_rng
 
@@ -89,6 +90,7 @@ sel_sq:     .res 1      ; selected source ($FF = none)
 sel_active: .res 1
 piece_code: .res 1
 play_mode:  .res 1      ; 0 HvH / 1 WAI / 2 BAI / 3 AvA
+prior_movecount: .res 1
 movecount:  .res 1
 game_result:.res 1
 cursor_on:  .res 1
@@ -139,6 +141,7 @@ main:
         LDA #0
         STA sel_active
         STA movecount
+        STA game_result
         STA hist_n
         STA cursor_on
         LDA #2
@@ -156,14 +159,17 @@ main:
         LDA #0
         STA flipped
         STA stick_key_last
+        STA stick_key_btn
+        STA stick_key_btn+1
         JSR hgr_init_clear      ; HGR + PAGE1 + blank the framebuffer
-        JSR draw_board
-        JSR draw_coords
         JSR a1_choose_mode
         JSR after_menu
 
 game_loop:
-        JSR check_terminal
+        JSR game_status
+        BEQ @ongoing
+        JMP show_result
+@ongoing:
         JSR update_status
         JSR side_is_ai
         STA turn_ai
@@ -333,13 +339,18 @@ do_confirm:
         CMP #$70
         BNE @apply
 @promote:
+        JSR try_user_move       ; prompt only for a legal promotion
+        BCS @cancel
+        JSR unmake_move
         JSR ask_promotion
         BCS @cancel             ; ESC: keep the position, drop the selection
         STA mv_promo
 @apply: JSR apply_user_move
         BCC @made
 @cancel: JMP do_deselect
-@made:  JSR snd_move
+@made:  LDA movecount
+        STA prior_movecount
+        JSR snd_move
         LDA #0
         STA sel_active
         STA cursor_on
@@ -349,7 +360,7 @@ do_confirm:
         JSR print_move_hgr
         JMP game_loop
 
-; ask_promotion: "PROMOTE Q R B N" on the status row, wait for one of the
+; ask_promotion: "PROMOTE QRBN" on the status row, wait for one of the
 ; four letters (A = piece code, C clear) or ESC (C set). The status row is
 ; reprinted by game_loop either way (printed_side forced).
 ask_promotion:
@@ -360,7 +371,12 @@ ask_promotion:
         JSR panel_msg
         LDA #$FF
         STA printed_side
-@key:   JSR wait_key
+@key:   JSR poll_key
+        BNE @letter
+        JSR stick_key
+        CMP #$1B
+        BNE @key
+@letter:
         LDX #3
 @find:  CMP promo_keys,X
         BEQ @got
@@ -396,6 +412,12 @@ cycle_mode:
         ADC #1
         AND #3
         STA play_mode
+        LDA #0
+        STA sel_active
+        STA cursor_on
+        LDA #$FF
+        STA sel_sq
+        JSR orient_board
         LDA #$FF
         STA printed_side
         JMP game_loop
@@ -412,6 +434,22 @@ toggle_strategy:                ; P: NAIVE -> SMART -> DEEP -> NAIVE
 do_undo:
         JSR undo_last_move
         BCS @no
+        LDA prior_movecount
+        STA movecount
+        LDA #0
+        STA sel_active
+        LDA #$FF
+        STA sel_sq
+        DEC move_row
+        LDX move_row
+        JSR clear_move_row
+        DEC hist_n
+        LDA p2_side
+        STA p1_side
+        LDA p2_from
+        STA p1_from
+        LDA p2_to
+        STA p1_to
         JSR draw_board
 @no:    JMP game_loop
 
@@ -424,6 +462,7 @@ new_game:
         LDA #0
         STA sel_active
         STA movecount
+        STA game_result
         STA cursor_on
         STA hist_n
         LDA #$FF
@@ -434,34 +473,34 @@ new_game:
         STA printed_side
         LDA #2
         STA move_row
-        JSR draw_board
         JSR clear_movelist
         JSR clear_hint
         JSR a1_choose_mode
         JSR after_menu
         JMP game_loop
 
-; after_menu: mode 3 (you play Black) turns the board round. Redraw when the
-; orientation changed, and start the cursor on e2 (e7 when flipped).
+; A new game starts on e2 or e7. M keeps the cursor when the view stays
+; the same. Repaint the board to remove the old selection and cursor ticks.
 after_menu:
+        LDA #$FF
+        STA flipped             ; force coordinate and cursor initialization
+orient_board:
+        LDX #0
         LDA play_mode
         CMP #2
-        BEQ @black
-        LDA #0
-        BEQ @set
-@black: LDA #1
-@set:   CMP flipped
-        BEQ @cursor
-        STA flipped
-        JSR draw_board
-        JSR draw_coords
-@cursor:
+        BNE @set
+        INX
+@set:   CPX flipped
+        BEQ @board
+        STX flipped
         LDA #$14                ; e2
-        LDX flipped
-        BEQ @c
+        CPX #0
+        BEQ @cursor
         LDA #$64                ; e7
-@c:     STA cur_sq
-        RTS
+@cursor:
+        STA cur_sq
+        JSR draw_coords
+@board: JMP draw_board
 
 ai_turn:
         LDA play_mode
@@ -471,12 +510,7 @@ ai_turn:
         CMP #200
         BCC @poll
         LDA #4
-        STA game_result
-        JSR a1_result
-@wdraw: JSR wait_key
-        CMP #'N'
-        BNE @wdraw
-        JMP new_game
+        JMP show_result
 @poll:  JSR poll_key
         BEQ @go
         CMP #'N'
@@ -487,6 +521,8 @@ ai_turn:
         JMP cycle_mode
 @go:    JSR ai_play_move
         BCS @loop
+        LDA movecount
+        STA prior_movecount
         INC movecount
         JSR draw_board
         JSR print_move_hgr
@@ -510,16 +546,14 @@ side_is_ai:
 @ai:    LDA #1
         RTS
 
-check_terminal:
-        JSR game_status
-        BEQ @ok
+show_result:
         STA game_result
+        JSR update_status
         JSR a1_result
 @wait:  JSR wait_key
         CMP #'N'
         BNE @wait
         JMP new_game
-@ok:    RTS
 
 cur_up:
         LDA cur_sq
@@ -1081,7 +1115,16 @@ print_move_hgr:
 ; clear_movelist: blank panel rows [MLIST_TOP,MLIST_BOT), reset move_row.
 clear_movelist:
         LDX #MLIST_TOP
-@row:   LDA #MLCOL
+@row:   JSR clear_move_row
+        INX
+        CPX #MLIST_BOT
+        BNE @row
+        LDA #MLIST_TOP
+        STA move_row
+        RTS
+
+clear_move_row:
+        LDA #MLCOL
         STA tx_col
         TXA
         ASL
@@ -1097,11 +1140,6 @@ clear_movelist:
         DEY
         BNE @col
         LDX save_x
-        INX
-        CPX #MLIST_BOT
-        BNE @row
-        LDA #MLIST_TOP
-        STA move_row
         RTS
 
 ; update_status: side to move, mode and AI level at the top of the right
@@ -1293,18 +1331,12 @@ a1_turn_status:
         STX sptr_hi
         JSR in_check
         BEQ @show
+        JSR snd_check
         LDA #<st_check
         STA sptr_lo
         LDA #>st_check
         STA sptr_hi
-@show:  JSR panel_msg
-        LDA sptr_lo
-        CMP #<st_check
-        BNE @done
-        LDA sptr_hi
-        CMP #>st_check
-        BNE @done
-        JMP snd_check
+@show:  JMP panel_msg
 @done:  RTS
 
 ; ---------------------------------------------------------------------------
@@ -1350,7 +1382,7 @@ a1_modeprompt:
 st_your:   .byte "YOUR MOVE", 0
 st_think:  .byte "THINKING...", 0
 st_check:  .byte "CHECK!", 0
-st_promo:  .byte "PROMOTE Q R B N", 0
+st_promo:  .byte "PROMOTE QRBN", 0
 a1_pressn: .byte "N = NEW GAME", 0
 
 o_bwin: .byte "MATE: B WINS", 0

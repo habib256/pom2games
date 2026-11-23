@@ -270,6 +270,7 @@ init_board:
         STA ep_square
         LDA #$00
         STA halfmove_clock
+        STA undo_avail
         LDA #$01
         STA fullmove_number
         ; King squares: white E1 = $04, black E8 = $74.
@@ -333,7 +334,25 @@ apply_user_move:
         AND #(MV_FLAG_CASTLE_K | MV_FLAG_CASTLE_Q)
         BEQ @noc
         JMP apply_castle_move
-@noc:
+@noc:   JSR try_user_move
+        BCC @commit
+        RTS
+@commit:
+        ; Move is legal. Snapshot for user-undo BEFORE toggling side
+        ; (save_user_state captures side_to_move = mover, fullmove pre-bump).
+        JSR save_user_state
+        JSR toggle_side
+        ; Bump fullmove if it's now white's turn (we just played black).
+        LDA side_to_move
+        BNE @done
+        INC fullmove_number
+@done:
+        CLC
+        RTS
+
+; Test a normal move, leaving it made (but uncommitted) on success.
+.export try_user_move
+try_user_move:
         ; 1. Validate from-square is on the board and has a piece of our colour.
         LDA mv_from
         AND #OFFBOARD_MASK
@@ -394,15 +413,6 @@ apply_user_move:
         SEC
         RTS
 @move_safe:
-        ; Move is legal. Snapshot for user-undo BEFORE toggling side
-        ; (save_user_state captures side_to_move = mover, fullmove pre-bump).
-        JSR save_user_state
-        JSR toggle_side
-        ; Bump fullmove if it's now white's turn (we just played black).
-        LDA side_to_move
-        BNE @done
-        INC fullmove_number
-@done:
         CLC
         RTS
 
@@ -450,7 +460,7 @@ castle_try:
         JMP @check_squares
 @qs_b:  LDA castling_rights
         AND #CR_BLACK_Q
-        BEQ @no_right
+        BNE @check_squares
 @no_right:
         LDA #ERR_BAD_GEOMETRY
         SEC
@@ -1281,6 +1291,7 @@ make_move:
 
         ; --- 7. halfmove clock (50-move rule) ---
         LDA saved_captured
+        ORA mv_promo            ; tmp already holds the new piece after promotion
         BNE @reset_hm
         LDA tmp
         AND #PIECE_MASK
@@ -1640,7 +1651,7 @@ ia_slider: .byte PIECE_ROOK, PIECE_BISHOP, PIECE_ROOK, PIECE_BISHOP
 ; from inside ai_play_move. A position with a legal move is still a draw (4)
 ; after 100 half-moves without a capture or a pawn move (the 50-move rule,
 ; applied automatically) or when neither side can mate: king against king,
-; or king and one minor piece against king (gs_ongoing).
+; a lone minor piece, or only bishops on squares of one colour (gs_ongoing).
 ;
 ; Returns A = status code, Z reflects A.
 game_status:
@@ -1711,32 +1722,53 @@ game_status:
         RTS
 
 ; gs_ongoing: a legal move exists. A = 4 (draw) after 100 half-moves without a
-; capture or a pawn move, or with dead material: mat_tot counts pawns as 1 and
-; minor pieces as 3, so a total of 3 or less without any pawn on the board is
-; K vs K, K+N vs K or K+B vs K. Otherwise A = 0. Z reflects A.
+; capture or a pawn move, or with dead material. Otherwise A = 0. Z reflects A.
 gs_ongoing:
         LDA halfmove_clock
         CMP #100
         BCS @draw
-        LDA mat_tot
-        CLC
-        ADC mat_tot+1
-        CMP #4
-        BCS @play               ; a rook, two minors or a queen: playable
+        LDY #$FF                ; square colour of the first bishop, if seen
         LDX #$77
 @scan:  TXA
         AND #OFFBOARD_MASK
         BNE @next
         LDA board,X
         AND #PIECE_MASK
-        CMP #PIECE_PAWN
-        BEQ @play               ; pawns can still promote
+        BEQ @next
+        CMP #PIECE_KING
+        BEQ @next
+        CMP #PIECE_KNIGHT
+        BEQ @knight
+        CMP #PIECE_BISHOP
+        BNE @play               ; pawn, rook or queen
+        STX tmp
+        TXA
+        LSR A
+        LSR A
+        LSR A
+        LSR A
+        EOR tmp
+        AND #1                  ; (rank XOR file) & 1
+        CPY #$FF
+        BEQ @bishop
+        STY tmp
+        CMP tmp
+        BNE @play
+@bishop:
+        TAY
 @next:  DEX
         BPL @scan               ; $77 down to $00
 @draw:  LDA #$04
         RTS
 @play:  LDA #$00
         RTS
+@knight:
+        LDA mat_tot
+        CLC
+        ADC mat_tot+1
+        CMP #3                  ; only a lone knight is dead material
+        BEQ @draw
+        BNE @play
 
 ; ============================================================================
 ; evaluate_material -- A = (our material - their material), signed 8-bit
@@ -2889,15 +2921,19 @@ perft1:
         BCS @nextt
         JSR make_move
         JSR in_check
-        BNE @illegal
-        ; Legal move: increment counter
-        INC perft_count_lo
-        BNE @inc_done
+        BNE @unmake
+        ; The four promotion choices occupy the same square and hence
+        ; leave the moving king equally safe.
+        LDA #1
+        LDY mv_promo
+        BEQ @count
+        LDA #4
+@count: CLC
+        ADC perft_count_lo
+        STA perft_count_lo
+        BCC @unmake
         INC perft_count_hi
-@inc_done:
-        JSR unmake_move
-        JMP @nextt
-@illegal:
+@unmake:
         JSR unmake_move
 @nextt:
         INC ai_scan_y

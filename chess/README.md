@@ -16,8 +16,9 @@ its engine `dev/lib/games/chess`, with the piece bitmaps of cc65-Chess.
   (WAI), `3` you as Black (BAI), `4` computer against computer (AVA, stops
   with `DRAW` after 200 computer moves).
 - **Draws by rule**: 50 moves without a capture or a pawn move, and dead
-  material (king against king, king and one minor piece against king) end
-  the game with `DRAW`.
+  material end the game with `DRAW`. The game recognizes bare kings, a lone
+  bishop or knight, and positions where only kings and bishops remain and
+  all bishops occupy squares of the same colour.
 - **Three AI levels**, cycled with `P` and shown on the panel (`W WAI L2`):
   L1 = 1 ply (material after its move), L2 = 2 plies (sees your reply, so it
   stops hanging pieces and refuses mate-in-one), L3 = 3 plies. L2 is the
@@ -65,7 +66,7 @@ Pick a mode with `1`-`4` on the menu, then the board on HGR page 1 takes over.
 - An illegal move (wrong geometry, king left in check, ...) simply cancels
   the selection — pick again.
 - En passant is entered as the capturing pawn's diagonal move. A pawn
-  reaching the last rank asks `PROMOTE Q R B N` on the status row: press the
+  reaching the last rank asks `PROMOTE QRBN` on the status row: press the
   letter (ESC cancels the move).
 - Castling: move the king two squares towards the rook (e1-g1, e1-c1, e8-g8,
   e8-c8). The engine checks the rights, the empty squares and the attacked
