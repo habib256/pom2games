@@ -83,11 +83,42 @@ def translate(source):
         # rejects normal absolute mouse drags across the palette boundary.
         text = text.replace('cmp #$10\nbcc *+6\ncmp #$F0\nbcc pcs_DRAGO8',
                             'jsr $6312\nbcc pcs_DRAGO8\n.res 3, $EA')
+    elif source.stem in ('RUN', 'RUN2'):
+        base = 'pcs_SCB' if source.stem == 'RUN' else 'pcs_SCBASE'
+        digit = f'({base}),Y'
+        start = text.index('pcs_DOSCORE2:')
+        end = text.index('jmp pcs_PRSCORE2', start) + len('jmp pcs_PRSCORE2')
+        # A pending award can reach 255. If adding the stored digit wraps,
+        # subtract one ten from the nine-bit sum and count it in X.
+        score = text[start:end].replace(
+            f'clc\nadc {digit}\nbcc *+4\nlda #255\nsta {digit}\n'
+            f'pcs_DOSCOR2:\nldx #0\nlda {digit}',
+            f'pcs_DOSCOR2:\nldx #0\nclc\nadc {digit}\nbcc pcs_DOSCOR3\nsbc #10\ninx')
+        score = score.replace(f'dey\nadc {digit}\nsta {digit}\ntya\nbne pcs_DOSCOR2',
+                              f'dey\nbne pcs_DOSCOR2\nadc {digit}\nsta {digit}')
+        text = text[:start] + score + '\n.res 36-(*-pcs_DOSCORE2), $EA' + text[end:]
+        if source.stem == 'RUN2':
+            # MOVEBALL reads and writes offsets 16..22 of each captured ball.
+            text = text.replace('adc #22\nsta pcs_TEMP', 'adc #23\nsta pcs_TEMP')
+            # Removal moves the last ball into the current slot. Process that
+            # slot again so LIVEBALLS includes its status on this frame.
+            text = text.replace('dec pcs_SLEEPCNT\n; \npcs_SLEEP6:',
+                                'dec pcs_SLEEPCNT\nldy pcs_NEXTOBJ\njmp pcs_SLEEP2\npcs_SLEEP6:')
     elif source.stem == 'DISK':
-        # The loader records the real controller slot as $n0. Match the
-        # overlay loader instead of always using slot 6 for SAVE/LOAD.
-        text = text.replace('lda #6\nsta pcs_SLOT',
-                            'lda $B7C3\nlsr\nlsr\nlsr\nlsr\nsta pcs_SLOT')
+        # Initialize the destination once on entry. Redrawing the menu
+        # after a command or Escape must retain the selected device.
+        text = text.replace('stx pcs_STACKTEMP\npcs_START:',
+                            'stx pcs_STACKTEMP\nlda #1\nsta pcs_DRIVE\n'
+                            'lda $B7C3\nlsr\nlsr\nlsr\nlsr\nsta pcs_SLOT\npcs_START:')
+        for device, default, label in [('SLOT', 6, 'SSLOT'), ('DRIVE', 1, 'SDRIV')]:
+            text = text.replace(f'lda #{default}\nsta pcs_{device}\njsr pcs_HL{device}',
+                                f'lda pcs_{device}\njsr pcs_HL{device}')
+            # DOMENU changes the destination only when a row is selected.
+            text = text.replace(f'beq pcs_{label}3\npcs_{label}2:',
+                                f'pcs_{label}3:\npcs_{label}2:')
+            text = text.replace(f'pcs_{label}3:\nlda #{default}\nsta pcs_{device}\nbne pcs_{label}2', '')
+        # A boot controller in slots 1..3 has no highlight row.
+        text = text.replace('pcs_HLSLOT:\ntay', 'pcs_HLSLOT:\ncmp #4\nbcs :+\nrts\n:\ntay')
         text = text.replace('pcs_MAIN:\njsr pcs_JSCTRL\njsr pcs_UPDATECRSR\nlda $C061',
                             'pcs_MAIN:\njsr pcs_JSCTRL\njsr pcs_UPDATECRSR\njsr $6303')
         text = text.replace('jsr pcs_FMGR', 'jsr $630F')
@@ -105,6 +136,10 @@ def translate(source):
         start = text.index('pcs_COMPRESS:')
         end = text.index('pcs_DECOMPRESS:', start)
         compression = text[start:end].replace('sta (pcs_MIDBTM),Y', 'jsr pcs_COMPRESS_PUT')
+        # Short literal records have TEMP bytes. Copying until Y wraps
+        # writes past the record and can falsely trip the workspace limit.
+        compression = compression.replace('iny\nbne pcs_FINDNZ6',
+                                          'iny\ncpy pcs_TEMP\nbne pcs_FINDNZ6')
         text = text[:start] + compression + text[end:]
         text += ('\npcs_COMPRESS_PUT:\nphp\npha\ntya\nclc\nadc pcs_MIDBTM\n'
                  'lda pcs_MIDBTM+1\nadc #0\ncmp #$63\nbcs pcs_COMPRESS_FULL\n'

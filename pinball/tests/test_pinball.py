@@ -33,6 +33,53 @@ for name, spec in manifest['assets'].items():
 vtoc = original[17*4096:17*4096+256]
 assert all(vtoc[0x38+t*4:0x3c+t*4] == bytes(4) for t in range(16))
 
+open_menu = [E.until('pcs_MAIN', 1600), 'joy:0,0'] + click(260, 180)
+menu = open_menu + [D.until('pcs_MAIN', 500)]
+for x, y in [(230, 90), (230, 140), (230, 67), (218, 140)]:
+    menu += click(x, y) + [D.until('pcs_MAIN', 120), D.peek('pcs_DRIVE', 2)]
+menu += click(174, 90) + [D.until('pcs_GETN3', 120), 'key:\\e',
+                          D.until('pcs_MAIN', 500), D.peek('pcs_DRIVE', 2)]
+assert a2test.run(disk, menu).dumps == [bytes([1, 5])] + [bytes([2, 5])] * 4, \
+    'Cancelling a disk selection or filename changed the selected drive/slot'
+# Supply the boot slot at overlay entry. Slots below four have no menu row.
+low_slot = open_menu + ['until:9500:500', 'poke:B7C3:20', D.until('pcs_MAIN', 120),
+                        D.peek('pcs_SLOT'), D.peek('pcs_SLOTBOX')]
+assert a2test.run(disk, low_slot).dumps == [bytes([2]), bytes([0])], \
+    'A low boot slot must stay selected without drawing a stray highlight'
+
+# SCORE feeds pending byte-sized awards into two decimal accumulators.
+# Check the carry at 999 + 255 in the editor and the standalone overlay.
+for module, origin, base in [('RUN', 0x7700, 'pcs_SCB'), ('RUN2', 0x8554, 'pcs_SCBASE')]:
+    labels = a2test.labels(build / f'{module}.lbl')
+    for accumulator, column in [('pcs_SCORE1', 7), ('pcs_BONUS', 5)]:
+        address = labels[accumulator]
+        steps = [f'load:{build / (module + ".bin")}@{origin:04X}']
+        steps += labels.poke(accumulator, [9, 9, 9], column - 2)
+        steps += labels.poke(base, address.to_bytes(2, 'little'))
+        steps += [f'regs:FF:00:{column:02X}', f'go:{labels["pcs_DOSCORE2"]:04X}',
+                  labels.until('pcs_PRSCORE2', 5), labels.peek(accumulator, 4, column - 3)]
+        assert a2test.run(None, steps).dumps == [bytes([1, 2, 5, 4])], (module, accumulator)
+
+# RUN2 stores captured balls in records with fields at offsets 0 through 22.
+U = a2test.labels(build / 'RUN2.lbl')
+setup = [f'load:{build / "RUN2.bin"}@8554', f'go:{U["pcs_MAKETBLS"]:04X}',
+         U.until('pcs_SETUP2', 100)]
+slots = a2test.run(None, setup + [U.peek('pcs_SLEEPLO', 2), U.peek('pcs_SLEEPHI', 2)]).dumps
+first, second = [lo + 256 * hi for lo, hi in zip(*slots)]
+# The first callback reports a drained ball, the second a moving ball.
+steps = setup + [U.poke('pcs_SLEEPCNT', 2), U.poke('pcs_PLAYER', 0),
+                 U.poke('pcs_LASTY', 1), U.poke('pcs_Y2', 0), U.poke('pcs_LIVEBALLS', 0),
+                 f'poke:{U["pcs_DRAWBALL"]:04X}:60']
+steps += U.poke('pcs_SLEEPCODE', [0, 0])
+for record, callback, status in [(first, 0x6000, 0x80), (second, 0x6010, 0)]:
+    steps += a2test.pokes(record + 10, callback.to_bytes(2, 'little'))
+    steps += a2test.pokes(callback, [0xA9, status, 0x85, U['pcs_BSTAT'], 0x60])
+steps += [f'go:{U["pcs_SLEEP"]:04X}', U.until('pcs_SLEEP7', 10),
+          U.peek('pcs_SLEEPCNT'), U.peek('pcs_LIVEBALLS')]
+observed = a2test.run(None, steps).dumps
+assert observed == [b'\x01', b'\xff'], ('Remaining ball skipped after removal', observed)
+assert second - first == 23, ('Overlapping captured ball records', second - first)
+
 steps = [E.until('pcs_MAIN', 1600), 'joy:0,0']
 steps += cursor(246, 7) + ['btn:0,1', E.until('pcs_DRAGOBJ2', 60), 'wait:2']
 for x in range(236, 75, -10):
@@ -44,8 +91,9 @@ steps += click(260, 160) + [W.until('pcs_MAIN', 500), f'shot:{build / "wire.png"
 steps += click(260, 58) + [W.until('pcs_QUIT', 120), E.until('pcs_MAIN', 800)]
 steps += click(260, 180) + [D.until('pcs_MAIN', 500), f'shot:{build / "disk-menu.png"}']
 steps += click(174, 90) + [D.until('pcs_GETNAME', 120), 'wait:3', 'key:TEST\\r',
-                         D.until('pcs_WAIT1', 120), 'key: ', D.until('pcs_MAIN', 2000),
-                         f'dsk:{build / "saved.dsk"}']
+                         D.until('pcs_WAIT1', 120), 'key: ', D.until('pcs_COMPRESS', 500)]
+save_steps = steps.copy()
+steps += [D.until('pcs_MAIN', 2000), f'dsk:{build / "saved.dsk"}']
 steps += click(174, 78) + [D.until('pcs_GETNAME', 120), 'wait:3', 'key:TEST\\r',
                          D.until('pcs_WAIT1', 120), 'key: ', D.until('pcs_MAIN', 2000), 'peek:401C:4']
 steps += click(174, 100) + [E.until('pcs_MAIN', 800), f'shot:{build / "editor.png"}']
@@ -59,7 +107,21 @@ assert result.dumps[1] != result.dumps[2], 'Ball did not move during play'
 assert result.dumps[3] == result.dumps[0], 'Reload did not restore the three objects'
 saved = (build / 'saved.dsk').read_bytes()
 assert [entry[0] for entry in dos33.catalog(saved)] == ['TEST.PB']
-assert len(dos33.read_file(saved, 'TEST.PB')) > 69
+saved_table = dos33.read_file(saved, 'TEST.PB')
+assert len(saved_table) > 69
+# Repeat the same SAVE with exactly enough workspace for its compressed graphics.
+object_count = saved_table[0x1C]
+geometry_end = 0x1D + object_count + sum(saved_table[0x1D:0x1D + object_count])
+graphics = saved_table[geometry_end:]
+start = 0x6300 - len(graphics)
+packed = a2test.run(disk, save_steps + D.poke('pcs_MIDBTM', start.to_bytes(2, 'little')) + [
+    D.until('pcs_BSAVE', 500), f'peek:{start:04X}:{len(graphics)}', D.peek('pcs_MIDBTM', 2),
+    D.until('pcs_MAIN', 2000), f'dsk:{build / "exact-fit.dsk"}'])
+assert packed.dumps[-2] == graphics, 'Exact-fit SAVE changed the compressed graphics'
+assert packed.dumps[-1] == bytes([0, 0x63]), 'Exact-fit SAVE used the wrong amount of space'
+exact_fit = dos33.read_file((build / 'exact-fit.dsk').read_bytes(), 'TEST.PB')
+assert len(exact_fit) == 0x2300 and exact_fit.endswith(graphics)
+print('PASS: SAVE writes the complete table when compressed graphics exactly fill the workspace')
 assert saved[:16*4096] == original[:16*4096], 'SAVE overwrote an engine track'
 assert disk.read_bytes() == original, 'Tests modified the distributed disk'
 
