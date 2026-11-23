@@ -292,6 +292,9 @@ def main():
     run(CLIFF, [((20, 0, 0, 0), 0), ((gas, 8, 0, 0), 1)] + [((5, 0, 1, 0), 1)] * 4 +
         [((5, 8, 1, -4), 1)] * 2)
     print('physics: 6502 == model, brake in the air')
+    # A swing from rest lifts both wheels spinning in opposite directions.
+    # Their braking torques cancel on the next tick.
+    run([160] * 4096, [((8, 0, 0, -8), 0), ((3, 0, 0, 8), 1), ((1, 0, 1, 0), 1)])
     sols = trackcheck.solutions()
     for k in (1, 19, 30):               # whole proven rides: hills, a double flip, big jumps
         h, fin = tracks.build(k)

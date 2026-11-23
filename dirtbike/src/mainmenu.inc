@@ -42,7 +42,6 @@ esc_menu:
 
 .segment "MENUOVL"
 mm_enter:
-        JSR     stick_calib             ; paddles: from where they are
         LDA     state                   ; a race on (not finished): it can
         CMP     #ST_FINISH              ; go on, item 0
         LDA     #0
@@ -51,6 +50,7 @@ mm_enter:
         STA     mm_lo
         STA     mm_sel
 main_menu:
+        JSR     stick_calib             ; also when returning from help or scores
         JSR     page1_text
         LDA     #<mm_text
         STA     sptr
@@ -195,6 +195,8 @@ mm_next: .byte INP_PADDLES, INP_STICK, INP_KEYS ; after STICK, KEYS, PADDLES
 ; mm_keep -- the device chosen into DIRTHOF, when it changed (write
 ; protected: kept for this game only)
 mm_keep:
+        LDA     joy_found               ; keyboard fallback is only for this boot
+        BEQ     @rts
         LDA     inp_dev
         CMP     inp_pref
         BEQ     @rts

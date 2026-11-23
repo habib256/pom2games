@@ -255,7 +255,9 @@ demo_step:
         JSR     stick_button
         BCC     @in
         RTS
-@in:    LDA     demo_left
+@in:    LDA     count_t                 ; accept input during the count, ride from GO
+        BNE     @hold
+        LDA     demo_left
         BNE     @same
         LDY     #0
         LDA     (demo_ptr),Y

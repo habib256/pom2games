@@ -45,7 +45,7 @@ ST_RECORD = 3                   ; finished with a new record
 
 .segment "ZEROPAGE"
 state:  .res 1
-stimer: .res 1
+stimer: .res 1                  ; crash / demo timer, then timed respawn ticks
 t_tick: .res 1                  ; tick in the tenth (0-2)
 t_hun:  .res 1                  ; race clock, BCD: hundredths, seconds,
 t_sec:  .res 1                  ; minutes (binary, 0-9)
@@ -130,7 +130,6 @@ to_menu:
         JSR     tune_stop
         LDA     #0
         STA     demo
-        JSR     stick_calib
         JSR     menu                    ; A = the chosen track, C = 1: ESC
         BCC     race_sel
         JMP     attract
@@ -196,6 +195,7 @@ new_race:
         LDA     #0
         STA     jphase                  ; the stick on even frames of the race:
         STA     state                   ; the same ride from every start
+        STA     stimer
         STA     t_hun
         STA     t_tick
         STA     t_sec
@@ -217,13 +217,7 @@ new_race:
 main_loop:
         LDA     demo
         BEQ     @player
-        LDA     count_t                 ; a demo: the ride's inputs, from GO
-        BEQ     @dstep
-        LDA     KBD
-        BPL     @nokey
-        BIT     KBDSTRB
-        JMP     to_menu
-@dstep: JSR     demo_step
+        JSR     demo_step
         BCC     @nokey
         JMP     to_menu                 ; a key: stop it
 @player:
@@ -351,8 +345,10 @@ race_resume:
         LDA     sel
         JSR     load_track
         BCS     @err
+        BIT     KBDSTRB                 ; discard input typed during the reload
         JSR     race_view
         LDA     state
+        ORA     count_t                 ; keep a countdown already in progress
         BNE     @go
         LDA     #COUNT_STEP*3+1
         STA     count_t
@@ -439,10 +435,9 @@ show_msg:
 
 ; countdown -- before GO (and after a restart): 3, 2, 1 with beeps, GO!
 countdown:
-        LDA     t_min                   ; a restart: the clock runs on
-        ORA     t_sec
-        ORA     t_hun
+        LDA     stimer                  ; only the crash recovery costs race time
         BEQ     @c
+        DEC     stimer
         JSR     clock_tick
 @c:     DEC     count_t
         LDA     count_t
@@ -532,6 +527,7 @@ respawn:
         LDX     #1
         JSR     hud_forget
         LDA     #COUNT_STEP+1           ; "1", GO!
+        STA     stimer
         STA     count_t
         RTS
 
@@ -673,11 +669,15 @@ clock_tick:
         BCC     @sec
         LDA     t_min
         CMP     #9
-        BCS     @done                   ; 9:59.9 is the slowest time shown
+        BCC     @minute
+        LDA     #$99                    ; saturate the recorded hundredths too
+        STA     t_hun
+        RTS
+@minute:
         INC     t_min
         LDA     #0
 @sec:   STA     t_sec
-@done:  RTS
+        RTS
 
 ; ---------------------------------------------------------------------------
 ; draw_hud -- the top row: clock left, score right, the message in the

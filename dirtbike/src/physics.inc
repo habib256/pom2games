@@ -380,7 +380,7 @@ phys_tick:
         STA     spin_l,X
 @sp:    STA     spin_h,X
         INC     turn
-        BNE     @snx                    ; (always: turn 1 or 2)
+        JMP     @snx                    ; opposite wheel spins can cancel
 @sng:   CLC                             ; s += AIR_SPIN_BRAKE, not above 0
         LDA     spin_l,X
         ADC     #<AIR_SPIN_BRAKE

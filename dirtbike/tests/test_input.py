@@ -113,6 +113,12 @@ def main():
           f'left ignored, button: hall of fame and back): ' + ('ok' if ok else 'DIFF'))
     bad += not ok
 
+    r = a2test.run(DISK, [L.until('demo_start'), L.until('main_loop'), 'wait:4'] + btn +
+                   ['wait:20', L.peek('demo')])
+    ok = r.dumps == [bytes([0])]
+    print('button during demo countdown opens the track menu: ' + ('ok' if ok else 'DIFF'))
+    bad += not ok
+
     # no stick: both timers open, both buttons floating high
     r = a2test.run(DISK, ['joy:9,9', 'btn:0,1', 'btn:1,1', 'wait:1000', L.peek('joy_found', 1),
                           L.peek('inp_dev', 1)] + RACE +
@@ -188,6 +194,37 @@ def main():
         ok = sel == [0, 1, 1, 2, 2, 1]
         print(f'paddles in the menus: items {sel} (opened with a dial at its end, turn, left aside, turn on, '
               f'left aside, back): ' + ('ok' if ok else 'DIFF'))
+        bad += not ok
+
+        # Two successive half-travel turns on consecutive menu polls.
+        r = a2test.run(saved, RACE + [L.until('new_race', 900), 'wait:100', 'joy:0,-1',
+                                     'key:\x1b', L.until('mm_key', 300), 'joy:0,-0.5',
+                                     L.until('mm_show', 60), L.peek('mm_sel'), 'joy:0,0',
+                                     'wait:30', L.peek('mm_sel')])
+        sel = [d[0] for d in r.dumps]
+        ok = sel == [1, 2]
+        print(f'paddles: consecutive turns select {sel}: ' + ('ok' if ok else 'DIFF'))
+        bad += not ok
+        # Exactly 16 counts upward, then move a dial while reading help.
+        menu = RACE + [L.until('new_race', 900), 'wait:100', 'key:\x1b', L.until('mm_key')]
+        r = a2test.run(saved, menu + ['key:K', 'wait:10', 'joy:0,-0.37', 'wait:10', L.peek('mm_sel'),
+                                     'key:2', L.until('mm_wait'), 'joy:0,1', 'key: ', 'wait:60', L.peek('mm_sel'),
+                                     'key:1', L.until('tick_wait'), 'joy:0,-1', 'key: ', L.until('menu_input'),
+                                     L.poke('rec_min', 0), 'key:H', L.until('tick_wait'), 'joy:0,1',
+                                     'key: ', 'wait:60', L.peek('sel')])
+        sel, after_help, track = [d[0] for d in r.dumps]
+        ok = sel == 0 and after_help == 2 and track == 0
+        print(f'paddle threshold and help return: items {sel}/{after_help}, track {track + 1}: '
+              + ('ok' if ok else 'DIFF'))
+        bad += not ok
+
+        # Boot the saved paddle preference without hardware and just visit the menu.
+        unplugged = Path(tmp) / 'unplugged.dsk'
+        r = a2test.run(saved, ['joy:9,9'] + menu + [L.peek('inp_dev'), 'key:\x1b', L.until('main_loop', 900),
+                                                    f'dsk:{unplugged}'])
+        hof = dos33.read_file(unplugged.read_bytes(), 'DIRTHOF')
+        ok = r.dumps[0][0] == INP_KEYS and hof[L['inp_pref'] - L['hof_img']] == INP_PADDLES
+        print('menu with paddles unplugged retains saved preference: ' + ('ok' if ok else 'DIFF'))
         bad += not ok
     if bad:
         sys.exit('input: failures')

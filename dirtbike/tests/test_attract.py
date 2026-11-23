@@ -72,6 +72,17 @@ def main():
     L = a2test.labels(GAME / 'build/dirtbike.lbl')
     bad = 0
 
+    # With wheel delta (24, -8), each torso step is (-1, -3).
+    steps = ['wait:1300', 'key: ', 'wait:60', 'key:\r', L.until('new_race', 900), L.until('draw_bike')]
+    for i, (x, y) in enumerate(((80, 150), (104, 142), (90, 134))):
+        steps += [L.poke('pt_xl', x, i), L.poke('pt_yh', y, i)]
+    # hgr_line8 sorts endpoints left to right, putting the shoulders first.
+    steps += [L.until('mark_bike'), L.peek('sprx', 2), L.until('draw_sprite'), L.peek('hl_ln_x0', 2)]
+    head, shoulders = a2test.run(DISK, steps).dumps
+    ok = tuple(head) == (87, 125) and tuple(shoulders) == (88, 128)
+    print(f'torso on a slope: head {tuple(head)}, shoulders {tuple(shoulders)}: ' + ('ok' if ok else 'DIFF'))
+    bad += not ok
+
     # the title
     r = a2test.run(DISK, [L.until('tick_wait', 3000), 'peek:2000:8192'])
     page, want = r.mem(0x2000, 8192), (GAME / 'build/title.hgr').read_bytes()
@@ -230,15 +241,17 @@ def main():
     # ESC in a race, ESC in the main menu: the same race goes on (the track
     # read again over TITLE), after a countdown
     h1, _ = tracks.build(1)
-    r = a2test.run(DISK, ['wait:1000', 'key: ', 'wait:60', 'key:\r', L.until('new_race', 900), 'wait:80'] +
+    r = a2test.run(DISK, ['wait:1000', 'key: ', 'wait:60', 'key:\r', L.until('new_race', 900), 'wait:300'] +
                    [s for _ in range(10) for s in ('key:A', 'wait:3')] +
-                   ['key:\x1b', L.until('mm_key', 300), L.peek('pt_xl', 2), L.peek('pt_xh', 2), L.peek('t_sec', 1),
-                    'key:\x1b', L.until('main_loop', 600), L.peek('pt_xl', 2), L.peek('pt_xh', 2), L.peek('t_sec', 1),
-                    L.peek('count_t', 1), 'peek:9600:4096', 'wait:120', L.peek('state', 1)])
-    x0, x1 = (r.dumps[i][1] * 256 + r.dumps[i - 1][1] for i in (1, 4))
+                   ['key:\x1b', L.until('mm_key', 300), L.peek('pt_xl', 2), L.peek('pt_xh', 2), L.peek('t_tick', 4),
+                    'press:\x1b', L.until('load_track', 300), 'press:\x1b',
+                    L.until('main_loop', 600), L.peek('pt_xl', 2), L.peek('pt_xh', 2), L.peek('t_tick', 4),
+                    L.peek('count_t', 1), 'peek:9600:4096', L.until('phys_tick', 300), L.peek('t_tick', 4), L.peek('state', 1)])
+    x0, x1 = (r.dumps[i][0] * 256 + r.dumps[i - 1][0] for i in (1, 4))
     ok = (x0 > 48 + 20 and x1 == x0 and r.dumps[2] == r.dumps[5] and r.dumps[6][0] > 0 and
-          list(r.dumps[7]) == h1 and r.dumps[8][0] == 0)
-    print(f'ESC, ESC: back to the race at x {x1} (left at {x0}), countdown {r.dumps[6][0]}, track read again: ' +
+          list(r.dumps[7]) == h1 and r.dumps[8] == r.dumps[2] and r.dumps[9][0] == 0)
+    print(f'ESC, ESC: back to the race at x {x1} (left at {x0}), countdown {r.dumps[6][0]}, track read again, '
+          f'clock {r.dumps[2].hex()} -> {r.dumps[8].hex()}: ' +
           ('ok' if ok else 'DIFF'))
     bad += not ok
 

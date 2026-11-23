@@ -616,13 +616,17 @@ draw_bike:
         LDA     spx+2                   ; head centre = rider + 3 steps
         CLC
         ADC     hdx
+        CLC
         ADC     hdx
+        CLC
         ADC     hdx
         STA     sprx
         LDA     spy+2
         CLC
         ADC     hdy
+        CLC
         ADC     hdy
+        CLC
         ADC     hdy
         CMP     #224                    ; above row 0 (wrapped): row 3, the
         BCS     @top                    ; highest the sprite can go; 188 the
@@ -653,11 +657,13 @@ draw_bike:
         CLC
         LDA     spx+2
         ADC     hdx
+        CLC
         ADC     hdx
         STA     hl_ln_x1
         CLC
         LDA     spy+2
         ADC     hdy
+        CLC
         ADC     hdy
         STA     hl_ln_y1
         JSR     hgr_line8

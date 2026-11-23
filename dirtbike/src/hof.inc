@@ -101,10 +101,13 @@ hof_save:
         LDX     #0
 @c:     LDA     hof_img,X
         STA     HOFBUF+4,X
-        LDA     hof_img+256,X           ; (past HOF_LEN: BSS that follows,
-        STA     HOFBUF+4+256,X          ;  harmless in the file's slack)
         INX
         BNE     @c
+@tail:  LDA     hof_img+256,X
+        STA     HOFBUF+4+256,X
+        INX
+        CPX     #HOF_LEN-256
+        BNE     @tail
         LDX     #0
         JSR     hof_sector
         JSR     rwts_write

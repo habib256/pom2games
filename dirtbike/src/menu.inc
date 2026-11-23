@@ -27,6 +27,7 @@ lbl_lock: .byte 0               ; bit 7: put_track_label prints no name
 
 .segment "TXTC5"                 ; runs in the text page (copied at boot)
 menu:
+        JSR     stick_calib             ; also when returning from help
         LDA     sel                     ; a locked track: back to track 1
         JSR     is_locked
         BCC     @open

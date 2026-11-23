@@ -37,11 +37,15 @@ REC_INI, REC_PTS, REC_PINI, LAST_INI = 4 + 3 * NT, 4 + 6 * NT, 4 + 9 * NT, 4 + 1
 UP, DOWN, LEFT, RIGHT, DELETE = '\x0b', '\x0a', '\x08', '\x15', '\x7f'
 
 
+def start_race(L):
+    return ['joy:0,0', 'wait:1300', 'key: ', 'wait:60', 'key:\r', L.until('new_race', 900),
+            L.until('main_loop', 60)]
+
+
 def race_to_record(L):
     """Title -> track 1; last lap, the finish line behind the bike, 1200
     points, the clock at 1:23.45: the record's initials are asked."""
-    return ['joy:0,0', 'wait:1300', 'key: ', 'wait:60', 'key:\r', L.until('new_race', 900),
-            L.until('main_loop', 60), L.poke('finish_x', 40), L.poke('finish_x', 0, 1), L.poke('laps', 2),
+    return start_race(L) + [L.poke('finish_x', 40), L.poke('finish_x', 0, 1), L.poke('laps', 2),
             L.poke('score', 0x00), L.poke('score', 0x12, 1), L.poke('score', 0x00, 2),
             L.poke('t_min', 1), L.poke('t_sec', 0x23), L.poke('t_hun', 0x45), 'wait:220', 'key: ', L.until('hof_entry', 300), 'wait:30']
 
@@ -67,13 +71,21 @@ def main():
     empty = hof.empty()
     fresh = DISK.read_bytes()
 
+    steps = start_race(L) + [L.poke('count_t', 0)]
+    for minute in (8, 9):
+        steps += [L.poke('t_min', minute), L.poke('t_sec', 0x59), L.poke('t_hun', 0x96), L.poke('t_tick', 1)]
+        for _ in range(2):
+            steps += [L.until('clock_tick'), L.until('main_loop'), L.peek('t_min'), L.peek('t_sec'), L.peek('t_hun')]
+    times = list(b''.join(a2test.run(DISK, steps).dumps))
+    assert times == [9, 0, 0, 9, 0, 3, 9, 0x59, 0x99, 9, 0x59, 0x99], times
+
     with tempfile.TemporaryDirectory(prefix='dirtbike-hof-') as tmp:
         # initials with the keys, drawn, then saved
         saved = Path(tmp) / 'saved.dsk'
         keys = [DOWN, RIGHT, UP, UP, RIGHT, '9', UP, UP, UP, LEFT, DELETE, 'z']
         steps = race_to_record(L) + a2test.keys(keys, 5)
-        steps += [L.peek('last_ini', 3), L.peek('hpos', 1), 'peek:2000:8192', 'key:\r',
-                  L.until('new_race', 900), L.peek('hof_t', 2), L.peek('hof_s', 2), f'dsk:{saved}']
+        steps += [L.peek('last_ini', 3), L.peek('hpos', 1), 'peek:2000:8192', 'peek:B700:4', 'key:\r',
+                  L.until('new_race', 900), L.peek('hof_t', 2), L.peek('hof_s', 2), 'peek:B700:4', f'dsk:{saved}']
         r = a2test.run(DISK, steps)
         ini, pos, page = r.mem(L['last_ini'], 3), r.mem(L['hpos'], 1)[0], r.mem(0x2000, 8192)
         drawn = cells(page, 24, 88, 'ZCA') and cells(page, 24, 98, ' ^ ')
@@ -84,7 +96,12 @@ def main():
         t, s = list(r.mem(L['hof_t'], 2)), list(r.mem(L['hof_s'], 2))   # (adjacent peeks merge)
         image = saved.read_bytes()
         raw = sectors(image, t, s)
-        got = raw[4:4 + len(empty)]
+        end = 4 + len(empty)
+        ok = raw[end:] == sectors(fresh, t, s)[end:] and r.dumps[3] == r.dumps[-1]
+        print(f'save preserves sector padding and DOS at $B700 ({r.dumps[3].hex()} -> {r.dumps[-1].hex()}): '
+              + ('ok' if ok else 'DIFF'))
+        bad += not ok
+        got = raw[4:end]
         want = bytearray(empty)
         for off in (REC_MIN, REC_SEC, REC_HUN):
             want[off] = got[off]                    # the race's time, whatever it is

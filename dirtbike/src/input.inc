@@ -294,6 +294,9 @@ stick_menu:
         PLA
         TAY
         LDX     #STICK_ON               ; the threshold: a push, or still held
+        LDA     inp_dev
+        CMP     #INP_PADDLES
+        BEQ     @thr                    ; each dial step uses STICK_ON
         LDA     mrep
         BEQ     @thr
         LDX     #STICK_OFF
@@ -303,7 +306,8 @@ stick_menu:
         SBC     joy_my
         LDX     #KC_DOWN
         BCS     @y
-        EOR     #$FF                    ; |d| - 1 (near enough)
+        EOR     #$FF                    ; |d|, carry clear from SBC
+        ADC     #1
         LDX     #KC_UP
 @y:     CMP     joy_cnt
         BCS     @push
@@ -313,13 +317,20 @@ stick_menu:
         LDX     #KC_RIGHT
         BCS     @x
         EOR     #$FF
+        ADC     #1
         LDX     #KC_LEFT
 @x:     CMP     joy_cnt
         BCS     @push
         LDA     #0                      ; back in the middle: armed
         STA     mrep
 @rts:   RTS
-@push:  JSR     pdl_centre              ; paddles: the next step from here
+@push:  LDA     inp_dev
+        CMP     #INP_PADDLES
+        BNE     @stick
+        JSR     pdl_centre              ; the next dial step starts here
+        TXA
+        RTS
+@stick:
         LDA     mrep
         BEQ     @first
         DEC     mrep
@@ -342,10 +353,10 @@ stick_calib:
         LDA     joy_ok
         BEQ     pdl_rts                 ; (the keyboard: no port read)
         JSR     read_stick_fast
-pdl_centre:
         LDA     joy_ok
         CMP     #INP_PADDLES ^ INP_KEYS ; (joy_ok 3)
         BNE     pdl_rts
+pdl_centre:
         LDA     joy_x
         STA     joy_mx
         LDA     joy_y
