@@ -115,7 +115,7 @@ static void seg(unsigned char x, unsigned char y, unsigned char n)
 unsigned char __fastcall__ seg_at(const char *bar, unsigned char x)
 {
     unsigned char i, n = 0;
-    if (x >= strlen(bar) || (bar[x] == ' ' && (bar[x + 1] == ' ' || bar[x - 1] == ' ')))
+    if (!x || x >= strlen(bar) || (bar[x] == ' ' && (bar[x + 1] == ' ' || bar[x - 1] == ' ')))
         return 0xFF;
     for (i = 1; i <= x; ++i)
         if (bar[i] == ' ' && bar[i - 1] == ' ')
@@ -517,10 +517,10 @@ static void resync(void)
         stop();
         return;
     }
-    if (o >= s_nord)
-        o = 0;
     if (snd_loop != 0xFF && snd_loop >= s_nord)
         snd_loop = s_nord - 1;
+    if (o >= s_nord)
+        o = snd_loop == 0xFF ? 0 : snd_loop;
     if (r >= s_rows) {
         r = 0;
         if (snd_loop != 0xFF)
@@ -733,6 +733,7 @@ void __fastcall__ ensure_ins(unsigned char i)
     while (s_nins < i) {
         ins_default(s_nins);
         ++s_nins;
+        touched();
         rd |= RD_INS;
     }
 }
@@ -908,8 +909,14 @@ static void block_op(unsigned char op)
         n = s_rows - sr0;
         if (n > clip_r)
             n = clip_r;
-        for (v = 0; v < clip_v && sv0 + v < s_voices; ++v)
-            ax(CELLP(sv0 + v, sr0), AUX_CLIP + v * TRACK, n * CELL, 0);
+        for (v = 0; v < clip_v && sv0 + v < s_voices; ++v) {
+            c = CELLP(sv0 + v, sr0);
+            ax(c, AUX_CLIP + v * TRACK, n * CELL, 0);
+            /* The clipboard survives a song change. */
+            for (r = 0; r < n; ++r, c += CELL)
+                if ((c[1] & 15) > s_nins)
+                    ensure_ins(c[1] & 15);
+        }
     } else
         for (v = sv0; v <= sv1; ++v)
             for (r = sr0; r <= sr1; ++r) {
@@ -950,31 +957,24 @@ static void undo(void)
         memcpy(t, c, CELL);
         memcpy(c, u_cell, CELL);
         memcpy(u_cell, t, CELL);
-        cur_v = u_v;
-        cur_row = u_r;
-        view();
+        if (cur_pat == s_order[ord_cur]) {
+            cur_v = u_v;
+            cur_row = u_r;
+            view();
+        }
     } else {
         ax(scratch, AUX_UNDO, s_voices * TRACK, 0);
         ax(grid, AUX_UNDO, s_voices * TRACK, 1);
         memcpy(grid, scratch, s_voices * TRACK);
     }
     changed();
+    if (cur_pat != s_order[ord_cur])
+        pat_select(s_order[ord_cur]);
     rd |= RD_GRID;
     say("UNDONE (^Z AGAIN: REDO)");
 }
 
 /* ---------------------------------------------------------------- order list */
-static void order_changed(void)
-{
-    touched();
-    if (s_order[ord_cur] != cur_pat) {
-        pat_select(s_order[ord_cur]);
-        rd |= RD_GRID;
-        view();
-    }
-    rd |= RD_ORDER | RD_HEAD;
-}
-
 static void ord_go(unsigned char i)
 {
     ord_cur = i;
@@ -982,8 +982,16 @@ static void ord_go(unsigned char i)
         pat_select(s_order[ord_cur]);
         rd |= RD_GRID | RD_HEAD;
         view();
-    }
+    } else if (playing)
+        draw_row(play_r);   /* The same pattern can appear in several entries. */
     rd |= RD_ORDER;
+}
+
+static void order_changed(void)
+{
+    touched();
+    ord_go(ord_cur);
+    rd |= RD_HEAD;
 }
 
 static void set_entry(unsigned char p)
@@ -994,6 +1002,14 @@ static void set_entry(unsigned char p)
 
 static void ord_insert(unsigned char p)
 {
+    if (playing) {
+        /* Hold the IRQ position until resync opens the gate again. */
+        snd_gate = 0;
+        if (ays_order > ord_cur)
+            ++ays_order;
+        if (snd_loop != 0xFF && snd_loop > ord_cur)
+            ++snd_loop;
+    }
     memmove(s_order + ord_cur + 1, s_order + ord_cur, s_nord - ord_cur);
     ++s_nord;
     if (s_loop != 0xFF && s_loop > ord_cur)
@@ -1062,10 +1078,14 @@ static unsigned char order_key(unsigned char k)
     case 'N':
     case 'C':
     case 'I':
+        if (k == 'I' && s_nord == 255) {
+            say("ORDER LIST IS FULL");
+            return 1;
+        }
         p = pat_new(k == 'C');
         if (p == 0xFF)
             say("NO ROOM FOR ANOTHER PATTERN");
-        else if (k == 'I' && s_nord < 255)
+        else if (k == 'I')
             ord_insert(p);
         else
             set_entry(p);
@@ -1081,6 +1101,13 @@ static unsigned char order_key(unsigned char k)
     case K_DEL:
         if (s_nord == 1)
             return 1;
+        if (playing) {
+            snd_gate = 0;
+            if (ays_order > ord_cur)
+                --ays_order;
+            if (snd_loop != 0xFF && snd_loop > ord_cur)
+                --snd_loop;
+        }
         memmove(s_order + ord_cur, s_order + ord_cur + 1, s_nord - ord_cur - 1);
         --s_nord;
         if (s_loop != 0xFF && s_loop > ord_cur)
@@ -1298,24 +1325,6 @@ static void key(unsigned char k)
     if (focus == 1 && order_key(k))
         return;
     switch (k) {
-    case K_UP:
-        move_row(-1);
-        return;
-    case K_DOWN:
-        move_row(1);
-        return;
-    case '[':
-        move_row(-16);
-        return;
-    case ']':
-        move_row(16);
-        return;
-    case K_LEFT:
-        field(-1);
-        return;
-    case K_RIGHT:
-        field(1);
-        return;
     case K_PAT:
         return;
     case K_TAB:
@@ -1426,6 +1435,39 @@ static void key(unsigned char k)
         }
         return;
     }
+    }
+    p = strchr(mute_keys, k);
+    if (k && p) {
+        d = p - mute_keys;
+        if (d < s_voices) {
+            snd_mute ^= 1 << d;
+            if (slot)
+                snd_mute_set(snd_mute);
+            rd |= RD_HEAD;
+        }
+        return;
+    }
+    if (focus)
+        return;
+    switch (k) {
+    case K_UP:
+        move_row(-1);
+        return;
+    case K_DOWN:
+        move_row(1);
+        return;
+    case '[':
+        move_row(-16);
+        return;
+    case ']':
+        move_row(16);
+        return;
+    case K_LEFT:
+        field(-1);
+        return;
+    case K_RIGHT:
+        field(1);
+        return;
     case K_DEL:
     case '.':
         clear_field();
@@ -1459,17 +1501,6 @@ static void key(unsigned char k)
         return;
     case CTRL('Z'):
         undo();
-        return;
-    }
-    p = strchr(mute_keys, k);
-    if (k && p) {
-        d = p - mute_keys;
-        if (d < s_voices) {
-            snd_mute ^= 1 << d;
-            if (slot)
-                snd_mute_set(snd_mute);
-            rd |= RD_HEAD;
-        }
         return;
     }
     grid_key(k);

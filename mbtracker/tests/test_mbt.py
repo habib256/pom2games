@@ -261,7 +261,6 @@ def play_check(s, data, ticks, what, start=None):
 GRID_Y, KEYS_Y = 3, 23
 HOP = 24                        # pixels a mousemove: hop at most (the card takes ~32 a frame)
 MAIN_BAR = ' ^P PLAY  ^R LOOP  SPC STOP  PAT  TAB ORD  ^E INS  ^L LOAD  ^S SAVE  ? HELP'
-INS_BAR = ' RETURN LISTEN  ESC BACK  < PREV  > NEXT  ^T NAME  ^O ^Y TICK'
 
 
 def empty_song(voices=3):
@@ -373,6 +372,8 @@ def run_mouse(work):
     with Session(DISK, ['--iie', '--mockingboard', '--mouse', '--mouse-slot=2']) as s:
         s.idle(1500)
         assert s.b('mouse_slot') == 2 and s.b('slot') == 4
+        s.click(0, KEYS_Y)
+        assert not s.b('playing'), 'the blank left margin must not start playback'
         song = empty_song()
         t = song.patterns[0].tracks
         s.click(16, GRID_Y + 4)                         # voice 2, its note, row 4
@@ -394,7 +395,12 @@ def run_mouse(work):
         assert 'INSTRUMENT EDITOR' in s.screen()[0]
         s.click(7, 6 + 2)                               # tick 2's volume
         s.keys('9')
-        s.click(INS_BAR.index('ESC'), KEYS_Y)
+        bar = s.screen()[KEYS_Y]
+        s.click(bar.index('^O'), KEYS_Y)
+        assert 'TICKS 09' in s.screen()[4], s.screen()[4]
+        s.click(bar.index('^Y'), KEYS_Y)
+        assert 'TICKS 08' in s.screen()[4], s.screen()[4]
+        s.click(bar.index('ESC'), KEYS_Y)
         scr = s.screen()
         assert 'INSTRUMENT EDITOR' not in scr[0] and '>2' in scr[GRID_Y + 1], scr[GRID_Y + 1]
         song.instruments[1].ticks[2].vol = 9
@@ -470,6 +476,7 @@ def run_mouse(work):
 
         s.click(MAIN_BAR.index('HELP'), KEYS_Y)
         assert 'HELP 1/2' in s.screen()[0]
+        assert 'LOOP TO THIS ENTRY' in s.screen()[23]
         s.keys(' ')
         scr = s.screen()
         assert 'HELP 2/2' in scr[0] and scr[2].startswith('BLOCKS'), scr[:3]
@@ -492,6 +499,20 @@ def find_copy(nonce, since):
         except OSError:
             continue
     raise AssertionError('the private copy of the disk was not found')
+
+
+def run_order_marker():
+    with Session(DISK, ['--iie', '--mockingboard']) as s:
+        s.idle(1500)
+        s.keys('\t' + ctrl('O') + UP + ctrl('F') + ctrl('R'))
+        s.step('wait:10')
+        s.idle()
+        assert any(row[2] == '>' for row in s.screen()[GRID_Y:GRID_Y + 19])
+        s.keys(DOWN)
+        assert s.b('ord_cur') == 1 and s.b('playing') == 2
+        assert all(row[2] != '>' for row in s.screen()[GRID_Y:GRID_Y + 19])
+        s.keys(UP)
+        assert any(row[2] == '>' for row in s.screen()[GRID_Y:GRID_Y + 19])
 
 
 def run_iie(work):
@@ -683,9 +704,22 @@ def run_nocard(work):
         s.idle(1500)
         scr = s.screen()
         assert 'NO MOCKINGBOARD' in scr[0] and 'NO MOCKINGBOARD' in scr[22], (scr[0], scr[22])
+        s.keys('\tZ' + ctrl('B') + ']')
+        assert not s.b('modified') and not s.b('sel_on') and not s.b('cur_row')
+        s.keys('\t')
+        s.keys(ctrl('E') + DOWN * 7 + ctrl('Y'))
+        # Column 7 of screen row 12: the volume of tick 6 is now selected.
+        assert a2test.Result(s.step('peek:062B:1').out).mem(0x62B, 1) == b'9'
+        s.keys(ESC)
         s.keys('Z' + ctrl('P'))
         assert s.peek('grid', 3) == bytes([48, 1, 0])
         assert 'PLAYBACK IS OFF' in s.screen()[22]
+        s.keys(ctrl('L') + 'Y/MISSING.AYS' + RET)
+        assert 'PRODOS ERROR $46' in s.screen()[22]
+        assert s.b('modified') and s.b('cur_row') == 1 and s.b('u_kind') == 1
+        s.keys(ctrl('Z'))
+        assert s.b('grid') == 255
+        s.keys(ctrl('Z'))
         s.keys('\t=' + ctrl('O') + '-L\t')       # order list: a new pattern, an entry, the loop
         assert s.peek('s_order', 2) == b'\x01\x00' and s.peek('s_nord', 1)[0] == 2
         assert s.peek('s_loop', 1)[0] == 1 and s.peek('s_npat', 1)[0] == 2
@@ -695,6 +729,73 @@ def run_nocard(work):
         s.step(f'until:{L["prodos_quit"]:04X}:300')    # crt0's exit, /RAM rebuilt
         print('PASS //e without a card: NO MOCKINGBOARD, a note typed, ^P only says so; order list: '
               'new pattern, inserted entry, pattern number, loop; ^Q Y: back to ProDOS\'s QUIT')
+
+
+def run_edit_limits(work):
+    song = empty_song()
+    song.order = [0] * 255
+    disk = work / 'limits.po'
+    a2test.prodos_variant(DISK, disk, replace={'FULL.AYS#060000': aysong.encode(song)})
+    with Session(disk, ['--iie']) as s:
+        s.idle(1500)
+        s.keys(ctrl('L') + '/FULL.AYS' + RET)
+        s.keys('\tI')
+        assert s.b('s_nord') == 255 and s.b('s_npat') == 1 and s.peek('s_order', 255) == bytes(255)
+        assert not s.b('modified') and 'ORDER LIST IS FULL' in s.screen()[22]
+
+        s.keys('\t>' + ctrl('E') + ESC)
+        assert s.b('s_nins') == 2 and s.b('modified') and not s.word('song_len')
+        s.keys('Z' + UP + ctrl('C') + ctrl('N') + 'YN' + ctrl('V'))
+        assert s.peek('grid', 3) == bytes([48, 2, 0]) and s.b('s_nins') == 2
+
+        s.keys('Z\tN\t' + ctrl('Z'))
+        assert s.b('cur_pat') == s.b('s_order') == 1 and s.peek('grid', 3) == bytes([255, 0, 0])
+        s.keys('\t-\t')
+        assert s.peek('grid', 3) == bytes([48, 2, 0]), 'undo restored the pasted cell of pattern 0'
+        s.keys(ctrl('Z'))
+        assert s.peek('grid', 3) == bytes([48, 1, 0]), 'redo restored the typed cell'
+        print('PASS //e full order list, new instrument, cross-song paste, undo and redo of unlisted pattern')
+
+
+def run_order_playback():
+    with Session(DISK, ['--iie', '--mockingboard']) as s:
+        s.idle(1500)
+        s.keys('\tII' + UP + ctrl('F'))  # edit independently of the playing entry
+        for mode in ('P', 'R'):
+            s.keys(ctrl(mode) + UP + 'I')
+            s.step('wait:24')
+            assert s.b('ays_order') == 2 and s.peek('s_order', 3)[2] == 1
+            assert s.b('snd_loop') == (2 if mode == 'R' else 255)
+            s.keys(ctrl('Y'))
+            s.step('wait:24')
+            assert s.b('ays_order') == 1 and s.peek('s_order', 2)[1] == 1
+            assert s.b('snd_loop') == (1 if mode == 'R' else 255)
+            s.keys(' ')
+        print('PASS //e song and pattern playback keep the playing entry across order insertion and deletion')
+
+
+def run_file_limit(work):
+    limit = 12 * 1024
+    patterns = [Pattern([[Cell(3*p + v, 1, 1, 0x37) for _ in range(64)] for v in range(3)])
+                for p in range(16)]
+    song = Song(patterns, [default_ins()], list(range(16)))
+    # Remove one instrument prefix per byte over the limit.
+    cells = [c for p in patterns for track in p.tracks for c in track]
+    for c in cells[:len(aysong.encode(song)) - limit]:
+        c.ins = None
+    data = aysong.encode(song)
+    assert len(data) == limit
+    disk = work / 'file-limit.po'
+    a2test.prodos_variant(DISK, disk, replace={'BOUND.AYS#060000': data, 'BIG.AYS#060000': data + b'\0'})
+    with Session(disk, ['--iie']) as s:
+        s.idle(1500)
+        s.keys(ctrl('L') + '/BOUND.AYS' + RET, 5000)
+        assert s.word('song_len') == limit and s.b('s_npat') == 16
+        s.keys('_+' + ctrl('S') + RET, 5000)
+        assert 'SAVED BOUND.AYS' in s.screen()[22] and s.peek('song_buf', limit) == data
+        s.keys(ctrl('L') + '/BIG.AYS' + RET)
+        assert 'TOO BIG' in s.screen()[22] and s.b('s_npat') == 16
+        print('PASS //e loads and saves an exact 12 KiB song and rejects one extra byte')
 
 
 def run_64k(work):
@@ -716,6 +817,7 @@ def main():
     with tempfile.TemporaryDirectory(prefix='mbt-') as tmp:
         work = Path(tmp)
         run_64k(work)
+        run_order_marker()
         run_iie(work)
         run_mouse(work)
         run_six(work)
@@ -723,6 +825,9 @@ def main():
         run_iic(work)
         run_iic_mouse(work)
         run_nocard(work)
+        run_edit_limits(work)
+        run_order_playback()
+        run_file_limit(work)
 
 
 if __name__ == '__main__':

@@ -26,7 +26,7 @@ MOUSE_SRCS := $(MOUSE)/mouse.s              # (not mouse.mk: its run-iic is ours
 MOUSE_INCS := -I $(MOUSE)
 OBJS := $(BUILD)/entry.o $(BUILD)/crt0_prodos.o $(BUILD)/main.o $(BUILD)/song.o $(BUILD)/files.o \
         $(BUILD)/insed.o $(BUILD)/fileui.o $(BUILD)/dir.o $(BUILD)/prodos_name.o $(BUILD)/voices.o $(BUILD)/mbt_asm.o
-LIB_SRCS := $(PRODOS_SRCS) $(PRODOS_FILE_SRCS) $(MOUSE_SRCS) $(APPLE2C_T80_SRCS) $(APPLE2C_T80_PTR_SRCS) \
+LIB_SRCS := $(PRODOS_SRCS) $(PRODOS_FILE_AT_SRCS) $(MOUSE_SRCS) $(APPLE2C_T80_SRCS) $(APPLE2C_T80_PTR_SRCS) \
             $(APPLE2C_VBL_GATE_SRCS)
 LIB_OBJS := $(addprefix $(BUILD)/,$(notdir $(LIB_SRCS:.s=.o)))
 CFLAGS := -t none --cpu 65c02 -Ors --static-locals -I src $(APPLE2C_INCS) $(PRODOS_INCS) $(MOUSE_INCS)
@@ -47,7 +47,7 @@ $(BUILD)/prodos_name.o: src/prodos_name.s $(PRODOS_NAME_SRCS)
 $(BUILD)/mbt_asm.o: src/mbt_asm.s $(APPLE2)/mockingboard.asm $(APPLE2)/mb_irq.asm $(APPLE2)/aysong.asm $(APPLE2)/auxmem.asm
 	@mkdir -p $(@D)
 	$(CA65) -t none -g -I $(APPLE2) -o $@ $<
-$(BUILD)/file.o: $(PRODOS_FILE_DEPS)
+$(BUILD)/file_at.o: $(PRODOS_FILE_AT_DEPS)
 # The text routines draw under the pointer (apple2t80_ptr.s).
 $(BUILD)/apple2t80.o: $(APPLE2C)/apple2t80.s
 	@mkdir -p $(@D)

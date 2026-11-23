@@ -16,8 +16,8 @@ static signed char e_row;     /* -1: the envelope line */
 static unsigned char e_f, e_top;
 static const unsigned char e_x[6] = { 7, 12, 18, 23, 27, 28 };
 static const unsigned char h_x[3] = { 17, 28, 29 };
-static const char e_bar[] = " RETURN LISTEN  ESC BACK  < PREV  > NEXT  ^T NAME  ^O ^Y TICK";
-static const unsigned char e_keys[6] = { K_RET, K_ESC, '<', '>', CTRL('T'), CTRL('O') };
+static const char e_bar[] = " RETURN LISTEN  ESC BACK  < PREV  > NEXT  ^T NAME  ^O DUP TICK  ^Y DEL TICK";
+static const unsigned char e_keys[] = { K_RET, K_ESC, '<', '>', CTRL('T'), CTRL('O'), CTRL('Y') };
 
 /* the field of column x on a row of fields at xs[0..n] */
 static unsigned char e_field(const unsigned char *xs, unsigned char n)
@@ -154,8 +154,6 @@ void ins_editor(void)
     e_full();
     for (;;) {
         n = &s_ins[cur_ins - 1];
-        if (e_row >= (signed char)n->n)
-            e_row = n->n - 1;
         redraw();
         k = wait_key();
         old = e_row;
@@ -163,7 +161,7 @@ void ins_editor(void)
             k = 0;
             if (ev_y == KEYS_Y) {
                 b = seg_at(e_bar, ev_x);
-                if (b < 6)
+                if (b < sizeof e_keys)
                     k = e_keys[b];
             } else if (ev_y == 3 && ev_x >= h_x[0]) {
                 e_row = -1;
@@ -256,6 +254,8 @@ void ins_editor(void)
                 --n->n;
                 if (n->loop > e_row || n->loop == n->n)
                     --n->loop;
+                if (e_row == (signed char)n->n)
+                    --e_row;
                 touched();
                 e_draw_ticks();
             }

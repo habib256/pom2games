@@ -37,6 +37,7 @@ static void pname(const char *name)
 unsigned char file_load(const char *name)
 {
     unsigned char err;
+    unsigned len;
     pname(name);
     prodos_file_length = SONGBUF_SIZE;
     err = prodos_load_free();
@@ -44,11 +45,21 @@ unsigned char file_load(const char *name)
     if (err)
         return err;
 
-    if (prodos_file_actual >= SONGBUF_SIZE)
-        return 0xFD;
-    if (song_decode(prodos_file_actual))
+    len = prodos_file_actual;
+    if (len == SONGBUF_SIZE) {
+        /* Read the last byte again together with any byte beyond it. */
+        prodos_file_mark = SONGBUF_SIZE - 1;
+        prodos_file_buffer = scratch;
+        prodos_file_length = 2;
+        err = prodos_load_at();
+        if (err)
+            return err;
+        if (prodos_file_actual != 1)
+            return 0xFD;
+    }
+    if (song_decode(len))
         return 0xFE;
-    song_len = prodos_file_actual;
+    song_len = len;
     strcpy(cur_file, name);
     return 0;
 }

@@ -27,10 +27,11 @@ static void file_error(unsigned char e)
 static void load_name(const char *name)
 {
     unsigned char e = file_load(name);
-    after_load();
-    if (e)
+    if (e) {
+        full();
         file_error(e);
-    else {
+    } else {
+        after_load();
         strcpy(msg, "LOADED ");
         strcat(msg, name);
     }

@@ -81,7 +81,7 @@ dessine dessous. Le clavier fait tout sans souris.
 | un instrument | celui des notes saisies ; cliqué à nouveau : son éditeur |
 | `VOICE n` (`Vn`) | muet / pas muet |
 | la barre du bas | `PLAY` `LOOP` `STOP`, `PAT` / `ORD` (les touches à la grille / à la liste), `INS` (éditeur), `LOAD`, `SAVE`, `HELP` |
-| éditeur d'instrument | un champ d'un tic ou de l'enveloppe ; la barre (`RETURN`, `ESC`, `<` `>`, `^T`, `^O`) |
+| éditeur d'instrument | un champ d'un tic ou de l'enveloppe ; la barre (`RETURN`, `ESC`, `<` `>`, `^T`, `^O`, `^Y`) |
 | liste des fichiers | un nom le choisit, cliqué à nouveau il se charge ; la barre |
 
 Sur le //e la souris est lue une fois par balayage (deux lectures de suite

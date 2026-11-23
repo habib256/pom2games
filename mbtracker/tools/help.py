@@ -22,7 +22,6 @@ PAGES = [[
     "  SLIDE UP/DOWN FADE SWELL NOISE ENVELOPE  ^L ^S   LOAD / SAVE AN .AYS FILE",
     "^O ^Y       INSERT / DELETE A ROW          ^Q      QUIT TO PRODOS",
     "TAB         ORDER LIST                     ^N      NEW SONG: 3 OR 6 VOICES",
-    "",
     "ORDER LIST (TAB)",
     "UP DOWN     ENTRY (THE GRID SHOWS ITS PATTERN)",
     "- = LEFT RIGHT  PATTERN NUMBER (PAST THE LAST ONE: A NEW PATTERN)",
@@ -75,7 +74,8 @@ PAGE = 2304             # the grid and the scratch pattern
 def build():
     body = bytearray()
     offs = []
-    for page in PAGES:
+    for page, height in zip(PAGES, (22, 16, 22)):
+        assert len(page) <= height
         offs.append(8 + len(body))
         for line in page:
             assert len(line) <= 80 and line.isascii()
