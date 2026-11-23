@@ -36,6 +36,8 @@ void show(void);
 /* The room is on screen (zone_draw): the pointer becomes its overlay until
  * the next screen_clear(). */
 void ui_room(void);
+/* Right-aligned three-character gate count (0 to 128). */
+void format_gates(char *out, unsigned char n);
 void __fastcall__ message(const char *s);
 
 /* The text bank (tools/gen_text.py, src/text.s): ids T_... in text.h. */

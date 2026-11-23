@@ -86,7 +86,7 @@ static unsigned char __fastcall__ src_point(unsigned char s)
     }
     i = (unsigned char)(s - TERMINALS) >> 2;
     p = parts + i * 3u;
-    if (!p[0] || p[1] >= COLS) return 0u;
+    if (i == held_part || !p[0] || p[1] >= COLS) return 0u;
     x0 = cell_x(p[1]) + 20u;
     y0 = cell_y(p[2]) + out_dy(p[0], (s - TERMINALS) & 3u);
     return 1u;
@@ -101,7 +101,7 @@ static unsigned char __fastcall__ sink_point(unsigned char s)
     }
     i = (unsigned char)(s - TERMINALS) >> 2;
     p = parts + i * 3u;
-    if (!p[0] || p[1] >= COLS) return 0u;
+    if (i == held_part || !p[0] || p[1] >= COLS) return 0u;
     x0 = cell_x(p[1]) + 1u;
     y0 = cell_y(p[2]) + in_dy(p[0], (s - TERMINALS) & 3u);
     return 1u;
@@ -117,7 +117,8 @@ static void header(void)
     label[0] = '0' + fl_count / 10u;
     label[1] = '0' + fl_count % 10u;
     label[2] = 0;
-    dhgr_puts_small(label, 128, 1);
+    if (BOARD_VALID) dhgr_puts_small(label, 128, 1);
+    else dhgr_puts_small(">64", 124, 1);
 }
 
 /* A wire runs horizontally from its source, vertically at column m, then
@@ -215,7 +216,7 @@ static void __fastcall__ draw_part(unsigned char i)
     static unsigned char *p, kind, cx, cy, top, h, k, n;
     p = parts + i * 3u;
     kind = p[0];
-    if (!kind || p[1] >= COLS) return;
+    if (i == held_part || !kind || p[1] >= COLS) return;
     cx = cell_x(p[1]);
     cy = cell_y(p[2]);
     if (kind < K_FLIP) {
@@ -281,7 +282,7 @@ static void grid_dots(void)
     static unsigned char occupied[COLS * ROWS], i, c, r, *p;
     memset(occupied, 0, sizeof occupied);
     for (i = 0u, p = parts; i < PARTS; ++i, p += 3)
-        if (p[0] && p[1] < COLS) occupied[p[2] * COLS + p[1]] = 1u;
+        if (i != held_part && p[0] && p[1] < COLS) occupied[p[2] * COLS + p[1]] = 1u;
     for (r = 0u, i = 0u; r < ROWS; ++r)
         for (c = 0u; c < COLS; ++c, ++i)
             if (!occupied[i])
@@ -365,7 +366,7 @@ void board_refresh(void)
         }
     }
     for (i = 0u, p = parts; i < PARTS; ++i, p += 3) {
-        if (!p[0] || p[1] >= COLS) continue;
+        if (i == held_part || !p[0] || p[1] >= COLS) continue;
         n = part_outputs(p[0]);
         for (k = 0u; k < n; ++k)
             if (stub_drawn[(i << 2) + k] != source_value(TERMINALS + (i << 2) + k)) {
@@ -440,7 +441,7 @@ static unsigned char board_hit(unsigned char x, unsigned char y)
     hit_c = x / CW; hit_r = y / CH;
     lx = x % CW; ly = y % CH;
     hit_n = part_at(hit_c, hit_r);
-    if (hit_n == NONE) return H_CELL;
+    if (hit_n == NONE || hit_n == held_part) return H_CELL;
     kind = parts[hit_n * 3u];
     if (lx <= 3u) {
         n = part_inputs(kind);
@@ -499,7 +500,7 @@ static void click_sink(unsigned char s)
     if (held_src != NONE) {
         wires[s] = held_src;
         held_src = NONE;
-    } else if (wires[s] != NONE) {
+    } else if (!held_kind && held_part == NONE && wires[s] != NONE) {
         wires[s] = NONE;
         msg(T_WIRE_OFF);
     } else {
@@ -536,7 +537,7 @@ static void click_part(unsigned char i)
         held_part = i;
         held_src = NONE;
         erase_part(i);
-        parts[i * 3u + 1u] = NONE;  /* off the grid while in hand */
+        /* Keep the layout valid while the editor hides the part in hand. */
         msg(T_IN_HAND);
         board_update();
     } else {
@@ -548,11 +549,16 @@ static void click_palette(unsigned char h)
 {
     static unsigned char c;
     if (held_part != NONE) {
-        part_remove(held_part);
+        if (h != H_CHIP || (mode != M_BURN && mode != M_OPEN)) {
+            part_remove(held_part);
+            held_part = NONE;
+            msg(T_THROWN);
+            board_recompile();
+            return;
+        }
+        /* The slot answers BURN/OPEN. Put the lifted part back first. */
         held_part = NONE;
-        msg(T_THROWN);
-        board_recompile();
-        return;
+        board_update();
     }
     held_src = NONE;
     if (h == H_GATE) {
@@ -610,18 +616,24 @@ void board_click(unsigned char x, unsigned char y)
     }
 }
 
-void board_drop(void)
+/* ESC and older saves with a part left in hand both need a free cell. */
+void __fastcall__ board_return_part(unsigned char i)
 {
     static unsigned char c, r;
+    parts[i * 3u + 1u] = NONE;
+    for (r = 0u; r < ROWS; ++r)
+        for (c = 0u; c < COLS; ++c)
+            if (part_at(c, r) == NONE) {
+                parts[i * 3u + 1u] = c;
+                parts[i * 3u + 2u] = r;
+                return;
+            }
+}
+
+void board_drop(void)
+{
     if (held_part != NONE) {
-        /* Back where nothing else stands: the first free cell. */
-        for (r = 0u; r < ROWS; ++r)
-            for (c = 0u; c < COLS; ++c)
-                if (part_at(c, r) == NONE) {
-                    parts[held_part * 3u + 1u] = c;
-                    parts[held_part * 3u + 2u] = r;
-                    r = ROWS; c = COLS;
-                }
+        board_return_part(held_part);
         held_part = NONE;
         board_update();
     }

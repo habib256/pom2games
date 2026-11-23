@@ -20,7 +20,7 @@
 
 /* Buttons (ui.c: button 0 reads RUN or PAUSE), and the text each one
  * shows on the message line while the pointer is over it. */
-static const char b_run[] = "RUN", b_step[] = "STEP", b_menu[] = "MENU", b_play[] = "PLAY",
+static const char b_run[] = "RUN  ", b_step[] = "STEP", b_menu[] = "MENU", b_play[] = "PLAY",
     b_lab[] = "LAB", b_goal[] = "GOAL";
 static const char *const lab_buttons[] = {b_run, b_step, "BURN", "CLEAR", "TEST"};
 static const unsigned char lab_tips[] = {T_B_RUN, T_B_STEP, T_B_BURN, T_B_CLEAR, T_B_TRY};
@@ -49,7 +49,7 @@ unsigned char pending_x, pending_y;      /* inside: click done on arrival */
 static unsigned char lab_running, drone_running, frames;
 static unsigned char board_owner;       /* S_LAB or S_DRONE: whose board is loaded */
 unsigned char won, saved_ok;            /* this mission won; last save written */
-static unsigned char loaded;            /* a mission is in the zone (mission) */
+static unsigned char loaded;            /* last mission screen (S_ZONE or S_DRONE), zero before PLAY */
 static unsigned char brief_m, brief_back, hints;   /* the briefing: its mission, */
                                         /* the screen it came from, hints shown */
 #pragma bss-name (push, "IOBUF")
@@ -139,8 +139,21 @@ static void file_setup(void)
 
 #pragma code-name (push, "FRONTCODE")
 #pragma rodata-name (push, "FRONTDATA")
+/* Older games could save a part mid-move with column NONE. Its original
+ * column is lost, but the part index and all its wires are still valid. */
+static void __fastcall__ recover_layout(unsigned char *layout)
+{
+    static unsigned char i;
+    memcpy(parts, layout, sizeof parts);
+    for (i = 0u; i < PARTS; ++i)
+        if (parts[i * 3u] && parts[i * 3u + 1u] == NONE)
+            board_return_part(i);
+    memcpy(layout, parts, sizeof parts);
+}
+
 static void game_load(void)
 {
+    static unsigned char c;
     file_setup();
     if (prodos_load() || persist.reached > MISSIONS_MAX) {
         persist_defaults();
@@ -159,6 +172,10 @@ static void game_load(void)
     } else if (prodos_file_actual != sizeof persist || memcmp(persist.magic, "RSS3", 4)) {
         persist_defaults();
     }
+    for (c = 0u; c < CHIPS; ++c) recover_layout(persist.layout[c]);
+    recover_layout(persist.lab);
+    recover_layout(persist.drone);
+    recover_layout(persist.drone2);
 }
 #pragma rodata-name (pop)
 #pragma code-name (pop)
@@ -213,7 +230,7 @@ static void __fastcall__ use_board(unsigned char owner)
         load_layout(persist.drone2);
         board_swap();
         load_layout(persist.drone);
-        cur_drone = 0u;
+        if (cur_drone) board_swap();
         running = drone_running;
     } else {
         store_drones();
@@ -226,6 +243,7 @@ static void __fastcall__ use_board(unsigned char owner)
 
 static void enter_title(void)
 {
+    walking = W_NONE;
     screen = S_TITLE;
     running = 0u;
     overlay_use(OV_FRONT);
@@ -313,6 +331,7 @@ static void __fastcall__ enter_brief(unsigned char m, unsigned char back)
     if (m != brief_m) hints = 0u;
     brief_m = m;
     brief_back = back;
+    walking = W_NONE;
     screen = S_BRIEF;
     running = 0u;
     overlay_use(OV_FRONT);
@@ -322,7 +341,8 @@ static void enter_brief_again(void) { enter_brief(brief_m, brief_back); }
 
 static void enter_zone(void)
 {
-    screen = S_ZONE;
+    walking = W_NONE;
+    loaded = screen = S_ZONE;
     overlay_use(OV_PLAY);
     screen_clear();
     zone_draw();
@@ -337,14 +357,26 @@ static unsigned char __fastcall__ start_mission(unsigned char m)
 {
     overlay_use(OV_PLAY);
     if (!zone_load(m)) return 0u;
+    if (cur_drone) { board_swap(); cur_drone = 0u; }
     board_compile();
     board_swap();
     board_compile();
     board_swap();
     won = 0u;
     running = 0u;
-    loaded = 1u;
     return 1u;
+}
+
+static void draw_drone(void)
+{
+    loaded = screen = S_DRONE;
+    overlay_use(OV_PLAY);
+    screen_clear();
+    board_draw();
+    board_palette();
+    buttons_set(drone_buttons, drone_tips, 3);
+    hover_force = 1u;
+    actor_show();
 }
 
 static void __fastcall__ enter_drone(unsigned char d)
@@ -353,17 +385,10 @@ static void __fastcall__ enter_drone(unsigned char d)
         board_swap();
         cur_drone = d;
     }
-    screen = S_DRONE;
-    overlay_use(OV_PLAY);
     empty_hands();
-    screen_clear();
-    board_draw();
-    board_palette();
-    buttons_set(drone_buttons, drone_tips, 3);
-    hover_force = 1u;
     act_x = DOOR_X + 5u;
     act_y = DOOR_Y - ACT_H - 1u;
-    actor_show();
+    draw_drone();
 }
 
 /* Mission m in the test zone (the drones' boards already loaded). */
@@ -393,7 +418,7 @@ static void play_next(void)
 static void brief_play(void)
 {
     if (brief_back == NONE) { play(brief_m); return; }
-    if (brief_back == S_DRONE) { enter_drone(cur_drone); return; }
+    if (brief_back == S_DRONE) { draw_drone(); return; }
     enter_zone();
 }
 
@@ -408,6 +433,14 @@ static void lab_test(void)
 {
     if (!loaded) { play_next(); return; }
     use_board(S_DRONE);
+    if (loaded == S_DRONE) {
+        overlay_use(OV_PLAY);
+        if (!tech_beside_drone(cur_drone)) {
+            draw_drone();
+            msg(T_EXIT_BLOCKED);
+            return;
+        }
+    }
     enter_zone();
 }
 
@@ -419,8 +452,12 @@ static void go_lab(void)
 
 static void leave_drone(void)
 {
+    if (!tech_beside_drone(cur_drone)) {
+        walking = W_NONE;
+        msg(T_EXIT_BLOCKED);
+        return;
+    }
     empty_hands();
-    tech_beside_drone(cur_drone);
     enter_zone();
 }
 
@@ -431,11 +468,12 @@ static void check_won(void)
 {
     static const char *text;
     if (won || !zone_won()) return;
+    text = zone_won_text();
+    if (!text) return;                  /* a participating board is over capacity */
     won = 1u;
     running = 0u;
     sfx(SFX_WIN);
     if (persist.reached <= mission) persist.reached = mission + 1u;
-    text = zone_won_text();                 /* (the best gates, before the save) */
     begin_draw();
     if (screen == S_ZONE) buttons_set(won_buttons, won_tips, 5); else buttons_draw();
     if (game_save()) message(text); else msg(T_WON_NS);
@@ -627,7 +665,7 @@ int main(void)
         if (running && ++frames >= (screen == S_LAB ? LAB_TICK : fast ? 1u : DRONE_TICK)) frames = 0u;
         if (running && !frames) step();         /* draws only what changed */
         line = hover_poll();
-        busy = line || pressed || walking || key == KC_ESC
+        busy = line || pressed || walking || (screen == S_HELP && key) || key == KC_ESC
             || key == 'M' || key == 'S' || key == 'V' || key == 'H' || key == 'P' || key == 'G' || key == 'O' || (key >= '0' && key <= '9');
         if (!busy) {
             actor_show();
@@ -649,7 +687,10 @@ int main(void)
             if (key == KC_ESC) help_done(); else help_next();
             pressed = 0u;                   /* (SPACE: once) */
         }
-        else if (key == KC_ESC) { if (screen == S_ZONE) walking = W_NONE; else board_drop(); }
+        else if (key == KC_ESC) {
+            if (screen == S_ZONE) walking = W_NONE;
+            else if (screen == S_DRONE || screen == S_LAB) board_drop();
+        }
         else if (key == 'V' && screen != S_LAB) {     /* the drones twice as often */
             fast ^= 1u;
             msg(fast ? T_SPEED_F : T_SPEED_N);

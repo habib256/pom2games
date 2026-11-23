@@ -49,7 +49,7 @@ def toggle(k):
 
 
 # RUN STEP BURN CLEAR TEST (src/main.c lab_buttons)
-BUTTONS = {'marche': 6, 'pas': 26, 'grave': 50, 'efface': 75, 'essai': 100}
+BUTTONS = {'marche': 6, 'pas': 36, 'grave': 60, 'efface': 85, 'essai': 110}
 
 
 # Where the test left the mouse. a2shot's mouse: step is a closed loop (one
@@ -170,6 +170,26 @@ def small_machine(disk):
                  bytes([ok]), b'\x01')
 
 
+def parts_in_hand(disk, L):
+    # Wire E2 to S1, take an AND gate, click S1 and place the gate.
+    drop = [f'key:{chr(27)}', 'wait:30']
+    steps = [BOOT] + title(1) + clicks(term(1, 0), term(0, 1), (PALETTE[AND], 156),
+                                      term(0, 1), cell(1, 1)) + drop
+    steps += [idle(L), L.peek('_wires')] + click(46, 50)
+    # Pick a slot with the existing gate lifted, then reopen it over a changed board.
+    steps += ['key:G', 'wait:30'] + click(chip_x(0), 156) + ['wait:90', idle(L, 3000),
+              L.peek('_persist', 1, offset=5), L.peek('_parts', 3)]
+    steps += clicks((PALETTE[OR], 156), cell(2, 2)) + drop + click(68, 76)
+    steps += ['key:O', 'wait:30'] + click(chip_x(0), 156) + [idle(L), L.peek('_parts', 6),
+                                                              L.peek('_mode')]
+    r = run(disk, steps)
+    fails = check('gate in hand keeps the sink wired', r.mem(L['_wires'], 1), b'\x01')
+    fails += check('burn with a lifted gate includes it and the direct wire',
+                   r.mem(L['_persist'] + 5, 1) + r.mem(L['_parts'], 3), bytes((2, AND, 1, 1)))
+    return fails + check('open with a lifted gate restores the burned layout',
+                         r.mem(L['_mode'], 1) + r.mem(L['_parts'], 6, 1), bytes((0, AND, 1, 1, 0, 0, 0)))
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--disk', required=True)
@@ -184,6 +204,8 @@ def main():
     chips = [Chip() for _ in range(8)]
     board = half_adder()
     fails = 0 if args.iic else small_machine(args.disk)
+
+    fails += parts_in_hand(args.disk, L)
 
     # 1. Build it, set E1 = E2 = 1, one step: S1 = 0, S2 = 1.
     steps = [BOOT] + title(1) + half_adder_steps() + clicks(toggle(0), toggle(1)) + button('pas') \

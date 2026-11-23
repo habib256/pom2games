@@ -5,14 +5,15 @@
 ; values (what a turn needs: board_swap_run() exchanges only those).
 .setcpu "65C02"
 .importzp ptr1, ptr2, tmp1
-.import _parts, _fl_count, _values
+.import _parts, _fl_count, _values, _gate_base
 .export _board_swap, _board_swap_run
 
 LAYOUT_BYTES = 48 + 72
 RUN_BYTES = 1 + 3 * 64 + 8 + 72
-BOARD_BYTES = LAYOUT_BYTES + RUN_BYTES
+BOARD_BYTES = LAYOUT_BYTES + RUN_BYTES + 16 ; gate_base[PARTS]
 .assert _fl_count - _parts = LAYOUT_BYTES, lderror, "sim.c layout arrays not contiguous"
-.assert _values + 72 - _parts = BOARD_BYTES, lderror, "sim.c board arrays not contiguous"
+.assert _gate_base = _values + 72, lderror, "gate bases not after values"
+.assert _gate_base + 16 - _parts = BOARD_BYTES, lderror, "sim.c board arrays not contiguous"
 
 .segment "LOW8BSS"                      ; ($0800-$0FFF: not zeroed, filled
 other:  .res BOARD_BYTES                ; by use_board() before any turn)
@@ -76,8 +77,8 @@ _board_swap_run:
         adc #8
         tax
 @value: lda _values - 1,x
-        ldy other + BOARD_BYTES - 72 - 1,x
-        sta other + BOARD_BYTES - 72 - 1,x
+        ldy other + (_values - _parts) - 1,x
+        sta other + (_values - _parts) - 1,x
         tya
         sta _values - 1,x
         dex

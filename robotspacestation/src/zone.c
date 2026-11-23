@@ -41,9 +41,7 @@ unsigned char thrust[DRONES][6];
 unsigned char obj_n, obj_kind[OBJECTS], obj_x[OBJECTS], obj_y[OBJECTS];
 unsigned char door_open[2];
 
-#pragma bss-name (push, "LOWBSS")                 /* (MLI READ: only below $2000) */
 unsigned char tiles[ROOM_COLS * ROOM_ROWS];   /* this mission's, unpacked (sprites.c: the map) */
-#pragma bss-name (pop)
 extern const unsigned char dhgr_cellbyte[140];   /* dev/lib/hgrc: x -> (4x)/7 */
 #define div7(x) (dhgr_cellbyte[x] >> 2)             /* x / 7 */
 static unsigned char bx, by, bw, bh;      /* the box side_blocked() looks at */
@@ -59,35 +57,34 @@ void zone_init(void)
 extern unsigned char iobuf[1024];                /* main.c, the ProDOS buffer */
 static const char rooms_name[] = "\x09RSS.ROOMS";
 
-/* The record's 199 bytes land at the end of tiles[]: the starts, then the
- * packed tiles, unpacked in place below them. 1 = read. */
+/* ProDOS can read this buffer. Keep the current map until the new room
+ * has arrived in full, so LAB/TEST can still resume it after a failed read. */
+#pragma bss-name (push, "LOWBSS")
+static unsigned char record[ROOM_STARTS + ROOM_COLS * ROOM_ROWS / 2u];
+#pragma bss-name (pop)
 static unsigned char __fastcall__ read_room(unsigned char m)
 {
     prodos_file_name = (void *)rooms_name;
     prodos_file_iobuf = iobuf;
-    prodos_file_buffer = tiles + sizeof tiles - 180u - ROOM_STARTS;
-    prodos_file_length = 180u + ROOM_STARTS;
+    prodos_file_buffer = record;
+    prodos_file_length = sizeof record;
     prodos_file_mark = (unsigned)m << 8;                    /* m * 256 */
-    return !prodos_load_at() && prodos_file_actual == 180u + ROOM_STARTS;
+    return !prodos_load_at() && prodos_file_actual == sizeof record;
 }
 
 
 unsigned char __fastcall__ zone_load(unsigned char m)
 {
-    static unsigned char starts[ROOM_STARTS];
     static const unsigned char *s;
     static unsigned char i, *t, b;
     if (!read_room(m)) return 0u;
     mission = m;
-    memcpy(starts, tiles + sizeof tiles - 180u - ROOM_STARTS, ROOM_STARTS);
-    /* Byte i of the packed tiles (at 180 + i) gives tiles 2i and 2i + 1:
-     * always written below what is still to be read. */
-    for (i = 0u, s = tiles + 180u, t = tiles; i < 180u; ++i, ++s) {
+    for (i = 0u, s = record + ROOM_STARTS, t = tiles; i < 180u; ++i, ++s) {
         b = *s;
         *t++ = b & 15u;
         *t++ = b >> 4;
     }
-    s = starts;
+    s = record;
     drone_x[0] = s[0]; drone_y[0] = s[1];
     drone_x[1] = s[2]; drone_y[1] = s[3];
     drone_n = s[2] == NONE ? 1u : 2u;
@@ -410,9 +407,10 @@ static void plan_exit(void)
 
 /* Out of drone d: the first free spot beside it, its sides tried in
  * plan_exit()'s order, centred on it. */
-void __fastcall__ tech_beside_drone(unsigned char d)
+unsigned char __fastcall__ tech_beside_drone(unsigned char d)
 {
-    static unsigned char dx, dy, k, side;
+    static unsigned char dx, dy, k, side, old_x, old_y;
+    old_x = act_x; old_y = act_y;
     plan_exit();
     dx = drone_x[d]; dy = drone_y[d] + ROOM_Y;
     for (k = 0u; k < 4u; ++k) {
@@ -421,8 +419,10 @@ void __fastcall__ tech_beside_drone(unsigned char d)
         act_y = side == S ? dy + DRONE_H + 1u : side == N ? dy - ACT_H - 1u : dy + 1u;
         if (side == W && dx <= ACT_W) continue;
         if (side == N && dy <= ROOM_Y + ACT_H) continue;
-        if (tech_free(act_x, act_y) && !tech_touches_drone()) return;
+        if (tech_free(act_x, act_y) && !tech_touches_drone()) return 1u;
     }
+    act_x = old_x; act_y = old_y;
+    return 0u;
 }
 
 /* -- what the pointer is on ----------------------------------------------- */
@@ -451,25 +451,27 @@ unsigned char zone_hover(unsigned char x, unsigned char y)
 
 static char gate_text[29];
 
-static void __fastcall__ put_gates(unsigned char at, unsigned char n)
-{
-    if (n > 99u) n = 99u;                   /* (two drones: up to 128) */
-    gate_text[at] = n >= 10u ? '0' + n / 10u : ' ';
-    gate_text[at + 1u] = '0' + n % 10u;
-}
-
 const char *zone_won_text(void)
 {
-    static unsigned char gates, *best;
+    static unsigned char gates, *best, valid;
+    static char *digits;
+    if (!BOARD_VALID) return 0;
     gates = fl_count;                       /* both drones' boards */
-    if (drone_n == 2u) { board_swap(); gates += fl_count; board_swap(); }
+    if (drone_n == 2u) {
+        board_swap();
+        valid = BOARD_VALID;
+        gates += fl_count;
+        board_swap();
+        if (!valid) return 0;
+    }
     best = &persist.best[mission];
-    strcpy(gate_text, "DONE WITH    GATES");
-    put_gates(10u, gates);
-    if (gates == 1u) gate_text[17] = ' ';   /* GATE */
+    strcpy(gate_text, "DONE WITH ");
+    digits = gate_text + (gates >= 100u ? 10u : 9u);
+    format_gates(digits, gates);
+    strcpy(digits + 3, gates == 1u ? " GATE" : " GATES");
     if (!*best || gates + 1u < *best) {     /* best = gates + 1 (0: never won) */
         *best = gates + 1u;
-        strcpy(gate_text + 18, " - RECORD!");
+        strcat(gate_text, gates >= 100u ? " - RECORD" : " - RECORD!");
     }
     return gate_text;
 }

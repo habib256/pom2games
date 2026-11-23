@@ -26,7 +26,7 @@ sys.path.insert(0, str(HERE / 'tests'))
 sys.path.insert(0, str(HERE / 'tools'))
 from test_lab import POKE, SYNC, BOOT, title, MACHINE, SHOTS, PALETTE, cell, check, click, idle, pin_in, pin_out, run
 import a2test
-from model import (AND, BEST_SLOTS, FLIP, NOT, OR, MISSIONS, SAVE_SIZE, Board, Chip, Zone, compile_board, layout_bytes,
+from model import (AND, BEST_SLOTS, CHIP0, NONE, FLIP, NOT, OR, MISSIONS, SAVE_SIZE, Board, Chip, Zone, compile_board, layout_bytes,
                    room_start, save_bytes)
 
 ROOM_Y = 10
@@ -37,7 +37,7 @@ EMPTY = [Chip() for _ in range(8)]
 def zone_button(i):
     """RUN 0-14, STEP 18-37, RESET/NEXT 41-65, GOAL 69-88, MENU 92-111 /
     EXIT 41-60 (src/main.c)."""
-    return click((6, 26, 50, 78, 100)[i], 167)
+    return click((6, 36, 60, 88, 110)[i], 167)
 
 
 def brief_play():
@@ -242,6 +242,7 @@ def relay(disk, L):
     steps += zone_button(2) + ['wait:150']                          # out of B
     steps += ['key:M', 'wait:3000', idle(L, 3000), L.peek('_drone_x', 2), L.peek('_drone_y', 2),
               L.peek('_won', 2), L.peek('_persist', 5), f'shot:{SHOTS}/m7_won.png']
+    steps += ['key:1', 'wait:150', idle(L), L.peek('_cur_drone'), L.peek('_fl_count')]
     r = run(disk, steps)
     from test_model import relay as boards
     a, b = boards()
@@ -258,6 +259,8 @@ def relay(disk, L):
                    bytes((z.drones[0].x, z.drones[1].x, z.drones[0].y, z.drones[1].y)))
     fails += check('won and saved', r.mem(L['_won'], 2), b'\x01\x01')
     fails += check('seven missions', r.mem(L['_persist'], 5), b'RSS3\x07')
+    fails += check('single-drone replay counts A after editing B', r.mem(L['_cur_drone'], 1, 2)
+                   + r.mem(L['_fl_count'], 1), bytes((0, 3)))
     return fails
 
 
@@ -343,7 +346,7 @@ def help_page(disk, L):
     steps = [BOOT, 'wait:60'] + click(50, 167) + peek() + [f'shot:{SHOTS}/help.png']
     for n in range(1, 10):
         steps += click(70, 80) + peek() + [f'shot:{SHOTS}/help{n}.png']
-    steps += click(70, 80) + peek()                                  # after the last: the title
+    steps += ['key:X'] + peek()                                      # ordinary key on last page: title
     steps += ['key:H'] + peek() + click(8, 167) + peek() + click(30, 167) + peek() \
         + click(50, 167) + peek()                                    # NEXT, BACK, DONE
     steps += ['key:H'] + peek() + [f'key:{chr(27)}'] + peek()          # ESC
@@ -462,6 +465,104 @@ def subprocess_run(disk, steps):
     return out.stdout
 
 
+def board_limits(L):
+    # A and B have 64 gates each, but A's second part starts at gate 32
+    # and B's at gate 1. A's NOT there must keep its own output pin.
+    chips = list(EMPTY)
+    chips[0] = Chip([(OR, NONE, NONE)] * 32)
+    a, b = Board(), Board()
+    for i, kind in enumerate([CHIP0, NOT, CHIP0 + 1]):
+        a.place(kind, i, 0)
+    a.connect(7, 5)                  # radio active until the board goes over capacity
+    chips[1] = Chip([(OR, NONE, NONE)] * 31)
+    for i, kind in enumerate([OR, CHIP0, CHIP0 + 1]):
+        b.place(kind, i, 0)
+    disk = disk_with_save(save_bytes(chips, reached=6, drone=a, drone2=b), 'boardlimits')
+    def call(name, arg=0):
+        return [f'regs:{arg:02X}:00:00', f'call:{L[name]:04X}:100']
+    steps = [BOOT] + title(0) + [idle(L)] + call('_board_tick') + call('_source_value', 12)
+    steps += call('_zone_won_text')
+    # Replacing the 31-gate chip with a 32-gate one puts A over by one.
+    # A successful repair removes the single NOT and lands exactly at 64.
+    steps += [L.poke('_parts', CHIP0, offset=6)] + call('_board_compile')
+    steps += [L.peek('_fl_count'), L.peek('_fl_sinks', 8)] + call('_part_remove', 1)
+    steps += call('_board_compile') + [L.peek('_fl_count')]
+    # Dump the message last: a BSS dump also contains rows at other labels.
+    steps += [L.peek('__BSS_RUN__', L['__BSS_SIZE__'])]
+    r = run(disk, steps)
+    pin = re.search(rf'^call {L["_source_value"]:04X} .*? A=(\w\w)', r.out, re.M)
+    fails = check('board swap preserves the layout pin value', bytes.fromhex(pin[1]), b'\x01')
+    fails += check('two full boards display 128 gates', bytes([b'DONE WITH 128 GATES' in r.data]), b'\x01')
+    return fails + check('65 gates disable all sinks, removing one restores the board',
+                         r.mem(L['_fl_count'], 1) + r.mem(L['_fl_sinks'], 8) + r.mem(L['_fl_count'], 1, 1),
+                         bytes([0] + [NONE] * 8 + [64]))
+
+
+def blocked_exit(L):
+    disk = disk_with_save(save_bytes(EMPTY, reached=9), 'blockedexit')
+    steps = [BOOT] + title(0) + enter_drone(L, 9)
+    steps += click(PALETTE[NOT], 156) + inside(cell(1, 1)) + [f'key:{chr(27)}', 'wait:30']
+    steps += inside((46, 50))
+    # THE GUARD, on the grate in the lower corridor. Move the drone back
+    # to open floor to verify the same EXIT button subsequently succeeds.
+    steps += [L.poke('_drone_x', 57), L.poke('_drone_y', 106)] + zone_button(2)
+    steps += ['wait:150', idle(L), L.peek('_screen'), L.peek('_held_part'),
+              L.poke('_drone_x', 14), L.poke('_drone_y', 8)]
+    steps += zone_button(2) + ['wait:150', idle(L), L.peek('_screen')]
+    r = run(disk, steps)
+    return check('blocked exit keeps the lifted part until there is room', r.mem(L['_screen'], 1, 1)
+                 + r.mem(L['_held_part'], 1) + r.mem(L['_screen'], 1, 2), bytes((2, 0, 1)))
+
+
+def suspended_mission(disk, L):
+    """Interrupt a walk with GOAL, then visit the briefing and lab from inside A."""
+    position = [idle(L, 3000), L.peek('_act_x'), L.peek('_act_y')]
+    steps = [BOOT] + title(0)
+    steps += [idle(L, 3000), L.poke('_test_x', 128), L.poke('_test_y', 35), L.poke('_test_click', 1),
+              'wait:2'] + position + ['key:H', 'wait:120'] + brief_play() + position
+    steps += ['key:1', 'wait:120'] + enter_drone(L, 0)
+    steps += click(PALETTE[NOT], 156) + inside(cell(2, 1)) + [f'key:{chr(27)}', 'wait:30']
+    steps += inside((68, 50)) + position + ['key:H', 'wait:90'] + brief_play() + position
+    steps += ['key:H', 'wait:90'] + click(78, 167) + ['wait:80'] + zone_button(4) + ['wait:120']
+    steps += position + [L.peek('_screen'), L.peek('_parts', 3)]
+    r = run(disk, steps)
+    def xy(n):
+        return r.mem(L['_act_x'], 1, n) + r.mem(L['_act_y'], 1, n)
+    fails = check('GOAL cancels the current walk', xy(1), xy(0))
+    fails += check('PLAY resumes inside at the same cell', xy(3), xy(2))
+    dx, dy = room_start('D', MISSIONS[0][2])
+    fails += check('LAB, TEST puts him beside the drone', r.mem(L['_screen'], 1, 1) + xy(4),
+                   bytes((1, dx + 11, ROOM_Y + dy + 1)))
+    return fails + check('part in hand returns to its cell', r.mem(L['_parts'], 3), bytes((NOT, 2, 1)))
+
+
+def saved_part_in_hand(L):
+    board = Board()
+    board.place(AND, 0, 0)
+    i = board.place(NOT, NONE, 1)      # old off-grid marker while held
+    board.connect(8 + i * 4, 3)
+    disk = disk_with_save(save_bytes(EMPTY, drone=board), 'oldhand')
+    r = run(disk, [BOOT] + title(0) + [idle(L), L.peek('_parts', 6), L.peek('_wires', 4)])
+    return check('saved part in hand returns to a free cell with its wire',
+                 r.mem(L['_parts'], 6) + r.mem(L['_wires'], 4)[3:],
+                 bytes((AND, 0, 0, NOT, 1, 0, 8 + i * 4)))
+
+
+def short_room(disk, L):
+    """A partial second room must leave the loaded first mission intact."""
+    rooms = a2test.prodos_files(disk)['RSS.ROOMS'][2]
+    short = a2test.prodos_variant(disk, HERE / 'build' / 'shortroom.po',
+                                  replace={'RSS.ROOMS#060000': rooms[:300],
+                                           'RSS.SAVE#060000': save_bytes(EMPTY, reached=1)})
+    snapshot = [idle(L), L.peek('_tiles', 360), L.peek('_screen')]
+    steps = [BOOT] + click(25, 93) + ['wait:100'] + brief_play() + snapshot
+    steps += ['key:2', 'wait:180'] + click(30, 167) + ['wait:100'] + zone_button(4) + ['wait:120'] + snapshot
+    r = run(short, steps)
+    return check('TEST after a short room read resumes the intact mission',
+                 r.mem(L['_screen'], 1, 1) + r.mem(L['_tiles'], 360, 1),
+                 b'\x01' + r.mem(L['_tiles'], 360))
+
+
 def missing_rooms(disk, L):
     """Without RSS.ROOMS, PLAY comes back to the title with a message."""
     r = run(disk, [BOOT] + title(0) + ['wait:60', idle(L, 3000), L.peek('_screen')])
@@ -490,6 +591,8 @@ def main():
     fails += relay(disk_with_save(save_bytes(EMPTY, reached=6), 'reached6'), L)
     fails += module_two(disk_with_save(save_bytes(EMPTY, reached=11), 'reached11'), L)
     fails += crate(disk_with_save(save_bytes(EMPTY, reached=12), 'reached12'), L)
+    fails += board_limits(L)
+    fails += blocked_exit(L)
     fails += help_page(args.disk, L)
     fails += records_page(disk_with_save(save_bytes(EMPTY, reached=9, best=(2, 3, 4, 5, 2, 2, 7, 4, 10)),
                                          'records'), L)
@@ -500,6 +603,9 @@ def main():
     rss1 = b'RSS1' + save_bytes(EMPTY, reached=5)[4:SAVE_SIZE - BEST_SLOTS - 120]
     fails += old_save(disk_with_save(rss1, 'rss1'), L, 'RSS1')
     fails += missing_rooms(disk_with_save(None, 'norooms', rooms=False), L)
+    fails += suspended_mission(disk_with_save(save_bytes(EMPTY), "suspended"), L)
+    fails += short_room(args.disk, L)
+    fails += saved_part_in_hand(L)
     fails += overlays(args.disk, L)
     fails += write_once(L)
     print(f'shots in {SHOTS}')

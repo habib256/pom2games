@@ -9,11 +9,11 @@ unsigned char fl_count;
 unsigned char fl_kind[BOARD_GATES], fl_a[BOARD_GATES], fl_b[BOARD_GATES];
 unsigned char fl_sinks[TERMINALS];
 unsigned char values[TERMINALS + BOARD_GATES];
+unsigned char gate_base[PARTS];
 #pragma bss-name (push, "LOWBSS")
 Persist persist;
 #pragma bss-name (pop)
 
-static unsigned char base[PARTS];
 static unsigned char ins[4];
 static unsigned char fresh[BOARD_GATES];
 
@@ -75,9 +75,9 @@ static unsigned char __fastcall__ resolve(unsigned char s)
     k = (s - TERMINALS) & 3u;
     kind = parts[i * 3u];
     if (!kind) return NONE;
-    if (kind < K_CHIP0) return k ? NONE : (unsigned char)(TERMINALS + base[i]);
+    if (kind < K_CHIP0) return k ? NONE : (unsigned char)(TERMINALS + gate_base[i]);
     g = chip_out[kind - K_CHIP0][k];
-    return g == NONE ? NONE : (unsigned char)(TERMINALS + base[i] + g);
+    return g == NONE ? NONE : (unsigned char)(TERMINALS + gate_base[i] + g);
 }
 
 /* A chip's local source s placed at flat base cur_base: its inputs come
@@ -93,13 +93,22 @@ static unsigned char __fastcall__ inner(unsigned char s)
 unsigned char board_compile(void)
 {
     static unsigned char i, k, n, count, kind, c, g, *p;
+    memset(values, 0, sizeof values);
+    values[POWER] = 1u;
     count = 0u;
+    gate_base[0] = 0u;
     for (i = 0u, p = parts; i < PARTS; ++i, p += 3) {
         kind = p[0];
         if (!kind) continue;
-        base[i] = count;
+        gate_base[i] = count;
         count += kind >= K_CHIP0 ? chip_count[kind - K_CHIP0] : 1u;
-        if (count > BOARD_GATES) return 0u;
+        if (count > BOARD_GATES) {
+            /* Reburning a chip can make an existing layout too large. */
+            gate_base[0] = NONE;
+            fl_count = 0u;
+            memset(fl_sinks, NONE, sizeof fl_sinks);
+            return 0u;
+        }
     }
     n = 0u;
     for (i = 0u, p = parts; i < PARTS; ++i, p += 3) {
@@ -114,7 +123,7 @@ unsigned char board_compile(void)
             continue;
         }
         c = kind - K_CHIP0;
-        cur_base = base[i];
+        cur_base = gate_base[i];
         for (g = 0u; g < chip_count[c]; ++g, ++n) {
             fl_kind[n] = chip_kind[c][g];
             fl_a[n] = inner(chip_a[c][g]);
@@ -123,8 +132,6 @@ unsigned char board_compile(void)
     }
     for (k = 0u; k < TERMINALS; ++k) fl_sinks[k] = resolve(wires[k]);
     fl_count = n;
-    memset(values, 0, sizeof values);
-    values[POWER] = 1u;
     return 1u;
 }
 
@@ -201,6 +208,7 @@ unsigned char __fastcall__ sink_value(unsigned char k)
 
 unsigned char __fastcall__ source_value(unsigned char s)
 {
+    if (!BOARD_VALID && s >= TERMINALS) return 0u;
     s = resolve(s);
     return s == NONE ? 0u : values[s];
 }

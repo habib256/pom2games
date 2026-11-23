@@ -23,6 +23,7 @@ void board_recompile(void);
 void board_palette(void);
 void board_click(unsigned char x, unsigned char y);
 void board_drop(void);
+void __fastcall__ board_return_part(unsigned char i);
 /* The text id for what is under x, y (0: nothing). */
 unsigned char board_hover(unsigned char x, unsigned char y);
 unsigned char board_parts(void);

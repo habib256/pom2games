@@ -49,7 +49,7 @@ unsigned char tech_step(unsigned char x, unsigned char y);
 /* The drone he touches + 1, or 0. */
 unsigned char tech_touches_drone(void);
 /* Out of drone d (its board loaded): beside it, behind its way first. */
-void __fastcall__ tech_beside_drone(unsigned char d);
+unsigned char __fastcall__ tech_beside_drone(unsigned char d);
 
 /* The win: the drones' gates, a record (persist.best) if fewer, the text
  * "DONE WITH n GATES - RECORD!". */

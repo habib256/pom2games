@@ -196,6 +196,13 @@ void ui_poll(void)
     }
 }
 
+void format_gates(char *out, unsigned char n)
+{
+    out[0] = n >= 100u ? '1' : ' ';
+    out[1] = n >= 10u ? '0' + (n % 100u) / 10u : ' ';
+    out[2] = '0' + n % 10u;
+}
+
 void __fastcall__ message(const char *s)
 {
     dhgr_fill_rect(0, MSG_Y - 1u, 140, 7, DHGR_BLACK);

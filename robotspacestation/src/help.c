@@ -42,7 +42,7 @@ static void legend_draw(void)
 void __fastcall__ help_draw(unsigned char page)
 {
     static unsigned char i, y, n;
-    static char num[3];
+    static char num[4];
     if (page == LEGEND_PAGE) { legend_draw(); return; }
     if (page < TEXT_PAGES) {
         page_x = 0u; page_y = 4u;
@@ -62,11 +62,8 @@ void __fastcall__ help_draw(unsigned char page)
         n = persist.best[i];            /* gates + 1, 0: never won */
         if (i < persist.reached) text_at(T_NAME + i, 4, y); else dhgr_puts_small("-", 4, y);
         if (!n--) continue;
-        if (n > 99u) n = 99u;
-        num[0] = n >= 10u ? '0' + n / 10u : ' ';
-        num[1] = '0' + n % 10u;
-        num[2] = 0;
-        dhgr_puts_small(num, 84, y);
+        format_gates(num, n);
+        dhgr_puts_small(num, 79, y);
         dhgr_puts_small(n == 1u ? (const char *)"GATE" : (const char *)"GATES", 98, y);
     }
 }

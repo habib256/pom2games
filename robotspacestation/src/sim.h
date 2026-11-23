@@ -33,6 +33,10 @@ extern unsigned char fl_kind[BOARD_GATES], fl_a[BOARD_GATES], fl_b[BOARD_GATES];
 extern unsigned char fl_sinks[TERMINALS];
 extern unsigned char values[TERMINALS + BOARD_GATES];
 
+/* Layout-to-flat map. Entry zero is normally 0, or NONE on overflow. */
+extern unsigned char gate_base[PARTS];
+#define BOARD_VALID (gate_base[0] != NONE)
+
 /* What the save file RSS.SAVE holds, in low memory (LOWBSS): burned chips
  * (chip_bytes, planar), their editable layouts, the lab and drone boards
  * and the missions reached. tools/model.py save_bytes() has the same image. */
@@ -62,7 +66,7 @@ unsigned char part_place(unsigned char kind, unsigned char x, unsigned char y);
 void __fastcall__ part_remove(unsigned char i);
 unsigned char part_at(unsigned char x, unsigned char y);
 void board_clear(void);
-/* 1 = compiled (values reset), 0 = over BOARD_GATES (nothing changed). */
+/* 1 = compiled (values reset), 0 = over BOARD_GATES (layout retained, outputs disabled). */
 unsigned char board_compile(void);
 /* Burn the layout into chip c: 1 = done, 0 = over the gate limits. */
 unsigned char __fastcall__ board_burn(unsigned char c);
