@@ -55,9 +55,9 @@
 ; CODE bytes, RODATA +8.
 ; 2026-11-19, dev/lib/prodos/file.asm returns X = 0 itself: file.s's C
 ; entries are aliases (-19 library CODE bytes), RODATA +19.
-CODE_SPARE   = 59
-RODATA_SPARE = 144
-BSS_SPARE    = 37
+CODE_SPARE   = 12
+RODATA_SPARE = 126
+BSS_SPARE    = 36
 
 .code
         .res CODE_SPARE

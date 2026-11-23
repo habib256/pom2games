@@ -12,7 +12,7 @@
 old_position: .res 1
 brick_hit: .res 1
 pad_line: .res 1
-pad_bottom: .res 1
+        .res 1                  ; preserve the following workspace addresses
 shot_index: .res 1
 shot_steps: .res 1
 shot_row: .res 1
@@ -159,7 +159,7 @@ damage_y:
         jmp _damage
 lost:   stz _ball_live
 done:   rts
-.import _pad_x,_pad_width
+.import _pad_x,_pad_width,_previous_pad_y
 ; Piercing destroys a destructible brick in one hit and retains direction.
 ; Steel always reflects, scores nothing, and remains indestructible.
 pierce:
@@ -297,13 +297,15 @@ paddle_contact:
         lda _ball_y
         cmp pad_line
         bcc @no
-        lda _pad_y
-        clc
-        adc #5
-        sta pad_bottom
-        lda _ball_y
-        cmp pad_bottom
+        ; The paddle moves horizontally first, then vertically. At its new
+        ; X, cover the whole rise from the previous Y to the current top.
+        ; Carry is set by CMP pad_line. Field Y is always at least five.
+        sbc #5
+        cmp _pad_y
+        bcc @check_x
+        cmp _previous_pad_y
         bcs @no
+@check_x:
         lda _ball_x
         clc
         adc #2
@@ -322,6 +324,7 @@ paddle_contact:
         dec
         sta _ball_y
 @no:    rts
+        .res 4                  ; keep the timed motion loop at its address
 
 ; Retain every collision substep, dynamic speed changes and actor swap-back.
 .export _advance_balls

@@ -113,6 +113,8 @@ unsigned char records_save(void)
     return !failed(prodos_save()) && prodos_file_actual==sizeof(raw);
 }
 /* Load the ENDING overlay, kept next to HIGHSCORES, at dest; 0 = failure. */
+/* ld65 exports the byte count of the code and constants in ENDING. */
+extern char _FINALE_SIZE__[];
 unsigned char records_load_overlay(void *dest, unsigned size)
 {
     static unsigned char error, len;
@@ -124,5 +126,5 @@ unsigned char records_load_overlay(void *dest, unsigned size)
     file(dest,size);
     error=failed(prodos_load_free());
     memcpy(overlay_name,"HIGHSCORES",10); pathname[0]=len;
-    return !error && prodos_file_actual;
+    return !error && prodos_file_actual==(unsigned)_FINALE_SIZE__;
 }

@@ -58,6 +58,10 @@ def main():
                 shutil.copyfile(a.disk,disk);data=bytearray(disk.read_bytes())
                 name=data.index(b'ENDING',1024,1536);data[name:name+6]=b'ENDINX'
                 disk.write_bytes(data);execute(variant,'records-nohelp')
+                # Restore the name and truncate the overlay's ProDOS EOF to one byte.
+                data[name:name+6]=b'ENDING'
+                data[name+20:name+23]=(1).to_bytes(3,'little')
+                disk.write_bytes(data);execute(variant,'records-nohelp')
             # A format 1 file (scores in points) is converted, then saved as format 2.
             shutil.copyfile(a.disk,disk);image,entries=inspect();entry=entries['HIGHSCORES']
             old=bytearray(b'CBR1\x01\x07')

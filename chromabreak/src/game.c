@@ -62,7 +62,7 @@ signed char enemy_dx[2], enemy_dy[2];
 #pragma bss-name(pop)
 /* enemy_hold stops new enemies (regression fixtures only). */
 unsigned char enemy_hold, enemy_timer;
-static unsigned char enemy_gate;
+static unsigned char enemy_gate, enemy_period;
 unsigned char hud_dirty, round_live, laser_cooldown;
 static unsigned char flash_cursor,particle_cursor;
 extern const unsigned char tile_x[96],tile_y[96];
@@ -114,9 +114,9 @@ static const unsigned char ramp_periods[3]={10,8,6};
 static const unsigned char reward_periods[3]={4,5,6};
 static const char *const mode_names[3]={"RELAX", "ARCADE", "EXPERT"};
 static const char *const effect_names[7]={"","   ENLARGE","      SLOW","     CATCH","   DISRUPT","     LASER","    PIERCE"};
-/* Game ticks between enemy arrivals (30 per second), and the four gates:
+/* Game ticks between arrivals at 30 Hz NTSC or 25 Hz PAL, and the gates:
  * two at the top, two in the side walls just below the tile grid. */
-static const unsigned char enemy_periods[3]={180,135,90};
+static const unsigned char enemy_periods[6]={180,135,90,150,113,75};
 static const unsigned char gate_x[4]={34,102,4,132};
 static const unsigned char gate_y[4]={CB_FIELD_TOP+1,CB_FIELD_TOP+1,CB_GRID_END+2,CB_GRID_END+2};
 
@@ -333,7 +333,8 @@ static unsigned char pad_tile(unsigned char lo,unsigned char hi,signed char dir)
  * at the first tile on its way, and it rises past PAD_BLOCK only where no
  * tile is above it. */
 /* Statics, not locals: input() runs every frame and cc65 locals are slow. */
-static unsigned char old_x, old_y;
+static unsigned char old_x;
+unsigned char previous_pad_y; /* Also used by paddle_contact in physics.s. */
 static void pad_walls(void)
 {
     if (pad_x<LEFT || pad_x>200u) pad_x=LEFT;
@@ -348,7 +349,7 @@ static void clamp_pad(void)
     if (pad_y>=PAD_BLOCK) return;
     /* Tiles stop only a paddle that was already at their height: one that
      * rises from below may be under a tile, and then stays below it. */
-    if (old_y<PAD_BLOCK) {
+    if (previous_pad_y<PAD_BLOCK) {
         if (pad_x>old_x && (i=pad_tile(old_x,pad_x+pad_width,1))) pad_x=tile_x[i]-2u-pad_width;
         else if (pad_x<old_x && (i=pad_tile(pad_x,old_x+pad_width,-1))) pad_x=tile_x[i]+11u;
     }
@@ -369,7 +370,7 @@ static void reset_ball(void)
     for(i=0;i<4u;++i) if(flash_slot[i]!=255u && flash_life[flash_slot[i]]) mark_dirty(flash_slot[i]);
     ball_live=0; capsule=0; effect=0; pad_width=base_width; speed=normal_speed;
     pad_y=PAD_Y; vdirection=0; pad_motion=pad_lift=0; catch_offset=(pad_width>>1)-1u;
-    enemy_live[0]=enemy_live[1]=0; enemy_timer=enemy_periods[difficulty];
+    enemy_live[0]=enemy_live[1]=0; enemy_timer=enemy_period;
     combo=0; multiplier=1; round_live=0;
     memset(extra_ball,0,sizeof(extra_ball)); memset(shot_live,0,2);
     memset(particle_life,0,4); memset(flash_life,0,96); memset(flash_slot,255,4);
@@ -415,6 +416,7 @@ static void start(void)
     level=demo ? demo_level : start_level;
     base_width=paddle_sizes[difficulty]; speed_limit=maximum_speeds[difficulty];
     ramp_period=ramp_periods[difficulty]; reward_period=reward_periods[difficulty];
+    enemy_period=enemy_periods[difficulty+(a2_vbl_pal ? 3u : 0u)];
     direction=0; pad_x=60; next_capsule=1; frames=0; auto_launch=1;
     sound_event(SND_START); load_level();
 }
@@ -461,7 +463,7 @@ static void title(void)
     rect(14,67,1,33,14); rect(125,67,1,33,14);
     centered("PLAY",74);
     centered("CLICK / SPACE / ENTER",87);
-    centered(mouse_slot ? "MOUSE ACTIVE" : "KEYBOARD ACTIVE",111);
+    centered(mode==2u ? "JOYSTICK ACTIVE" : mouse_slot ? "MOUSE ACTIVE" : "KEYBOARD ACTIVE",111);
     centered("1 RELAX  2 ARCADE  3 EXPERT",127);
     difficulty_mark();
     centered("K:KEYS J:JOYSTICK H:SCORES ?:HELP",145);
@@ -524,7 +526,7 @@ static void record_table(void)
         text(records[i].score ? mode_names[records[i].mode] : (const char *)"-",49,64u+i*14u);
     }
     if(save_status) centered(save_status==1u ? "SCORE SAVED" : "SAVE FAILED",140);
-    centered("ENTER:PLAY   ESC:MENU",170);
+    centered("ENTER:PLAY  ESC:TITLE",170);
     timing_present();
 }
 static void demo_stop(void);
@@ -667,7 +669,7 @@ static void enemies(void)
         if (enemy_hit&2u) enemy_down(1);
     }
     if (enemy_hold || !round_live || extra_ball[2] || extra_ball[11] || --enemy_timer) return;
-    enemy_timer=enemy_periods[difficulty];
+    enemy_timer=enemy_period;
     i=enemy_live[0] ? 1u : 0u;
     if (enemy_live[i]) return;
     for (n=4;n;--n) {
@@ -710,7 +712,7 @@ static void drop(void)
     if (!capsule) return;
     ++cap_y;
     /* The 5x6 capsule meets the paddle top, or the paddle rose past it. */
-    if (cap_y>=pad_y-5u && cap_y<=(old_y>pad_y ? old_y : pad_y) && cap_x+4u>=pad_x && cap_x<pad_x+pad_width) {
+    if (cap_y>=pad_y-5u && cap_y<=(previous_pad_y>pad_y ? previous_pad_y : pad_y) && cap_x+4u>=pad_x && cap_x<pad_x+pad_width) {
         effect=capsule; capsule=0;
         center=pad_x+(pad_width>>1);
         pad_width=base_width+(effect==1u ? 8u : 0u);
@@ -742,10 +744,7 @@ static void fire(void)
 extern unsigned char joy_x, joy_y;
 void input(unsigned char key)
 {
-    old_x=pad_x; old_y=pad_y;
-    if (key=='M' && mouse_slot) { mode=1; direction=vdirection=0; mouse_poll(); }
-    if (key=='K') { mode=0; direction=vdirection=0; }
-    if (key=='J') { mode=2; direction=vdirection=0; }
+    old_x=pad_x; previous_pad_y=pad_y;
     if (key=='P') { paused^=1u; direction=vdirection=0; hud_changed(); sound_stop(); }
     if (key=='A' || key==KC_LEFT) { mode=0; direction=-1; }
     if (key=='D' || key==KC_RIGHT) { mode=0; direction=1; }
@@ -768,7 +767,7 @@ void input(unsigned char key)
         if (vdirection) pad_y+=vdirection<0 ? 253u : 3u;
     }
     clamp_pad();
-    pad_motion=(signed char)(pad_x-old_x); pad_lift=(signed char)(old_y-pad_y);
+    pad_motion=(signed char)(pad_x-old_x); pad_lift=(signed char)(previous_pad_y-pad_y);
     if (!round_live) attach();
     if (!round_live && (key==' ' || key==KC_RET || (mode && button))) {
         ball_live=round_live=1; hud_changed(); sound_event(SND_LAUNCH);
@@ -781,7 +780,7 @@ void input(unsigned char key)
 static void demo_input(void)
 {
     static int want;
-    old_x=pad_x; old_y=pad_y;
+    old_x=pad_x; previous_pad_y=pad_y;
     if (ball_live) {
         if (dy<0 && demo_dy>0) demo_aim=(signed char)((frames*5u)&7u)-4;
         demo_dy=dy;
@@ -862,7 +861,7 @@ void game_tick(void)
     if(state==5u && key==KC_ESC) { state=0; save_status=0; title(); return; }
     if(state==7u) {
         if(key==KC_ESC || key=='R') {
-            if(menu_from) { state=1; paused=0; level_fetch(level); hud_changed(); redraw(); } else { state=0; title(); }
+            if(menu_from) { state=1; level_fetch(level); hud_changed(); redraw(); } else { state=0; title(); }
         /* Only the sectors reached so far (saved on disk) can be chosen. */
         } else if(key==KC_LEFT || key=='A') { menu_level=menu_level ? menu_level-1u : records_progress; menu(); }
         else if(key==KC_RIGHT || key=='D') { menu_level=menu_level<records_progress ? menu_level+1u : 0; menu(); }
@@ -878,10 +877,19 @@ void game_tick(void)
         menu_from=state==1u; menu_level=menu_from ? level : records_progress;
         sound_stop(); menu(); return;
     }
+    /* Select the device before reading its button for this frame. */
+    if (key=='M' && mouse_slot) { mode=1; direction=vdirection=0; }
+    if (key=='K') { mode=0; direction=vdirection=0; }
+    if (key=='J') { mode=2; direction=vdirection=0; }
     /* Keyboard play ignores the mouse: skip the firmware call (1300 cycles). */
     if (mode==1u || state!=1u || demo) mouse_poll();
     /* Joystick mode: buttons 0/1 (or the Apple keys) act as the click. */
-    held=mode==2u ? (*(volatile unsigned char *)0xC061|*(volatile unsigned char *)0xC062)&0x80u : mouse_buttons&0x80u;
+    held=mouse_buttons;
+    if (mode==2u) {
+        if (state==1u && !demo) held=0;
+        held|=*(volatile unsigned char *)0xC061|*(volatile unsigned char *)0xC062;
+    }
+    held&=0x80u;
     button=held && !mouse_old;
     mouse_old=held;
     /* 60 s of game ticks, 30 or 25 per second. */
@@ -902,8 +910,7 @@ void game_tick(void)
         }
         if (key==' ' || key==KC_RET || key=='M' || key=='K' || key=='J' || button) {
             /* SPACE, ENTER or a button keep the joystick once chosen. */
-            if (key=='J') mode=2;
-            else if (key=='M' || key=='K' || mode!=2u) mode=(key!='K') && mouse_slot;
+            if (key!='K' && (key=='M' || mode!=2u)) mode=mouse_slot!=0;
             start();
         } else if (state==0u && demo_due()) demo_start();
         else { sound_tick(); a2_frame_wait(); }

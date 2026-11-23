@@ -701,6 +701,10 @@ int main(int argc,char** argv) {
     run(500000);until(tick,3000000);
     require(mem.getSpeakerToggleCount()==silence,"pause must silence speaker");
     require(read("ball_x")==bx && read("ball_y")==by,"pause freezes ball");
+    mem.queueKey(27);until(tick,20000000);
+    mem.queueKey('R');until(tick,40000000);until(tick,3000000);
+    require(read("paused") && read("ball_x")==bx && read("ball_y")==by,
+            "returning from the menu preserves a paused game");
     mem.queueKey('P');until(tick,3000000);until(tick,3000000);
     require(!read("paused"),"resume");
     mem.queueKey('K');until(tick,3000000);until(tick,3000000);
@@ -903,6 +907,7 @@ int main(int argc,char** argv) {
         require(read("effect")==kind && !read("capsule"),"new capsule pickup");
     };
     pickup(4);
+    require(read("enemy_timer")==unsigned(pal ? 113 : 135),"Arcade enemy interval is 4.5 seconds");
     require(read("round_live") && read("ball_live") && extraRead(0,2) && extraRead(1,2),"multiball launches three balls");
     require(extraRead(0,3)==255 && extraRead(1,3)==1,"multiball fans to both sides");
     write("ball_live",0);until(tick,3000000);
@@ -1122,9 +1127,13 @@ int main(int argc,char** argv) {
         mem.setPaddle(0,128);mem.setPaddle(1,160);mem.queueKey('J');ticks(4);
         const int low=read("pad_y");
         write("capsule",2);write("cap_x",read("pad_x")+6);write("cap_y",low-8);
+        write("ball_live",1);write("round_live",1);write("dy",1);
+        write("ball_x",read("pad_x")+8);write("ball_y",low-12);write("vx",0);write("vy",32);
         mem.setPaddle(1,60);ticks(3);
         require(low-int(read("pad_y"))>=20,"the stick lifts the paddle by 20 lines or more at once");
         require(read("effect")==2 && !read("capsule"),"a paddle rising past a capsule catches it");
+        require(read("dy")==255 && int(read("ball_y"))<=int(read("pad_y"))-6,
+                "a paddle rising past a falling ball bounces it");
         mem.setPaddle(1,255);write("mode",previousMode);write("effect",0);write("pad_y",CB_PAD_Y);ticks(1);
     }
     setup();write("pad_x",60);write("pad_y",140);write("ball_x",70);write("ball_y",140-6);write("dy",1);ticks(1);
@@ -1529,6 +1538,12 @@ int main(int argc,char** argv) {
         auto button=[&]() {mem.setPaddleButton(0,true);ticks(2);mem.setPaddleButton(0,false);ticks(1);};
         mem.setPaddle(0,128);mem.setPaddle(1,255);mem.queueKey('J');ticks(3);
         require(read("state")==1 && read("mode")==2,"J selects the joystick in a game");
+        write("ball_live",0);write("round_live",0);
+        mem.setPaddleButton(0,true);mem.queueKey('M');ticks(1);
+        require(read("mode")==1 && !read("round_live"),"selecting the mouse ignores the joystick button");
+        mem.setPaddleButton(0,false);mem.queueKey('J');ticks(2);
+        gameOver();hostMouse(lastX,lastY,true);ticks(2);hostMouse(lastX,lastY,false);ticks(1);
+        require(read("state")==1 && read("mode")==2,"a mouse click replays with the selected joystick");
         gameOver();button();
         require(read("state")==1 && read("mode")==2,"the joystick button starts the next game with the joystick");
         mem.setPaddle(0,0);ticks(3);
