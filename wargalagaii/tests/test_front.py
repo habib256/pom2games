@@ -139,6 +139,7 @@ def demo_oracle(disk, L):
 
 def demo_stop(disk, L):
     for refreshes, how in ((300, ['key:A']), (300, ['btn:0,1', 'wait:4', 'btn:0,0']),
+                           (300, ['btn:1,1', 'wait:4', 'btn:1,0']),
                            (3600, ['key:A']), (3600, ['btn:0,1', 'wait:4', 'btn:0,0'])):
         r = a2test.run(disk, [L.until('main', 3000), L.until('demo_init', 4000), f'wait:{refreshes}', *how,
                               L.until('front_main', 30), 'wait:60', L.peek('fr_panel'), L.peek('score', 3)],
@@ -188,6 +189,8 @@ def record_stick(disk, L):
     steps = START(L) + ['key:J', 'wait:20'] + play_and_quit(L, 0x123456, 99)
     steps += [L.peek('rec_err'), L.peek('fr_panel')] + down + btn + up + btn + btn
     steps += ['wait:200', L.peek('fr_panel'), L.peek('rec_buf', R.REC_SIZE), L.peek('rec_err')]
+    # A fresh sync must retry the unsaved record, even without another edit.
+    steps += [L.poke('rec_err', 0), 'key:\\r', L.until('game_tick', 600), L.peek('rec_err')]
     os.environ['POM2_MEDIA_WRITE_DEFAULT'] = 'protected'   # (a2shot has no --wp)
     try:
         r = a2test.run(disk, steps, iie=True, timeout=300)
@@ -197,6 +200,7 @@ def record_stick(disk, L):
     assert r.mem(L['fr_panel'], 1, 0)[0] == ENTRY and r.mem(L['fr_panel'], 1, 1)[0] == SCORES
     assert r.mem(L['rec_buf'], R.REC_SIZE) == want, r.mem(L['rec_buf'], R.REC_SIZE)
     assert r.mem(L['rec_err'], 1, 1)[0] == 0x2B
+    assert r.mem(L['rec_err'], 1, 2)[0] == 0x2B, 'the next game retries the failed save'
     print('PASS record, stick: B Z A picked, 1st at level 100; write-protected disk: error $2B, '
           'table kept in memory')
 
@@ -210,13 +214,16 @@ def modes(disk, L):
     steps = START(L) + [L.peek('mode'), 'peek:2000:8192', 'key:M', 'wait:20', L.peek('mode')]
     steps += play_and_quit(L, 0, 25, loop='fr_loop') + ['wait:10', L.peek('mode'), L.peek('rec_buf', 3),
                                                          'peek:2000:8192']
-    steps += ['key:M', 'wait:20', L.peek('mode'), L.peek('rec_buf', 3), 'peek:2000:8192',
-              'key:\\r', L.until('game_tick', 600), 'wait:30', L.peek('mode'), L.peek('dive_gap')]
+    # Exercise the old byte counter at its wrap boundary.
+    steps += [L.poke('rec_dirty', 255), 'key:M', 'wait:20', L.peek('rec_dirty'),
+              L.peek('mode'), L.peek('rec_buf', 3), 'peek:2000:8192',
+              'key:\\r', L.until('game_tick', 600), 'wait:30', L.peek('mode'), L.peek('dive_gap'), L.peek('rec_dirty')]
     r = a2test.run(disk, steps, iie=True, timeout=300)
     assert r.mem(L['mode'], 1, 0)[0] == M.EASY and text_at(page(r, 0), 16, 22, 'EASY  ')
     assert text_at(page(r, 0), 16, 9, 'M  MODE') and r.mem(L['mode'], 1, 1)[0] == M.EASY, 'EASY only'
     assert r.mem(L['mode'], 1, 2)[0] == M.EASY and r.mem(L['rec_buf'], 3, 0)[2] == 0b00010
     assert text_at(page(r, 1), 19, 15, 'NOW OPEN:') and text_at(page(r, 1), 19, 25, 'NORMAL')
+    assert r.mem(L['rec_dirty'], 1, 0)[0] and not r.mem(L['rec_dirty'], 1, 1)[0], 'dirty until saved'
     assert r.mem(L['mode'], 1, 3)[0] == M.NORMAL and r.mem(L['rec_buf'], 3, 1)[2] == 0b01010
     assert text_at(page(r, 2), 16, 22, 'NORMAL')
     assert r.mem(L['mode'], 1, 4)[0] == M.NORMAL and r.mem(L['dive_gap'], 1, 0)[0] == M.level_params(0, 0)[0]
@@ -231,8 +238,8 @@ def bonuses(disk, L):
     steps = START(L) + ['key:\\r', L.until('game_tick', 600), 'wait:30', L.poke('score', 0x00),
                         L.poke('score', 0x10, 1), L.poke('score', 0, 2), L.poke('credits', 0x23),
                         L.poke('credits', 0x01, 1), L.poke('rank', 7), L.poke('perfects', 2),
-                        'key:\\e', L.until('front_main', 300), L.until('fb_wait', 600), 'wait:10',
-                        L.peek('fr_panel'), 'peek:2000:8192', L.peek('score', 3), 'key: ',
+                        'btn:0,1', 'key:\\e', L.until('front_main', 300), L.until('fb_wait', 600), 'wait:10',
+                        L.peek('fr_panel'), 'peek:2000:8192', L.peek('score', 3), 'btn:0,0', 'wait:6', 'btn:0,1',
                         L.until('rn_loop', 300), L.peek('fr_panel')]
     r = a2test.run(disk, steps, iie=True, timeout=300)
     page = r.mem(0x2000, 8192)

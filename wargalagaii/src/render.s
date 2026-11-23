@@ -698,8 +698,8 @@ md_char:
         sta msg_text,x
         dex
         bpl :-
-        lda loop                 ; n = 100 * loop + level + 2 (16 bits: up
-        sta mn_t                 ; to 25 601; the hundreds were loop mod 10,
+        lda loop                 ; n = displayed destination (16 bits: up
+        sta mn_t                 ; to 25 600; the hundreds were loop mod 10,
         stz mn_t+1               ; wrong past level 1 000, bug hunt 6)
         stz mn
         stz mn+1
@@ -723,6 +723,12 @@ md_mul: lsr mn_k                 ; n += loop << bit, for each bit of 100
         ldx demo
         beq :+
         jsr demo_next             ; show the actual showcase destination
+:       cmp #LEVELS              ; next_level wraps even at the loop ceiling
+        bne :+
+        ldx loop
+        inx
+        bne :+
+        lda #0
 :       clc                      ; index -> displayed level number
         adc #1
         clc

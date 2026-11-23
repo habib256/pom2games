@@ -25,6 +25,7 @@ import a2test
 from boot import boot
 import model
 import test_game
+from test_front import text_at
 
 M = model
 
@@ -180,6 +181,9 @@ def station_scene(disk, L, name, credits, plan, pokes=(), joystick=False, waits=
     if not shop:                         # (no shop after it: the game goes on)
         steps.append(L.poke('noshop', 1))
     for kind, v in keys:
+        if kind == 'turn' and v == 'cleared':
+            # The final pair is turned just before the old grid's deadline.
+            steps += [L.until('mem_loop', 60), L.poke('mem_sec', 1), L.poke('mem_sub', 2)]
         if kind == 'key' and joystick and v in 'KL':
             x, y = (1, 0) if v == 'L' else (0, 1)
             steps += [f'joy:{x},{y}', 'wait:3', 'joy:0,0', 'wait:10']
@@ -189,6 +193,8 @@ def station_scene(disk, L, name, credits, plan, pokes=(), joystick=False, waits=
             steps += ['btn:0,1', 'wait:3', 'btn:0,0', 'wait:4']
         else:
             steps += a2test.keys(['\\r'], 4)
+        if kind == 'turn' and v == 'cleared':
+            steps.append(L.until('mem_grid', 180))
         if kind == 'turn' and v in ('miss', 'cleared', 'flag'):
             steps.append('wait:90')
     if steps[-1] == 'wait:90':
@@ -289,8 +295,14 @@ def stations(disk, L):
     assert g.shop == 1, 'the shop after the station'
     print(f'PASS Memory Station, stick: a pair, ESC; then the shop (credits 500) == model')
     # the clock: 2 seconds left, nothing turned
-    steps = station_open(L, 0) + [L.poke('mem_sec', 2), 'wait:200', L.peek('station'), L.peek('level')]
+    steps = station_open(L, 0)
+    rounds = (99, 100, 255, 256)
+    for number in rounds:
+        steps += [L.poke('m_round', number - 1), f'call:{L["mem_state"]:04X}:10', 'peek:2000:8192']
+    steps += [L.poke('mem_sec', 2), 'wait:200', L.peek('station'), L.peek('level')]
     r = a2test.run(disk, steps, iie=True, timeout=900)
+    for i, number in enumerate(rounds):
+        assert text_at(r.mem(0x2000, 8192, i), 3, 30, f'{number:3}'), number
     assert r.mem(L['station'], 1)[0] == 0 and r.mem(L['level'], 1)[0] == 4, \
         (r.mem(L['station'], 1), r.mem(L['level'], 1))
     print('PASS Memory Station, time out: closed, level 5 next')
@@ -307,6 +319,8 @@ def model_checks():
         rng = random.Random(seed)
         for k in range(3000):
             g.step(rng.choice((-1, 0, 1)), False, rng.random() < 0.8)
+            if not g.m_time:
+                assert g.m_dist == M.M_DIST, (g.m_wait, g.m_dist)
             # lot 11: everything left of byte 35 (the distance bar), small
             # rocks in their slots, big ones not
             assert all(not s or (s in (M.ROCK, M.BOOM) and i < M.M_ROCKS and 2 <= g.a_x[i] <= 95

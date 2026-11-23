@@ -2,7 +2,7 @@
 ; //e enhanced: the VBL edge of $C019 (bit 7 clear in the blank), polled.
 ; //c: the VBL interrupt of the built-in mouse firmware (mode 9), served by a
 ; ProDOS ALLOC_INTERRUPT handler: a time source only, the mouse is never read.
-; Anything else: Monitor WAIT delays (a2_frame_wait).
+; Anything else: a cycle-counted delay.
 ; A page is shown once per two refreshes (30 Hz NTSC / 25 Hz PAL). The game
 ; counts refreshes between flips (timing_refreshes) and advances its logic by
 ; refresh pairs, so the speed never depends on the drawing time.
@@ -11,7 +11,6 @@
 ; A2_VBL_SCAN_SEI=1: the music interrupt scans too (see _a2_vbl_scan below).
 ; The IRQ hook (flip_irq) uses neither cc65's zero page nor its stack.
 .setcpu "65C02"
-.import _a2_frame_wait, _a2_frame_set_delay
 .import spk_period, mus_ticks
 .import _mouse_init, _mouse_close
 .import _a2_vbl_init, _a2_vbl_irq_init, _a2_vbl_close, _a2_vbl_scan
@@ -46,10 +45,6 @@ timing_init:
         lda #>flip_irq
         sta _a2_vbl_hook+1
         jsr _a2_vbl_init
-        pha
-        lda #DELAY               ; fallback: one WAIT a frame (see present_delay)
-        jsr _a2_frame_set_delay
-        pla
         bne synced
         jsr _mouse_init
         jsr _a2_vbl_irq_init
@@ -111,14 +106,11 @@ shown:  sec
         sta last_flip
         rts
 
-; No video clock: one WAIT, after a frame's drawing and logic (~24 000
-; cycles), stands for the rest of two refreshes (34 060). WAIT(60) is ~9 800
-; cycles: the game keeps ~its speed (two WAIT(80), ~34 000 on top of the
-; drawing, made it run at ~57 %, bug hunt 2026-10-23).
-DELAY = 60
+; No video clock: spend the remainder of a refresh pair (~9,800 cycles)
+; in the speaker loop after drawing and logic (~24,000 cycles).
 present_delay:
         jsr joy_read_delay       ; (the stick was dead here, bug hunt 5)
-        jsr _a2_frame_wait
+        jsr delay_sound
         ldx wanted
         lda $C054,x
         lda _a2_vbl_count
@@ -294,3 +286,29 @@ joy_read_irq:
         lda $C064
         bmi :-
         bra joy_store
+
+; One approximately 9,800-cycle wait, with the same 63-cycle turns as the
+; VBL speaker loops. Period zero wraps Y after 256 turns, beyond this wait.
+delay_sound:
+        lda spk_period
+        tay
+        ldx #156
+ds_turn:
+        jsr spk_pad              ; 37 cycles
+.repeat 4
+        nop
+.endrepeat
+        dey
+        bne ds_hold
+        tay
+        sta $C030
+        bra ds_count
+ds_hold:                         ; both paths through the divider: 11 cycles
+.repeat 4
+        nop
+.endrepeat
+ds_count:
+        dex
+        bne ds_turn
+        rts
+.assert >ds_turn = >(*-1), lderror, "the delay speaker loop crosses a page"

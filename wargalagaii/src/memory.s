@@ -147,8 +147,7 @@ mem_screen:
         lda #>mem_static
         sta ptr+1
         jsr sh_texts
-        stz sh_held
-        stz sh_rep
+        jsr sh_init_stick
         stz sh_ev
         lda #DUET_EVENT_SLICES
         sta sh_sl
@@ -268,9 +267,12 @@ mem_select:
         lda mem_res
         cmp #MT_CLEARED
         jne mem_loop
-        lda #MEM_SHOW
-        jsr mem_wait
-        bcs mem_end
+        lda #MEM_SHOW            ; show the final pair with the grid clock stopped
+        sta mem_wt
+:       jsr sh_tick
+        jsr sound_frame
+        dec mem_wt
+        bne :-
         jmp mem_grid
 
 ; A tick of the screen (music, sounds) and of the clock: C = 1 when the
@@ -310,10 +312,14 @@ mem_state:
         lda m_pairs
         ldy #18
         jsr sh_dec2
-        lda m_round
-        inc a
         ldy #30
-        jmp sh_dec2
+        ldx #0
+        lda m_round
+        inc a                    ; zero-based 0..255 -> displayed 1..256
+        bne :+
+        ldx #2
+        lda #56
+:       jmp sh_hundreds
 
 ; Icon A on card X. Keeps nothing.
 mem_icon:

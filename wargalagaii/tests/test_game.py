@@ -601,6 +601,20 @@ def malformed_aux(build, L):
           'auxiliary guard and bitmap preserved, return to ProDOS')
 
 
+def early_boss(disk, L):
+    """Kill the frozen boss with its first escorts still waiting to enter."""
+    steps = [L.until('main', 3000), L.poke('front_skip', 1), L.poke('start_level', 24),
+             L.until('logic_step', 3000), L.poke('freeze_t', 4), L.poke('entry_t', 1),
+             L.poke('boss_hp', 1), L.poke('shot_y', model.BOSS_Y + model.SHOT_DY),
+             L.poke('shot_c', model.BOSS_X0 + model.BOSS_CORE0), L.until('logic_done', 10),
+             'wait:18', L.peek('boss_hp'), L.peek('a_state', model.NALIENS),
+             'wait:600', L.peek('level')]
+    r = a2test.run(disk, steps, iie=True)
+    assert not r.mem(L['boss_hp'], 1)[0] and not any(r.mem(L['a_state'], model.NALIENS))
+    assert r.mem(L['level'], 1)[0] == 25, 'level 26 after the boss drops fall'
+    print('PASS frozen boss defeated before its escorts enter: drops fall, level 26 follows')
+
+
 def nmos(disk):
     r = a2test.run(disk, ['wait:1500', 'peek:400:1024'], emulator=a2test.A2SHOT)
     assert 'NEEDS A 65C02' in text(r), text(r)
@@ -654,6 +668,7 @@ def main():
         print(f'PASS level oracle, {name}: levels {[l + 1 for l, p in seen]} == model '
               f'(dive gap {game.dive_gap}, fire gap {game.fire_gap}, divers {game.max_divers})')
     bonus_effects(a.disk, L)
+    early_boss(a.disk, L)
     bench(a.disk, L)
     vbl_edges(a.disk, L)
     game_over(a.disk, L)

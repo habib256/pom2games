@@ -33,8 +33,7 @@ shop_screen:
         cpx #NITEM
         bne :-
         stz sh_cur
-        stz sh_held
-        stz sh_rep
+        jsr sh_init_stick
         stz sh_ev
         lda #DUET_EVENT_SLICES
         sta sh_sl
@@ -359,8 +358,27 @@ sh_putc_next:
         iny
         rts
 
+; Three characters, leading zeros as spaces. sh_hundreds also accepts
+; hundreds already counted in X (Memory Station can reach round 256).
+sh_dec3:
+        ldx #0
+sh_hundreds:
+        stz sh_lead
+:       cmp #100
+        bcc :+
+        sbc #100
+        inx
+        bra :-
+:       pha
+        txa
+        jsr sh_digit
+        pla
+        bra sh_tens
+
 ; A = 0..99 as two characters at column Y (tens blank if 0).
 sh_dec2:
+        stz sh_lead
+sh_tens:
         ldx #0
 :       cmp #10
         bcc :+
@@ -368,7 +386,6 @@ sh_dec2:
         inx
         bra :-
 :       pha
-        stz sh_lead
         txa
         jsr sh_digit
         sec
@@ -399,6 +416,13 @@ sh_input:
         lda #0
         rts
 :       lda sh_acts,x
+        rts
+; A button already held when this screen opens needs a release first.
+sh_init_stick:
+        lda $C061
+        and #$80
+        sta sh_held
+        stz sh_rep
         rts
 sh_stick:
         lda joy_mode

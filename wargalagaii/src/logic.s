@@ -864,8 +864,9 @@ bm_leap:
 
 ; Shot down: 5000 points, its escorts explode, a life and a 200 coin.
 boss_down:
-        stz pts_hi               ; BCD 5000
-        lda #$50
+        lda #ROWS                ; cancel escorts still waiting to enter
+        sta entry_w
+        lda #$50                 ; BCD 5000
         sta pts_hi
         lda #$00
         jsr add_points

@@ -75,6 +75,9 @@ front_main:
         ldx fr_why
         beq :+
         jsr fr_unlock
+        lda $C061                ; fire held at game over does not skip the bonus panel
+        and #$80
+        sta fr_btn
         jsr fr_bonuses           ; (the score is final after it)
         jsr rec_new
         lda #FR_MENU
@@ -483,33 +486,7 @@ fr_score:
         iny
         ldx fr_e
         lda rec_buf+3,x
-        ; fall through
-; A = 0..255 at column Y: three characters, leading zeros as spaces.
-fr_dec3:
-        stz sh_lead
-        ldx #0
-:       cmp #100
-        bcc :+
-        sbc #100
-        inx
-        bra :-
-:       pha
-        txa
-        jsr sh_digit
-        pla
-        ldx #0
-:       cmp #10
-        bcc :+
-        sbc #10
-        inx
-        bra :-
-:       pha
-        txa
-        jsr sh_digit
-        sec
-        ror sh_lead
-        pla
-        jmp sh_digit
+        jmp sh_dec3
 
 ; Rows PANEL_TOP..191 of page 1: black.
 fr_clear:
@@ -600,10 +577,7 @@ rn_found:
         sta fr_name+1
         sta fr_name+2
         jsr rn_first
-        lda $C061                ; (the stick's button: as fr_btn)
-        and #$80
-        sta sh_held
-        stz sh_rep
+        jsr sh_init_stick
 rn_draw:
         lda #<FR_ENTRY_T         ; (nobody there: counted from the last change)
         sta fr_t
@@ -709,7 +683,8 @@ rn_done:
         iny
         cpy #3
         bne :--
-        inc rec_dirty
+        lda #1
+        sta rec_dirty
         jsr rec_sync
         sec
         rts
@@ -738,7 +713,8 @@ fr_mode:                         ; the next mode open (after the last: EASY)
         asl
         ora rec_buf+FR_SET
         sta rec_buf+FR_SET
-        inc rec_dirty
+        lda #1
+        sta rec_dirty
         jsr fr_set_mode
         jmp fr_menu
 
@@ -759,7 +735,8 @@ fr_unlock:
         clc
         adc #2                   ; one more open
         sta rec_buf+FR_SET
-        inc rec_dirty
+        lda #1
+        sta rec_dirty
         inx
         stx fr_new
 fu_done:
@@ -835,12 +812,15 @@ rec_sync:
         cmp rec_buf+FR_SET
         beq :+
         sta rec_buf+FR_SET
-        inc rec_dirty
+        lda #1
+        sta rec_dirty
 :       lda rec_dirty
         beq rs_done
-        stz rec_dirty
         jsr rec_save
-        bcc rs_done
+        bcs rs_error
+        stz rec_dirty
+        rts
+rs_error:
         lda #<fr_err_txt
         sta ptr
         lda #>fr_err_txt

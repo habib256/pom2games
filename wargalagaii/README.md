@@ -225,14 +225,13 @@ au mieux un très court échantillon hors jeu (un mot au titre).
 |---|---|---|
 | ← → (ou J / L) | X | déplacer le vaisseau |
 | Pomme ouverte, ESPACE | bouton 0 | tirer (tir automatique si acheté) |
-| Pomme fermée | bouton 1 | missiles, si on en a |
+| Pomme fermée | bouton 1 | démo : revenir au titre |
 | ↑ ↓ ← → RETURN (ou ESPACE), ESC | Y, bouton 0 | boutique (← ↑ monter, → ↓ descendre, ESC : sortir) |
 | ↑ ↓ ← → (ou I K J L), RETURN (ou ESPACE), ESC | X, Y, bouton 0 | Memory Station (retourner une carte, ESC : sortir) |
 | Pomme ouverte, ESPACE tenus | bouton 0 tenu | Meteor Storm : accélérer (relâcher : ralentir) |
 | ESC | | en jeu : retour au titre (record possible) ; au titre : quitter vers ProDOS |
 | S | | musique coupée / remise (en jeu et au titre) ; les bruitages restent |
-| TAB | | en jeu : clavier ↔ manette (le centre est la position de repos du
-manche au début de la partie ou au TAB, zone morte autour) |
+| TAB | | en jeu : clavier ↔ manette (le centre est la position de repos du manche au début de la partie ou au TAB, zone morte autour) |
 | RETURN, ESPACE | bouton 0 | titre : jouer |
 | J (ou TAB), H | | titre : clavier ↔ manette (retenu dans `HIGHSCORES`), aide |
 | M | | titre : le mode suivant parmi ceux ouverts (EASY, NORMAL, HARD, ACE) |

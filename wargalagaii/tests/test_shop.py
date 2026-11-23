@@ -145,6 +145,18 @@ def no_shop(disk, L):
     print('PASS no shop under 50 credits: level 5 next')
 
 
+def held_fire(disk, L):
+    for screen, loop, field, before, after in (
+            ('shop', 'sh_loop', 'credits', 0x99, 0x49),
+            ('station', 'mem_loop', 'm_up', 0, 1)):
+        steps = [*boot(L), 'wait:60', L.poke('joy_mode', 1), L.poke('credits', 0x99),
+                 'btn:0,1', L.poke(screen, 1), L.until(loop, 300), 'wait:15', L.peek(field),
+                 'btn:0,0', 'wait:5', 'btn:0,1', 'wait:5', L.peek(field)]
+        r = a2test.run(disk, steps, iie=True)
+        assert [r.mem(L[field], 1, k)[0] for k in range(2)] == [before, after], screen
+    print('PASS shop and Memory Station: fire held on entry acts only after release and press')
+
+
 def marks_screen(disk, L):
     """The marks row: each medal == its icon, on an even byte column (an odd
     one swapped the colours: orange showed blue), empty slots black."""
@@ -186,6 +198,7 @@ def main():
     stick_still(a.disk, L)
     speaker_music(a.disk, L)
     no_shop(a.disk, L)
+    held_fire(a.disk, L)
     marks_screen(a.disk, L)
 
 

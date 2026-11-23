@@ -790,6 +790,8 @@ class Game:
                 return
         elif self.m_wait:
             self.m_wait -= 1
+            self.ship_timers()
+            return
         else:
             self.m_acc += dy
             if self.m_acc >= M_SPACING:
@@ -816,12 +818,11 @@ class Game:
                         break
             if not self.ship_state:
                 self.pickups()
-                if not self.m_wait:
-                    if self.m_dist <= dy:
-                        self.m_dist = 0
-                        self.storm_prize()
-                    else:
-                        self.m_dist -= dy
+                if self.m_dist <= dy:
+                    self.m_dist = 0
+                    self.storm_prize()
+                else:
+                    self.m_dist -= dy
         self.ship_timers()
         if self.m_crash and not self.ship_state:
             self.storm_end()
@@ -1146,6 +1147,7 @@ class Game:
                 return
 
     def boss_down(self):
+        self.entry_w = ROWS
         self.add_score(POINTS_BOSS)
         self.boss_boom = BOSS_BOOM_T
         for i in range(NALIENS):

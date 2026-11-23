@@ -196,7 +196,7 @@ ss_wait:
         lda m_wait               ; METEOR STORM on screen: no rock yet
         beq :+
         dec m_wait
-        bra ss_hits
+        jmp ship_timers          ; the entire countdown precedes the first row flown
 :       lda m_acc                ; a rock or an object every M_SPACING rows
         clc
         adc m_dy
@@ -269,8 +269,6 @@ ss_miss:
         bra ss_hit
 ss_take:
         jsr pickups
-        lda m_wait               ; the distance
-        bne ss_timers
         lda m_dist+1
         bne ss_fly
         lda m_dy

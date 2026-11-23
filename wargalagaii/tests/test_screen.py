@@ -91,11 +91,13 @@ def hud_state(st):
 
 
 def level_text(st):
-    """LEVEL n: the level teleported to, (level + 2) + 100 * loop."""
+    """LEVEL n: the level teleported to, including a saturated loop."""
     next_level = st['level'] + 1
     if st.get('demo'):
         next_level = M.DEMO_NEXT.get(next_level, next_level)
-    return f'LEVEL {next_level + 1 + 100 * st["loop"]}'.ljust(12).encode()
+    wrap, level = divmod(next_level, M.LEVELS)
+    loop = min(255, st['loop'] + wrap)
+    return f'LEVEL {level + 1 + M.LEVELS * loop}'.ljust(12).encode()
 
 
 def expected(st, T, glyphs):
@@ -330,7 +332,7 @@ def messages(disk, labels):
     """LEVEL n for every size of n (bug hunt 6: the hundreds were loop mod
     10, wrong past level 1 000), up to the last loop (it saturates at 255)."""
     L = a2test.labels(labels, strip=True)
-    cases = [(0, 0), (8, 0), (97, 0), (98, 0), (0, 9), (98, 9), (50, 120), (99, 255)]
+    cases = [(0, 0), (8, 0), (97, 0), (98, 0), (0, 9), (98, 9), (50, 120), (99, 254), (99, 255)]
     steps = [*boot(L)]
     for level, loop in cases:
         steps += [L.poke('phase', 0), 'wait:6', L.poke('level', level), L.poke('loop', loop),

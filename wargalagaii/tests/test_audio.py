@@ -97,6 +97,26 @@ def speaker(disk, L):
           f'(half-periods {common[:4]}...)')
 
 
+def delay_speaker(disk, L):
+    steps = [*boot(L), L.poke('_a2_vbl_mode', 0), L.poke('frame_mode', 0),
+             'storewatch:C030:C030', L.until('present_delay', 10), L.until('shown', 10),
+             *fire(L, 1), L.until('sound_done', 10), L.peek('spk_period'),
+             L.until('present_delay', 10), L.until('shown', 10)]
+    r = a2test.run(disk, steps, iie=True)
+    def visits(label):
+        return list(map(int, re.findall(r'until [0-9A-F]+ cycles=(\d+) PC=' + f'{L[label]:04X}', r.out)))
+
+    quiet, shot = visits('present_delay')
+    quiet_end, shot_end = visits('shown')
+    toggles = [cycle for _, addr, _, cycle in stores(r.out) if addr == 0xC030]
+    period = r.mem(L['spk_period'], 1)[0]
+    assert period and len(toggles) > 20 and all(shot <= c < shot_end for c in toggles), toggles
+    assert all(b - a == period * sound.SPK_TURN for a, b in zip(toggles, toggles[1:])), toggles
+    assert 9700 <= quiet_end - quiet == shot_end - shot <= 10000, (quiet_end - quiet, shot_end - shot)
+    print(f'PASS delay clock: silent at rest, {len(toggles)} toggles for a shot, '
+          f'{shot_end - shot} cycles with either sound state')
+
+
 def mockingboard(disk, L):
     a4 = pt3.note_table()[pt3.pt3_note(sound.MELODY[0][0])]
     shot = sound.ay_period(sound.SFX[-1][1][0][0])
@@ -223,6 +243,7 @@ def main():
         return
     L = a2test.labels(a.labels, strip=True)
     speaker(a.disk, L)
+    delay_speaker(a.disk, L)
     mockingboard(a.disk, L)
     unmute(a.disk, L)
     steadiness(a.disk, L)
