@@ -82,7 +82,9 @@ def windows(wins, stars=3):
     for sched, n in wins.items():
         if n == stars:
             keys = tuple(key_name(m) for _, m in sched)
-            by[(keys, tuple(t for t, _ in sched[:-1]))].append(sched[-1][0])
+            last = by[(keys, tuple(t for t, _ in sched[:-1]))]
+            if sched:
+                last.append(sched[-1][0])
     return by
 
 
@@ -100,20 +102,18 @@ def tolerance(level, sol, data=None):
     kept) with the result still 3 stars."""
     out = []
     for k, (t0, m) in enumerate(sol):
-        ok = []
-        for t in range(max(0, t0 - 40), t0 + 41):
-            s = list(sol)
-            s[k] = (t, m)
-            if len({tt for tt, _ in s}) < len(s):
-                continue
-            g, _ = play_sched(level, s, data=data)
-            if g.state == C.WON and g.nstar == 3:
-                ok.append(t)
-        # the run that holds t0
+        others = dict(sol[:k] + sol[k + 1:])
+
+        def wins_at(t):
+            if t < 0 or t in others:
+                return False
+            g, played = play_sched(level, [*others.items(), (t, m)], data=data)
+            return t < played and g.state == C.WON and g.nstar == 3
+
         lo = hi = t0
-        while lo - 1 in ok:
+        while wins_at(lo - 1):
             lo -= 1
-        while hi + 1 in ok:
+        while wins_at(hi + 1):
             hi += 1
         out.append((key_name(m), lo, hi))
     return out
@@ -160,6 +160,9 @@ def main(argv):
         print(f'  {n:,} schedules of <= {depth} actions: won {len(wins):,} '
               f'({", ".join(f"{k} stars {v:,}" for k, v in sorted(hist.items()))})')
         for (keys, early), last in sorted(windows(wins).items(), key=lambda kv: -len(kv[1]))[:12]:
+            if not keys:
+                print('    no actions')
+                continue
             pre = ', '.join(f'{k}@{t}' for k, t in zip(keys, early))
             print(f'    {pre + ", " if pre else ""}{keys[-1]} at {runs(last, opt.get("step", 1))}')
         print('  ' + ', '.join(f'{k}: {["playing", "won", "lost"][s]} {n} stars' for k, (s, n) in trivial(lv).items()))

@@ -41,9 +41,10 @@ def main():
         return
     lab = a2test.labels(LBL)
     peeks = [lab.peek('cr_on'), lab.peek('cur_x', 2), lab.peek('sel')]
-    steps = [lab.until('menu_idle', 3000), lab.peek('_mouse_slot'),
+    steps = [lab.until('menu_idle', 3000), lab.peek('_mouse_slot'), lab.poke('joy_ok', 0),  # mouse only, no joystick
              'mouse:70,50,0', 'wait:3'] + peeks + [                     # 0: cell 2 (locked)
              'mouse:20,50,0', 'wait:3'] + peeks + [                     # 1: cell 1
+             'mouse:70,50,0', 'wait:3',                       # point at the locked level again
              'mouse:20,50,1', 'wait:3', 'mouse:20,50,0', lab.until('main', 300), 'wait:10',
              'mouse:140,30,0', 'wait:4'] + peeks + [                    # 2: no button: no cut
              'mouse:70,30,0', 'wait:4'] + peeks + [                     # 3: the cursor there

@@ -82,7 +82,7 @@ LEVELS = [
     dict(name='PUFF AND POP', candy=(59, 54), ropes=[(60, 19, 3, 1.0)], bubble=(59, 85), cushions=[(39, 90, 'R')],
          stars=[(62, 88), (71, 84), (82, 89)], frog=(83, 141),
          segs=spikes(4, 251, 182) + [(70, 156, 110, 156, 0)],
-         solution=[(23, L1), (61, P4), (73, POP)], windows='key 1 16-37, key 4 49-64, key 6 70-113'),
+         solution=[(23, L1), (61, P4), (73, POP)], windows='key 1 16-37, key 4 49-64, key 6 70-141'),
     dict(name='LEFT FIRST', candy=(137, 50), ropes=[(83, 25, 4, 1.0), (170, 25, 3, 1.0)], stars=[(145, 59), (172, 68), (201, 54)], frog=(190, 126),
          segs=spikes(4, 251, 182) + [(177, 141, 217, 141, 0)],
          solution=[(4, L1), (72, L2)], windows='key 1 0-10, key 2 70-76'),

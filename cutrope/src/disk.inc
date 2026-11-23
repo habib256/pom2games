@@ -8,8 +8,8 @@
 ;   save_load   at start: CUTSAVE's stars into best (a foreign or unreadable
 ;               file: none won), total counted
 ;   won         at a win: the stars + 1 kept in best when better (save_flag)
-;   save_due    when leaving a level: CUTSAVE written if save_flag (C = 1
-;               from RWTS: not saved -- write protected -- and forgotten)
+;   save_due    when leaving a level or quitting: merge and write a pending
+;               result. Keep it pending if RWTS fails.
 ;   unlocked    X = level: Z = 0 when it can be played (the first one, or
 ;               the one before it won)
 ; LEVELS and CUTSAVE are ordinary DOS binary files; dev/tools/dos33patch.py
@@ -62,29 +62,12 @@ save_load:
         STA     lv_in
         LDA     #0
         STA     save_flag
-        JSR     save_read
-        BCS     @none
-        LDX     #3
-@m:     LDA     SAVBUF+4,X
-        CMP     sav_magic,X
-        BNE     @none
-        DEX
-        BPL     @m
+        STA     total
         LDX     #NLEVEL - 1
-@c:     LDA     SAVBUF+8,X
-        CMP     #5
-        BCC     :+
-        LDA     #0
-:       STA     best,X
-        DEX
-        BPL     @c
-        BMI     count
-@none:  LDX     #NLEVEL - 1
-        LDA     #0
 :       STA     best,X
         DEX
         BPL     :-
-        ; (falls into count)
+        JMP     save_sync
 
 ; total = the stars of every level won
 count:  LDA     #0
@@ -118,11 +101,35 @@ won:    LDX     level
 
 save_due:
         LDA     save_flag
-        BEQ     @rts
-        LDA     #0
-        STA     save_flag
-        JSR     save_read               ; (DOS's header kept)
-        BCS     @rts
+        BNE     save_sync
+        RTS
+save_sync:
+        LDA     sav_t
+        STA     rwts_track
+        LDA     sav_s
+        STA     rwts_sector
+        LDA     #>SAVBUF
+        STA     rwts_page
+        JSR     rwts_read               ; retain the DOS header and any earlier wins
+        BCS     @done
+        LDX     #3
+@magic: LDA     SAVBUF+4,X
+        CMP     sav_magic,X
+        BNE     @write
+        DEX
+        BPL     @magic
+        LDX     #NLEVEL - 1
+@merge: LDA     SAVBUF+8,X
+        CMP     #5
+        BCS     @next
+        CMP     best,X
+        BCC     @next
+        STA     best,X
+@next:  DEX
+        BPL     @merge
+        JSR     count
+@write: LDA     save_flag
+        BEQ     @done
         LDX     #3
 :       LDA     sav_magic,X
         STA     SAVBUF+4,X
@@ -133,22 +140,10 @@ save_due:
         STA     SAVBUF+8,X
         DEX
         BPL     :-
-        JSR     save_sector
-        JMP     rwts_write
-@rts:   RTS
-
-save_read:
-        JSR     save_sector
-        JMP     rwts_read
-
-save_sector:
-        LDA     sav_t
-        STA     rwts_track
-        LDA     sav_s
-        STA     rwts_sector
-        LDA     #>SAVBUF
-        STA     rwts_page
-        RTS
+        JSR     rwts_write              ; same sector and buffer as the read
+        BCS     @done
+        DEC     save_flag
+@done:  RTS
 
 unlocked:
         TXA

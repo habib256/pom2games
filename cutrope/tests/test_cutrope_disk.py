@@ -191,8 +191,64 @@ def main():
     return on_copy(checks)
 
 
+def save_recovery(lab):
+    """A failed boot read and transient I/O errors while leaving a won level."""
+    with tempfile.TemporaryDirectory(prefix='cutrope-') as tmp:
+        disk = Path(tmp) / 'progress.dsk'
+        saved = Path(tmp) / 'saved.dsk'
+        image = bytearray(SRC.read_bytes())
+        records = bytearray(dos33.read_file(image, 'CUTSAVE'))
+        records[:4] = b'CRS1'
+        records[4:6] = bytes([2, 4])    # previous wins, one and three stars
+        dos33.replace_file(image, 'CUTSAVE', records)
+        disk.write_bytes(image)
+        program = dos33.read_file(image, 'CUTROPE')
+
+        def rwts(name, fail):
+            offset = lab[name] - 0x6000
+            return lab.poke(name, [0x38, 0x60] if fail else program[offset:offset + 2])  # SEC, RTS
+
+        steps = [lab.until('save_load', 3000)] + rwts('rwts_read', True)
+        steps += [lab.until('menu_idle', 600)] + rwts('rwts_read', False)
+        steps += ['key: ', lab.until('main', 300)]
+        keys = [(t, m.bit_length()) for t, m in C.SOLUTIONS[0]]
+        steps += keyed(lab, keys, 100)[0] + rwts('rwts_read', True)
+        steps += ['key:R', lab.until('main', 300), lab.peek('save_flag')]
+        steps += rwts('rwts_read', False) + rwts('rwts_write', True)
+        steps += ['key:\x1b', lab.until('menu_idle', 600), lab.peek('save_flag'), lab.peek('total')]
+        steps += rwts('rwts_write', False) + ['key:\x1b', lab.until('apple2_exit', 600), f'dsk:{saved}']
+        r = a2test.run(str(disk), steps)
+        assert [r.mem(lab['save_flag'], 1, k)[0] for k in range(2)] == [1, 1]
+        assert r.mem(lab['total'], 1)[0] == 6
+        records[4] = 4
+        assert dos33.read_file(saved.read_bytes(), 'CUTSAVE') == records
+
+
+def spike_tip(lab):
+    """A 42-pixel spike strip ends with a single centered tip on both pages."""
+    steps = [lab.until('menu_idle'), 'key: ', lab.until('scenery'),
+             lab.poke('seg_kind', 1), lab.poke('seg_x0', 190), lab.poke('seg_x1', 232),
+             lab.poke('seg_y0', 164), lab.until('main')]
+    # The last tooth spans 226..232. Bits 5 and 6 cover its tip and right neighbor.
+    addrs = [page + hgr_offset(164) + 229 // 7 for page in (0x2000, 0x4000)]
+    r = a2test.run(str(DISK), steps + [f'peek:{addr:04X}:1' for addr in addrs])
+    for addr in addrs:
+        assert r.mem(addr, 1)[0] & 0x60 == 0x20
+
+
 def checks():
     lab = a2test.labels(LBL)
+    save_recovery(lab)
+    spike_tip(lab)
+    # A small left deflection should move one pixel. ESC while cutting
+    # should leave the menu usable once button 0 is released.
+    steps = [lab.until('menu_idle'), 'key: ', lab.until('main'), 'joy:-0.35,0',
+             lab.until('input'), lab.peek('cur_x'), lab.until('pace'), lab.peek('cur_x'),
+             'joy:0,0', 'btn:0,1', 'key:\x1b', lab.until('menu_idle'), 'wait:8',
+             'btn:0,0', 'wait:20', 'key:L', 'wait:6', lab.peek('sel')]
+    r = a2test.run(str(DISK), steps)
+    assert r.mem(lab['cur_x'], 1, 1)[0] == r.mem(lab['cur_x'], 1, 0)[0] - 1
+    assert r.mem(lab['sel'], 1)[0] == 1, 'held button 0 reopened the level after ESC'
     sol = [[(t, m.bit_length()) for t, m in s] for s in C.SOLUTIONS]
     none = [0] * C.NLEVEL
     steps = [lab.until('menu_idle', 3000)] + look_menu(lab) + ['key: ', lab.until('main', 300)]

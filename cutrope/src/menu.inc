@@ -22,12 +22,14 @@ mk:     .res 1                          ; cell: its brackets (0: none)
 mvx:    .res 1                          ; the stick's push (stick_v)
 mvy:    .res 1
 stk:    .res 1                          ; a push already taken (until it rests)
+joy_b:  .res 1                          ; previous button 0 state in the menu
 ms_b:   .res 1                          ; the mouse's button at the last poll
 
 .segment "CODE"
 menu:   JSR     clear_pages
         LDA     #$80                    ; (a button held from the game: no click)
         STA     ms_b
+        STA     joy_b
         LDA     #0
         STA     pl_n
         STA     stk
@@ -91,12 +93,6 @@ menu_idle:                              ; (the tests: the menu drawn, waiting)
         BNE     @key
         JSR     menu_mouse              ; (the pointer over a cell, a click)
         BEQ     menu_idle
-        BPL     @key
-        AND     #$7F                    ; $80 + a cell: the choice there
-        TAX
-        CPX     sel
-        BEQ     menu_idle
-        JMP     @move
 @key:   LDX     sel
         CMP     #'J'
         BEQ     @left
@@ -141,16 +137,7 @@ menu_idle:                              ; (the tests: the menu drawn, waiting)
         CMP     #NLEVEL
         BCS     menu_idle
         TAX
-@move:  TXA                             ; the old cell without its brackets,
-        PHA                             ; the new one with them
-        LDX     sel
-        LDA     #0
-        JSR     cell
-        PLA
-        TAX
-        STX     sel
-        LDA     #1
-        JSR     cell
+@move:  JSR     select_cell
         JMP     menu_idle
 @play:  LDX     sel
         JSR     unlocked
@@ -171,12 +158,28 @@ menu_idle:                              ; (the tests: the menu drawn, waiting)
 @ret:   LDA     sel
         RTS
 
+select_cell:
+        TXA                             ; the old cell without its brackets,
+        PHA                             ; the new one with them
+        LDX     sel
+        LDA     #0
+        JSR     cell
+        PLA
+        TAX
+        STX     sel
+        LDA     #1
+        JMP     cell
+
 ; the stick, as the menu's keys: A = KC_LEFT / RIGHT / UP / DOWN for a push
 ; (one until it rests again), ' ' for button 0, 0 for nothing (Z)
 menu_stick:
         LDA     joy_ok
         BEQ     @rts
-        BIT     BUTN0
+        LDX     BUTN0
+        TXA
+        EOR     joy_b
+        STX     joy_b
+        AND     joy_b
         BPL     :+
         LDA     #' '
         RTS
@@ -212,28 +215,25 @@ menu_stick:
 @none:  LDA     #0
         RTS
 
-; the mouse in the menu: A = ' ' for a click (Z = 0, N = 0), $80 + the cell
-; under the pointer when it moved there (N = 1), 0 for nothing (Z)
+; Update the pointed cell before reporting a new click as the play key.
 menu_mouse:
         LDA     _mouse_slot
         BEQ     @rts
         JSR     _mouse_poll
-        LDX     ms_b                    ; a click: the button down now, up before
-        LDA     _mouse_buttons
-        STA     ms_b
+        LDX     _mouse_buttons
         TXA
-        EOR     #$FF
+        EOR     ms_b
+        STX     ms_b
         AND     ms_b
-        BPL     :+
-        LDA     #' '
-        RTS
-:       LDA     _mouse_x
+        PHP                             ; N = new press, including a move + click
+        BMI     @point
+        LDA     _mouse_x
         CMP     ms_x
-        BNE     :+
+        BNE     @point
         LDA     _mouse_y
         CMP     ms_y
         BEQ     @none
-:       LDA     _mouse_x
+@point: LDA     _mouse_x
         STA     ms_x
         LDA     _mouse_y
         STA     ms_y
@@ -245,14 +245,10 @@ menu_mouse:
         LSR     A
         LSR     A
         STA     t1
-        LDA     #0                      ; cell = row * 5 + x / 56
-        LDX     t1
-        BEQ     :++
-:       CLC
-        ADC     #MENU_COLS
-        DEX
-        BNE     :-
-:       STA     t1
+        ASL     A                       ; cell = row * 5 + x / 56
+        ASL     A
+        ADC     t1                      ; row <= 13: C = 0
+        STA     t1
         LDA     ms_x
 :       CMP     #56
         BCC     :+
@@ -262,9 +258,16 @@ menu_mouse:
 :       LDA     t1
         CMP     #NLEVEL
         BCS     @none
-        ORA     #$80
+        TAX
+        CPX     sel
+        BEQ     :+
+        JSR     select_cell
+:       PLP
+        BPL     @idle
+        LDA     #' '
         RTS
-@none:  LDA     #0
+@none:  PLP
+@idle:  LDA     #0
 @rts:   RTS
 
 ; A, Y = top left, pl_sp, X = the descriptor (low, high)

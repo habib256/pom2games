@@ -26,6 +26,7 @@ ROOT = GAME.parent
 sys.path.insert(0, str(GAME / 'tools'))
 sys.path.insert(0, str(ROOT / 'dev/tools'))
 import cutrope as C  # noqa: E402
+import solve  # noqa: E402
 from levels import spikes  # noqa: E402
 from verlet import harness  # noqa: E402
 import a2test  # noqa: E402
@@ -190,6 +191,9 @@ def scenarios():
 
 
 def check_model():
+    pop_level = next(i for i, lv in enumerate(C.LEVELS) if lv['name'] == 'PUFF AND POP')
+    assert solve.tolerance(pop_level, C.SOLUTIONS[pop_level])[-1] == ('6', 70, 141)
+    assert solve.windows({(): 3}) == {((), ()): []}
     print('cutrope physics and rules, 6502 == tools/cutrope.py:')
     ends = {name: check(name, lv, inp) for name, lv, inp in scenarios()}
     mech = {name: check(name, 0, inp, data=data) for name, data, inp in mechanics()}

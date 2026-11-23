@@ -263,7 +263,8 @@ flip:   LDA     pidx
         INC     frames+1
 :       JMP     main
 
-quit:   JMP     apple2_exit
+quit:   JSR     save_due                ; retry a pending result before returning to DOS
+        JMP     apple2_exit
 
 ; ---------------------------------------------------------------------------
 ; input -- keys and joystick -> in_cut, the cursor (in_cx, in_cy), in_btn
@@ -349,7 +350,7 @@ input:  JSR     poll_key
         LDY     cur_vy
         JSR     move
 @joy:   LDA     joy_ok
-        BEQ     @out
+        BEQ     @mouse
         JSR     read_stick_fast
         LDA     joy_x
         LDY     joy_rx
@@ -537,8 +538,11 @@ stick_v:
         STY     t2
         SEC
         SBC     t2
-        BMI     @neg
-        CMP     #JOY_DEAD
+        TAX                             ; save the sign while scaling the magnitude
+        BPL     :+
+        EOR     #$FF
+        ADC     #1                      ; (C = 0 for a count below rest)
+:       CMP     #JOY_DEAD
         BCC     @zero
         LSR     A
         LSR     A
@@ -546,20 +550,11 @@ stick_v:
         CMP     #4
         BCC     :+
         LDA     #3
-:       RTS
-@neg:   EOR     #$FF
-        ADC     #1                      ; (C = 0)
-        CMP     #JOY_DEAD
-        BCC     @zero
-        LSR     A
-        LSR     A
-        LSR     A
-        CMP     #4
-        BCC     :+
-        LDA     #3
-:       EOR     #$FF
-        ADC     #0                      ; (C = 1: -A)
-        RTS
+:       CPX     #$80
+        BCC     @rts
+        EOR     #$FF
+        ADC     #0                      ; C = 1: negate the speed
+@rts:   RTS
 @zero:  LDA     #0
         RTS
 
@@ -835,7 +830,8 @@ scenery:
         BCS     @nx
 :       LDA     t2
         STA     hl_ln_x0
-        ADC     #3                      ; (C = 0)
+        CLC                             ; CMP sets carry for a tooth ending at x1
+        ADC     #3
         STA     hl_ln_x1
         LDA     t1
         STA     hl_ln_y0

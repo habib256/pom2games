@@ -92,7 +92,7 @@ trampolines the candy must bounce on each before the frog.
 | 13 | BALLOON | 1 rope (4 links), bubble, spikes | 1 @73 | key 1 53-96 |
 | 14 | CROSSWIND | 1 rope (3 links), 2 cushions, spikes | 1 @18, 4 @36, 5 @48 | key 1 14-25, key 4 31-40, key 5 45-51 |
 | 15 | LATE PUFF | 1 rope (3 links), 1 cushion, spikes | 1 @40, 4 @60 | key 1 37-42, key 4 57-65 |
-| 16 | PUFF AND POP | 1 rope (3 links), bubble, 1 cushion, spikes | 1 @23, 4 @61, 6 @73 | key 1 16-37, key 4 49-64, key 6 70-113 |
+| 16 | PUFF AND POP | 1 rope (3 links), bubble, 1 cushion, spikes | 1 @23, 4 @61, 6 @73 | key 1 16-37, key 4 49-64, key 6 70-141 |
 | 17 | LEFT FIRST | 2 ropes (4 + 3 links), spikes | 1 @4, 2 @72 | key 1 0-10, key 2 70-76 |
 | 18 | NUDGE | 1 rope (3 links), 1 cushion | 4 @14, 1 @58 | key 4 11-16, key 1 55-63 |
 | 19 | RELAY | 1 rope (3 links), 2 cushions, spikes | 1 @29, 4 @44, 5 @56 | key 1 23-37, key 4 39-49, key 5 45-65 |
