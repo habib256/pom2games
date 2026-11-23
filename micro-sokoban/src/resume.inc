@@ -119,6 +119,7 @@ save_position:
         LDA game_active
         BEQ save_none
         LDA position_dirty
+        ORA save_mask                   ; retry a failed checkpoint even without a new move
         BEQ save_none
         LDA tutorial_on
         ORA demo_active

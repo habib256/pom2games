@@ -42,10 +42,10 @@ def parse(grid):
     return walls, goals, boxes, player
 
 
-def inside(grid, walls, player):
-    """The cells the player could ever stand on (floor reachable without boxes)."""
+def inside(grid, walls, seeds):
+    """Floor in every room containing the player, a box or a target."""
     h, w = len(grid), len(grid[0])
-    seen, stack = {player}, [player]
+    seen, stack = set(seeds), list(seeds)
     while stack:
         y, x = stack.pop()
         for dy, dx in DIRS.values():
@@ -96,7 +96,7 @@ class Level:
 
     def __init__(self, grid):
         walls, goals, boxes, player = parse(grid)
-        floor = sorted(inside(grid, walls, player))
+        floor = sorted(inside(grid, walls, goals | boxes | {player}))
         self.cells = floor
         index = {c: i for i, c in enumerate(floor)}
         n = len(floor)

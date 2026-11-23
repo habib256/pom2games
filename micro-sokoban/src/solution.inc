@@ -11,6 +11,28 @@ sol_buf = pack_buf+512          ; index entry, then the packed moves, in the
 
 .segment "CODE"
 
+; Lessons and their solutions live in resident tables. sol_buf
+; stays free throughout playback, so keep the lesson here and leave the
+; profile snapshot available for the Microban game behind the tutorial.
+watch_lesson_solution:
+        LDX #0
+@save:  LDA STATE_GRID,X
+        STA sol_buf,X
+        INX
+        CPX #STATE_GRID_LEN
+        BNE @save
+        LDA player_row
+        PHA
+        LDA player_col
+        PHA
+        LDX #4                          ; moves, pushes, boxes_left
+@push:  LDA moves_lo,X
+        PHA
+        DEX
+        BPL @push
+        JSR play_solution
+        JMP restore_lesson
+
 play_solution:
         LDA #1
         STA demo_active
@@ -167,6 +189,26 @@ play_loaded:
         STA demo_active
         STA watching
         STA position_dirty
+        RTS
+
+; Playback has loaded SOLCODE and left it in place until the next pack read.
+restore_lesson:
+        LDX #0
+@pop:   PLA
+        STA moves_lo,X
+        INX
+        CPX #5
+        BNE @pop
+        PLA
+        STA player_col
+        PLA
+        STA player_row
+        LDX #0
+@load:  LDA sol_buf,X
+        STA STATE_GRID,X
+        INX
+        CPX #STATE_GRID_LEN
+        BNE @load
         RTS
 
 sol_read:

@@ -91,6 +91,12 @@ def main():
             assert raw[0] == 0 and raw[1] > 0, 'title grid cancel started gameplay'
         print('Canceling the level grid from title and title menu returns to the title: ok')
 
+        # Both counters can reach 65535. Compare the displayed glyphs after a redraw.
+        full = [labels.poke(name, 255) for name in ('moves_lo', 'moves_hi', 'pushes_lo', 'pushes_hi')]
+        pixels, _ = screen(play + full + menu + back)
+        for y in range(8, 16):
+            assert pixels[y*40:y*40+5] == pixels[y*40+34:y*40+39], '65535 truncated in HUD'
+
         baseline = screen(play)
         assert screen(boot + menu + ['key:G', 'wait:90', 'key:\r', 'wait:600']) == baseline
         for name, path in [('menu', menu + back), ('help', ['key:H', 'wait:180'] + back + back),

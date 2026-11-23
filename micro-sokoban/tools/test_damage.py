@@ -95,6 +95,20 @@ def main():
         assert dumps == [b'\0\0', b'\x0b\0', b'\x01'], dumps
         print('Save file with an impossible length: empty profile, play goes on, the next save rewrites it: ok')
 
+        # Switch profiles with graphics in the I/O staging page. A shortened
+        # sector chain cannot supply the rest of the declared binary file.
+        two_profiles = bytearray(hof)
+        two_profiles[92:95] = b'ABC'
+        def cut_chain(image):
+            row = next(row for row in dos33.catalog(image) if row[0] == 'MICROSAV1')
+            second_pair = (row[-2] * dos33.SECTORS + row[-1]) * dos33.SEC_SIZE + 14
+            image[second_pair:second_pair+14] = bytes(14)
+        bad = disk('chain.dsk', cut_chain, ranking=two_profiles)
+        dumps, _ = run(bad, boot + ['key:V', 'wait:180', 'key:K', 'wait:40', 'key:\r',
+                                    'wait:180', peek('hof_buf', 3, 4), peek('score_solved', 2),
+                                    peek('score_total', 4)])
+        assert dumps == [b'ABC', bytes(2), bytes(4)], dumps
+
         # The same for the ranking: the defaults replace it on the disk during the start.
         bad = disk('ranking.dsk', lambda image: set_length(image, 'MICROHOF', 121))
         run(bad, boot + ['dsk:' + str(again)])
@@ -144,6 +158,14 @@ def main():
         rewritten = dos33.read_file(again.read_bytes(), 'MICROSAVE')
         assert len(rewritten) == len(save) and records(rewritten) == {0: 33}, records(rewritten)
         print('Save file shorter than its records: the missing ones are empty, not leftover memory: ok')
+
+        # Keep each complete record, even when the next one ends at a page boundary.
+        for index, tail in ((1, 1), (60, 2), (60, 3)):
+            cut = 14 + 4 * index + tail
+            short = disk('partial.dsk', lambda image: set_length(image, 'MICROSAVE', cut),
+                         {0: 33, index: 257})
+            dumps, _ = run(short, boot + [peek('score_solved', 2), peek('score_total', 4), peek('cur_lvl')])
+            assert dumps == [bytes([1, 0]), bytes([33, 0, 0, 0]), bytes([1])], (cut, dumps)
 
         # A ranking that disagrees with its own profiles is put right from them.
         def ranking(active, initials, names, rows, magic=b'HOF3'):

@@ -10,6 +10,7 @@ GAME = ROOT / 'micro-sokoban'
 sys.path.insert(0, str(ROOT / 'dev/tools'))
 import a2test
 import dos33
+from test_damage import set_length
 import micro_sokoban_levels as levels
 
 
@@ -60,6 +61,15 @@ def main():
         assert unchanged.read_bytes() == idle.read_bytes()
         print('Idle autosave and reopening the menu without changes: no redundant disk writes: ok')
 
+        # A lost write is retried on the next menu opening, even with no intervening move.
+        retry = tmp / 'retry.dsk'
+        got = run(args.disk, start + ['key:' + keys[:11], 'wait:30', *state,
+                                     'key:\x1b', labels.until('check_capacity'), labels.poke('io_count', 1),
+                                     'wait:180', peek('save_mask'), 'key:\x1b', 'wait:90',
+                                     'key:\x1b', 'wait:180', peek('save_mask'), 'dsk:' + str(retry)])
+        assert got[-2:] == bytes([128, 0]), got[-2:]
+        assert run(retry, ['wait:1800', 'key: ', 'wait:180', *state]) == got[:-2]
+
         # Selecting the active profile must preserve the live Undo/Redo history.
         current = run(saved, ['wait:1800', 'key: ', 'wait:180', 'key:' + keys[11], 'wait:30',
                              *state, peek('undo_n_lo', 4), 'key:\x1b', 'wait:180', 'key:V', 'wait:180',
@@ -85,6 +95,15 @@ def main():
             path.write_bytes(image)
             assert run(path, ['wait:1800', peek('resume_pending', 1)]) == bytes(1)
         print('Corrupt, obsolete and different-level snapshots are rejected: ok')
+
+        # A zero at the missing end would match the checksum after zero-filling.
+        image = bytearray(saved.read_bytes())
+        payload = dos33.read_file(image, 'MICROSAVE')
+        assert payload[-1] == 0
+        set_length(image, 'MICROSAVE', len(payload) - 1)
+        path = tmp / 'short-position.dsk'
+        path.write_bytes(image)
+        assert run(path, ['wait:1800', peek('resume_pending')]) == bytes(1)
 
         protected = tmp / 'protected.dsk'
         run(args.disk, start + ['key:' + keys[:12], 'wait:600', 'key:\x1b', 'wait:180',

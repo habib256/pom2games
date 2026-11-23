@@ -72,6 +72,8 @@ DIR_DOWN   = 1
 DIR_LEFT   = 2
 DIR_RIGHT  = 3
 HIST_PUSH  = 4
+HIST_MOVES_CAPPED  = 8
+HIST_PUSHES_CAPPED = 16
 
 ; --- Input actions (get_input return codes) ---
 ACT_NONE    = 0
@@ -96,6 +98,7 @@ ACT_PROFILE = 19        ; V chooses a player profile
 ACT_HELP    = 20        ; H opens HELP directly
 ACT_HOF     = 16        ; F key in the help menu
 ACT_SOLUTION = 21       ; X in the menu, only while cheat mode is on
+ACT_REWIND  = 22        ; held button 0 + left, only during play
 
 ; --- Joystick tuning ---
 ; read_stick (joy.asm) counts 24-cycle iterations while each paddle timer is
@@ -396,6 +399,7 @@ main:
         JSR apple2_zp_save              ; ZP is DOS/Applesoft's: restored on quit
         JSR init_disk_cache
         LDA #$00
+        STA b0_used
         STA btn0_prev
         STA btn1_prev
         STA joy_hold
@@ -536,6 +540,8 @@ move_loop:
         BCS @not_dir
         JMP key_dir                     ; ACT_UP..ACT_RIGHT
 @not_dir:
+        CMP #ACT_REWIND
+        BEQ key_undo
         CMP #ACT_UNDO
         BEQ key_undo
         CMP #ACT_REDO
@@ -597,12 +603,14 @@ menu_result:
 @actions:
         CMP #MENU_SOLUTION
         BNE @reset
-        JSR play_solution
+        LDA tutorial_on
+        BEQ @watch
+        JSR watch_lesson_solution
+        JMP redraw_level
+@watch: JSR play_solution
         LDA game_active
         BEQ @solved_title
         JSR select_resume               ; the position saved as the menu opened
-        LDA tutorial_on                 ; (a lesson has none: it starts again)
-        BNE @again
         LDA resume_pending
         BEQ @again
         JSR restore_position            ; goes back onto the level, which is
@@ -775,7 +783,15 @@ get_stick:
         JSR read_stick
         LDA PADDL0                      ; a timer still running: no stick
         ORA PADDL1
-        BMI @centre
+        BPL @buttons
+        LDX #1                          ; ignore a deflection sampled across reconnection
+        STX joy_hold
+        LDA #0                          ; unplugging cancels any pending tap
+        STA btn0_prev
+        STA btn1_prev
+        STA b0_used
+        RTS
+@buttons:
         ; --- button 1 (press edge) ---
         LDA BUTN1
         BMI @b1_down
@@ -819,7 +835,7 @@ get_stick:
         STA joy_hold
         RTS
 @sh_undo:
-        LDA #ACT_UNDO
+        LDA #ACT_REWIND
         BNE @sh
 @sh_redo:
         LDA #ACT_REDO
@@ -1085,7 +1101,7 @@ run_menu:
         CMP #ACT_QUIT
         BEQ @quit
         CMP #ACT_DEADWARN
-        BEQ @options
+        BEQ @deadwarn
         CMP #ACT_OPTIONS
         BEQ @options
         CMP #ACT_TUTORIAL
@@ -1145,6 +1161,11 @@ run_menu:
         JMP @paint
 @hof:   JSR run_hof
         JMP @paint
+@deadwarn:
+        JSR toggle_deadwarn
+        JSR save_options
+        JSR menu_sound
+        JMP @loop
 @options:
         JSR run_options
         LDA #MENU_OPTIONS               ; SOLUTION may have disappeared while in OPTIONS
@@ -1465,6 +1486,7 @@ load_save:
         JSR wipe_save                   ; what the file does not bring is empty
         JSR profile_file
         JSR fast_read                   ; (unreadable: it brings nothing)
+        BCS @repair
         LDA #0
         LDX io_limit+1
         CPX #>SAVE_LEN
@@ -1472,7 +1494,27 @@ load_save:
         LDX io_limit
         CPX #<SAVE_LEN
         BEQ @mask
-@short: LDA #$FF
+@short: STA snapshot                    ; a partial position is never resumable
+        LDA io_limit+1
+        BNE @tail
+        CPY #SAVE_HDR                   ; Y and ptr_hi:ptr_lo are io_copy's end cursor
+        BCC @repair
+@tail:  TYA
+        SEC
+        SBC #SAVE_HDR
+        AND #3                          ; records are four bytes after the header
+        TAX
+        BEQ @repair
+        LDA #0
+@drop:  CPY #0
+        BNE @byte
+        DEC ptr_hi
+@byte:  DEY
+        STA (ptr_lo),Y
+        DEX
+        BNE @drop
+@repair:
+        LDA #$FF
 @mask:  STA save_mask
         LDX #3
 @magic: LDA save_buf,X
@@ -1994,12 +2036,20 @@ execute_move:
 
         ; --- counters: 16 bits, and they stay at 65535 (a wrap to 0 would
         ; make a record that reads as "unsolved") ---
+        LDA had_push                    ; history code for this move
+        ASL A
+        ASL A
+        ORA dir_code
+        TAX
         INC moves_lo
         BNE @m_ok
         INC moves_hi
         BNE @m_ok
         DEC moves_lo
         DEC moves_hi
+        TXA
+        ORA #HIST_MOVES_CAPPED
+        TAX
 @m_ok:  LDA had_push
         BEQ @p_ok
         INC pushes_lo
@@ -2008,16 +2058,16 @@ execute_move:
         BNE @p_ok
         DEC pushes_lo
         DEC pushes_hi
+        TXA
+        ORA #HIST_PUSHES_CAPPED
+        TAX
 @p_ok:
         ; --- history ---
         LDA watching
         BNE @hist_done
         LDA replaying
         BNE @replay
-        LDA had_push                    ; code = dir | HIST_PUSH if pushed
-        ASL A
-        ASL A
-        ORA dir_code
+        TXA
         JSR hist_put
         LDA #$00                        ; a new move drops the redo branch
         STA redo_n_lo
@@ -2236,6 +2286,9 @@ execute_undo:
         STA STATE_GRID,X
         JSR queue_tile
 
+        LDA temp2
+        AND #HIST_PUSHES_CAPPED
+        BNE @no_box
         LDA pushes_lo
         BNE @pu_lo
         DEC pushes_hi
@@ -2280,12 +2333,15 @@ execute_undo:
         STA draw_col
         JSR queue_tile
 
+        LDA temp2
+        AND #HIST_MOVES_CAPPED
+        BNE @draw
         LDA moves_lo
         BNE @mv_lo
         DEC moves_hi
 @mv_lo: DEC moves_lo
 
-        LDA #1
+@draw:  LDA #1
         STA position_dirty
         JSR flush_dirty
         JSR draw_hud
@@ -2351,7 +2407,7 @@ draw_hud:
         STA num_lo
         LDA moves_hi
         STA num_hi
-        LDA #4
+        LDA #5
         JSR print_num
 
         LDA #HUD_RIGHT
@@ -2432,10 +2488,13 @@ draw_hud:
         STA num_col
         LDA #G_B
         JSR put_glyph
+        JSR stat_digits                 ; B65535 fits the same six columns as B:0033
+        CMP #5
+        BEQ @record
         LDA #G_COLON
         JSR put_glyph
         LDA #4
-        JMP print_num
+@record: JMP print_num
 @none:  RTS
 
 ; orig_number: A = original number of level (cur_coll, cur_lvl).
@@ -2457,8 +2516,7 @@ orig_of:
 ; 8 = compact screen text (num_col is then a pixel column).
 ;   put_glyph   draw glyph A, advance
 ;   draw_str    the $FF-terminated glyph string at sptr
-;   print_num   num_hi:num_lo as A digits (1..5, leading zeros; 4 digits
-;               are capped at 9999). Clobbers num.
+;   print_num   num_hi:num_lo as A digits (1..5, leading zeros). Clobbers num.
 ; TEXT col, sl, string: set the cursor and draw a string, at the current
 ; num_step.
 ; =============================================================================
@@ -2506,22 +2564,22 @@ draw_str:
         BNE @lp
 @done:  RTS
 
-print_num:
-        STA num_pow
-        CMP #4
-        BNE @index
-        LDA num_hi                      ; 4 digits: cap at 9999 = $270F
+stat_digits:
+        LDA num_hi
         CMP #>10000
-        BCC @index
-        BNE @cap
+        BCC @four
+        BNE @five
         LDA num_lo
         CMP #<10000
-        BCC @index
-@cap:   LDA #<9999
-        STA num_lo
-        LDA #>9999
-        STA num_hi
-@index: LDA #5                          ; power index = 5 - digits (0 = 10000)
+        BCC @four
+@five:  LDA #5
+        RTS
+@four:  LDA #4
+        RTS
+
+print_num:
+        STA num_pow
+        LDA #5                          ; power index = 5 - digits (0 = 10000)
         SEC
         SBC num_pow
         STA num_pow
@@ -2828,7 +2886,7 @@ draw_success:
         STA num_lo
         LDA moves_hi
         STA num_hi
-        LDA #4
+        JSR stat_digits
         JSR print_num
         LDA #184
         STA num_col
@@ -2838,7 +2896,7 @@ draw_success:
         STA num_lo
         LDA pushes_hi
         STA num_hi
-        LDA #4
+        JSR stat_digits
         JSR print_num
         LDA tutorial_on
         BNE @score
@@ -2853,7 +2911,7 @@ draw_success:
         STA num_lo
         LDA best_hi
         STA num_hi
-        LDA #4
+        JSR stat_digits
         JSR print_num
 @score: TEXT 64, 140, str_levels
         LDA #184

@@ -157,9 +157,7 @@ run_options:
         EOR option_masks,X
         STA hof_buf+HOF_SOUND
         JMP @changed
-@dead:  LDA deadwarn_on
-        EOR #1
-        STA deadwarn_on
+@dead:  JSR toggle_deadwarn
 @changed:
         JSR menu_sound
         JMP @paint
@@ -175,7 +173,9 @@ run_options:
 @cursor:
         STA option_sel
         JMP @changed
-@back:  LDA hof_buf+HOF_TUTORIAL
+@back:
+save_options:
+        LDA hof_buf+HOF_TUTORIAL
         AND #1
         STA temp
         LDA deadwarn_on
@@ -183,6 +183,12 @@ run_options:
         ORA temp
         STA hof_buf+HOF_TUTORIAL
         JMP write_hof
+
+toggle_deadwarn:
+        LDA deadwarn_on
+        EOR #1
+        STA deadwarn_on
+        RTS
 
 .rodata
 OPTIONS_SL0  = 64       ; scanline of the first switch; 16 lines per row

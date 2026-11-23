@@ -78,6 +78,14 @@ def main():
             assert undone[242:246] == bytes(4) and undone[247:] == bytes([0, 0, 0, 0, 12, 0]), undone[242:]
             assert int.from_bytes(redone[242:244], 'little') == 12 and redone[:240] != before[:240]
             assert wp is False or image.read_bytes() == base
+        # Watching a lesson preserves both its current move and a pending Redo.
+        lesson = boot + ['key: ', 'wait:180', 'key:N', 'wait:120', 'key:N', 'wait:120',
+                         'key:LLU', 'wait:60']
+        before, after, redone = groups(run(args.disk, lesson + [*state, *menu, *cheat, *watch,
+                                         *state, 'key:Y', 'wait:60', *state]), rows)
+        assert before == after and before[242] == 1 and before[251] == 1, after[242:]
+        assert redone[242] == 2 and redone[251] == 0, redone[242:]
+
         # A protected disk still carrying an older position of another level must not bring it back.
         saved = tmp / 'saved.dsk'
         run(args.disk, first + ['key:' + keys('I', 1, 11), 'wait:30', *menu, 'dsk:' + str(saved)])
@@ -99,6 +107,26 @@ def main():
                                               'btn:0,1', 'wait:6', 'btn:0,0', 'wait:12', *state]), rows)
         assert dumps[1][242] == 11 and dumps[1][251] == 1, 'a tap of button 0 is one Undo'
         print('Shuttle released with the stick still held: no move, Redo kept; stick and tap as before: ok')
+
+        # A held rewind must not select PLAY in the title menu.
+        dumps = run(args.disk, boot + menu + ['btn:0,1', 'wait:12', 'joy:-1,0', 'wait:90',
+                    'btn:0,0', 'joy:0,0', 'wait:30', peek('game_active'),
+                    'btn:0,1', 'wait:12', 'btn:0,0', 'wait:90', peek('game_active')])
+        assert dumps == [b'\0', b'\x01'], dumps
+
+        # Disconnect between press and release, then reconnect with no button held.
+        dumps = run(args.disk, boot + ['key: ', 'wait:120', 'key:L', 'wait:60', peek('moves_lo'),
+                    'btn:0,1', 'wait:20', 'joy:9,0', 'wait:20', 'btn:0,0',
+                    f'until:{labels["read_stick"]:04X}:2', 'wait:1', 'joy:0,0', 'wait:60',
+                    peek('moves_lo'), 'btn:0,1', 'wait:12', 'btn:0,0', 'wait:30', peek('moves_lo')])
+        assert dumps == [b'\x01', b'\x01', b'\0'], dumps
+
+        # The C shortcut changes DEADLOCK immediately and leaves the menu usable.
+        shortcut = tmp / 'shortcut.dsk'
+        dumps = run(args.disk, boot + menu + ['key:C', 'wait:180', peek('deadwarn_on'),
+                    'key:K', 'wait:60', peek('menu_sel'), 'dsk:' + str(shortcut)])
+        assert dumps == [b'\0', b'\x01'], dumps
+        assert run(shortcut, boot + [peek('deadwarn_on')]) == [b'\0']
 
         # The two levels with tiles under the "SAVING" text: III:054 and IV:036.
         for route, name in ((['key:N', 'wait:60', 'key:N', 'wait:60', 'key:KKKKLLLLLLLL'], 'III:054'),
@@ -148,6 +176,18 @@ def main():
                                         peek('moves_lo', 4), record, peek('score_solved', 2)])
         assert dumps == [b'\xff' * 4, b'\xff' * 4, b'\x01\0'], dumps
         print('Move and push counters stay at 65535 and the level counts as solved: ok')
+
+        # I:1 starts with two walks, a push, four walks and a second push.
+        counters = peek('moves_lo', 4)
+        near_cap = [poke('moves_lo', 0xFE), poke('moves_hi', 0xFF),
+                    poke('pushes_lo', 0xFE), poke('pushes_hi', 0xFF)]
+        dumps = run(args.disk, first + near_cap + ['key:' + keys('I', 1, 8), 'wait:30', counters,
+                    'key:U', 'wait:30', counters, 'key:UUUUU', 'wait:30', counters,
+                    'key:UU', 'wait:30', counters, 'key:YYYYYYYY', 'wait:30', counters])
+        capped = b'\xff\xff'
+        below = b'\xfe\xff'
+        assert dumps == [capped * 2, capped * 2, capped + below, below * 2, capped * 2], dumps
+        print('Undo and Redo restore both counters across saturation: ok')
 
         # A key still repeating after the winning move (a //e), or typed ahead, must not skip SUCCESS or BRAVO.
         level = [peek('cur_coll', 2), peek('moves_lo', 2), peek('boxes_left')]

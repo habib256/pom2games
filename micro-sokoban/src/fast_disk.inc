@@ -72,22 +72,7 @@ fast_file:
         LDA io_command
         CMP #2
         BNE @data
-        ; Never extend a file beyond its allocated T/S chain.
-        LDA io_limit
-        CLC
-        ADC #4
-        TAY
-        LDA io_limit+1
-        ADC #0
-        CPY #0
-        BEQ @pages
-        CLC
-        ADC #1
-@pages: CMP io_count
-        BCC @capacity
-        BEQ @capacity
-        JMP disk_error
-@capacity:
+        JSR check_capacity
         ; Stage a DOS binary header plus the current payload.
         LDA #0
         STA ptr_lo
@@ -169,6 +154,7 @@ fast_file:
         INY
         LDA (src_lo),Y
         STA io_limit+1
+        JSR check_capacity
         LDA #4
         STA src_lo
         LDA io_dest
@@ -177,6 +163,24 @@ fast_file:
         STA ptr_hi
         JSR io_copy
 @done:  CLC                             ; (C = 1: disk_error came back for us)
+        RTS
+
+check_capacity:                 ; DOS header plus payload must fit the sectors read or written
+        LDA io_limit
+        CLC
+        ADC #4
+        TAY
+        LDA io_limit+1
+        ADC #0
+        CPY #0
+        BEQ @pages
+        CLC
+        ADC #1
+@pages: CMP io_count
+        BCC @fits
+        BEQ @fits
+        JMP disk_error
+@fits:
         RTS
 
 ; Copy io_limit bytes, preserving that length and the sector cache pointer.

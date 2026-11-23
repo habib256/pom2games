@@ -44,6 +44,10 @@ def main():
     ap.add_argument('--all', action='store_true')
     ap.add_argument('levels', nargs='*', type=int)
     a = ap.parse_args()
+    # A sealed room can already be solved, or make the whole level impossible.
+    sealed = ['########', '#@ $.#*#', '########']
+    assert solver.solve(sealed) == 'rr'
+    assert solver.solve(['########', '#@ $.#.#', '######$#', '########']) is None
     hud = ('I', 'II', 'III', 'IV')[a.coll - 1]
     known = sl.read_solutions(a.solutions)
     if a.xsb is None:
