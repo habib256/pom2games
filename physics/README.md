@@ -3,8 +3,9 @@
 Commented ca65 source reconstructed from `physics.dsk` (143 360-byte
 DOS-order image, custom boot loader, no DOS catalog), with portable timing
 for **Apple //e and //c**. The reconstruction originally matched every disk
-byte. The shipping disk now intentionally includes a //c VBL correction.
-The loader, segment addresses, physics and artwork are preserved.
+byte. The shipping disk includes a //c VBL correction and a fix for balls
+pushed into a wall or box by another ball. It preserves the loader, segment
+addresses and artwork.
 
 The program: up to three spinning balls fall under gravity, roll and bounce
 off each other, off the screen walls and off seven boxes. The boxes dent where
@@ -155,7 +156,10 @@ at the page's row-address table. After drawing, the page just drawn is shown
    a unit normal from `isqrt16` and `div16by8`.
    * `hard_contact` (walls, or any box while the softness slider is 0):
      push out to 6 px, reflect the normal speed ×144/256 (or zero it below
-     about 0.18 px/step), then `friction`.
+     about 0.18 px/step), then `friction`. If pair separation pushes a ball's
+     center into a wall, use the wall face bordering the playing area. For an
+     interior box, resolve the contact on its nearest face using the current
+     softness setting.
    * `soft_contact` (boxes when softness > 0): spring force =
      penetration × `soft_tab[soft]`, losses ×230/256. `record_hit` stores the
      side, position and depth (0-4 px) so the box can be drawn dented.

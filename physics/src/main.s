@@ -1005,17 +1005,16 @@ read_keyboard:
         cmp  #$8B                       ; up arrow
         beq  L0E7A
         cmp  #$8A                       ; down arrow
-        bne  L0E86
+        bne  L0E9E
 L0E7A:
         pha
         ldx  #$02
         lda  #$00
 L0E7F:
-        sta  ob_asleep,x
+        jsr  wake_ball
         dex
         bpl  L0E7F
         pla
-L0E86:
         cmp  #$8B
         bne  L0E91
         lda  soft
@@ -1023,8 +1022,6 @@ L0E86:
         dec  soft
         rts
 L0E91:
-        cmp  #$8A
-        bne  L0E9E
         lda  soft
         cmp  #$07
         bcs  L0EC7
@@ -1046,12 +1043,15 @@ L0EA9:
         inc  wobble
         rts
 L0EB6:
-        and  #$5F                       ; SPACE ($A0) -> 0
+        cmp  #$A0                       ; SPACE
         bne  L0EBD
         jmp  key_spawn
 L0EBD:
-        cmp  #$50                       ; 'P' / 'p'
+        cmp  #$D0                       ; 'P'
+        beq  toggle_pause
+        cmp  #$F0                       ; 'p'
         bne  L0EC7
+toggle_pause:
         lda  paused
         eor  #$01
         sta  paused
@@ -1924,7 +1924,7 @@ L1459:
         bne  L1477
         lda  dys
         bne  L1464
-        jmp  L14ED
+        jmp  embedded_contact
 L1464:
         sta  dist
         lda  #$00
@@ -2007,7 +2007,7 @@ L14C6:
 L14E8:
         sta  ny
         jmp  contact
-L14ED:
+push_above_box:
         lda  #$00
         sta  nx
         sta  cpty
@@ -2809,9 +2809,9 @@ L1A70:
 L1A71:
         lda  #$00
         ldx  ball_a
-        sta  ob_asleep,x
+        jsr  wake_ball
         ldx  ball_b
-        sta  ob_asleep,x
+        jsr  wake_ball
         lda  dxs
         ora  dys
         bne  L1A8D

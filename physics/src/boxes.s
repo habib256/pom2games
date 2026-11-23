@@ -951,7 +951,89 @@ L9A04:
         rts
 
 ;---------------------------------------------------------------------------
-; unused rest of the last loaded sector
+; At zero measured distance use the arena-facing side of a wall, or
+; the nearest face of an interior box. cptx/cpty are already clamped.
 ;---------------------------------------------------------------------------
 boxes_pad:
-        .res    $F3, $00
+embedded_contact:
+        lda  #$00
+        sta  dist
+        ldx  boxi
+        beq  @bottom_face
+        cpx  #$02
+        beq  @right_face
+        cpx  #$03
+        beq  @left_face
+        cpx  #$01
+        bne  @interior
+        jmp  push_above_box             ; floor
+@interior:
+        ; Compare inward distances in whole pixels. Borrow the fraction
+        ; when subtracting a contact coordinate from a right/bottom edge.
+        lda  cptx+1
+        sec
+        sbc  box_left,x
+        sta  tmp
+        ldy  #$00                       ; left face
+        lda  #$00
+        cmp  cptx
+        lda  box_right,x
+        sbc  cptx+1
+        cmp  tmp
+        bcs  :+
+        sta  tmp
+        iny                             ; right face
+:       lda  cpty+1
+        sec
+        sbc  box_top,x
+        cmp  tmp
+        bcs  :+
+        sta  tmp
+        ldy  #$02                       ; top face
+:       lda  #$00
+        cmp  cpty
+        lda  box_bottom,x
+        sbc  cpty+1
+        cmp  tmp
+        bcc  @bottom_face                   ; bottom face, normal points down
+        cpy  #$00
+        beq  @left_face                     ; left face, normal points left
+        cpy  #$01
+        beq  @right_face
+        lda  box_top,x
+        ldy  #$C0
+        bne  @vertical
+@bottom_face:
+        lda  box_bottom,x
+        ldy  #$40
+@vertical:
+        sta  cpty+1
+        sty  ny
+        lda  #$00
+        sta  nx
+        sta  cpty
+        jmp  contact
+@right_face:
+        lda  box_right,x
+        ldy  #$40
+        bne  @side
+@left_face:
+        lda  box_left,x
+        ldy  #$C0
+@side:
+        sta  cptx+1
+        sty  nx
+        lda  #$00
+        sta  cptx
+        sta  ny
+        jmp  contact
+
+; A = 0, X = ball. A sleeping ball needs a fresh run of still ticks
+; after waking. Preserve the rest count of a ball already awake.
+wake_ball:
+        ldy  ob_asleep,x
+        beq  :+
+        sta  ob_asleep,x
+        sta  ob_still,x
+:       rts
+        .res    $F3-(*-boxes_pad), $00
