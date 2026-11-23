@@ -57,7 +57,8 @@
 .export   bufed_run
 
 .import   text_blit_glyph
-.import   line_xy, clear_bitmap, disable_sprites
+.import   line_xy, clear_bitmap, disable_sprites, hgr_lo, hgr_hi
+.importzp pix_addr_lo, pix_addr_hi
 .import   line_buf
 .import   wait_key               ; dev/lib/apple2/kbd.asm — the consumer (logo.s)
                                  ; .includes kbd.asm and .exports it
@@ -74,6 +75,10 @@
 .importzp BUFED_NAME_LEN, BUFED_LINE_MAX
 
 ; --- editor state ----------------------------------------------------------
+.segment "BSS"
+ED_ROWS = 19
+ED_COLS = 31
+ed_first_line: .res 1          ; first body line displayed
 .segment "ZEROPAGE"
 ed_cur_line: .res 1            ; 0..ed_n_lines-1, line the '>' arrow points at
 ed_n_lines:  .res 1            ; CR-terminated line count (refreshed by draw)
@@ -89,6 +94,7 @@ ed_n_lines:  .res 1            ; CR-terminated line count (refreshed by draw)
 bufed_run:
         LDA #0
         STA ed_cur_line
+        STA ed_first_line
 @redraw:
         JSR ed_draw
 @key_loop:
@@ -148,6 +154,20 @@ bufed_run:
 ;   touches mptr.
 ; ============================================================================
 ed_draw:
+        LDA ed_cur_line
+        SEC
+        SBC ed_first_line
+        BCC @scroll_up
+        CMP #ED_ROWS
+        BCC @visible
+        LDA ed_cur_line
+        SBC #ED_ROWS-1             ; carry set by CMP
+        BCS @set_first
+@scroll_up:
+        LDA ed_cur_line
+@set_first:
+        STA ed_first_line
+@visible:
         JSR clear_bitmap
         JSR disable_sprites
         LDA #0
@@ -208,15 +228,21 @@ ed_draw:
         SBC #<BUFED_BODY_OFF
         CMP arg_lo
         BCS @body_done
-        LDA pix_y
-        CMP #168                   ; row 21 cut-off (menu lives at rows 22-23)
-        BCS @body_done
-        TYA
-        PHA
         LDA (shape_pat_lo),Y
         AND #$7F
         CMP #$0D
         BEQ @nl
+        LDX ed_n_lines
+        CPX ed_first_line
+        BCC @next
+        LDX pix_y
+        CPX #168
+        BCS @next
+        LDX pix_x
+        BEQ @next                  ; end of the 31 visible character cells
+        TYA
+        PHA
+        LDA (shape_pat_lo),Y
         JSR text_blit_glyph
         LDA pix_x
         CLC
@@ -224,26 +250,29 @@ ed_draw:
         STA pix_x
         PLA
         TAY
-        INY
+@next:  INY
         JMP @body
-@nl:
+@nl:    LDA ed_n_lines
+        INC ed_n_lines
+        CMP ed_first_line
+        BCC @next
         LDA #8
         STA pix_x
         LDA pix_y
+        CMP #168
+        BCS @next
         CLC
         ADC #8
         STA pix_y
-        INC ed_n_lines
-        PLA
-        TAY
-        INY
-        JMP @body
+        JMP @next
 @body_done:
         ; --- cursor: '>' at col 0 of (ed_cur_line + 2). Always drawn so
         ;     user can see where they are even with an empty body.
         LDA #0
         STA pix_x
         LDA ed_cur_line
+        SEC
+        SBC ed_first_line
         CLC
         ADC #2
         ASL
@@ -385,29 +414,54 @@ ed_replace_line:
         LDA #8
         STA pix_x
         LDA ed_cur_line
+        SEC
+        SBC ed_first_line
         CLC
         ADC #2
         ASL
         ASL
         ASL
         STA pix_y
-        ; erase the old visible line by blitting 31 spaces over it
-        LDX #31
-@clr:   TXA
-        PHA
-        LDA #' '
-        JSR text_blit_glyph
-        LDA pix_x
-        CLC
-        ADC #8
+@repaint:
+        ; Glyphs are OR-blitted, so clear the scanlines before retyping.
+        LDX pix_y
+        LDA #8
+        STA tmp
+@clear_row:
+        LDA hgr_lo,X
+        STA pix_addr_lo
+        LDA hgr_hi,X
+        STA pix_addr_hi
+        LDY #39
+        LDA #0
+@clear_byte:
+        STA (pix_addr_lo),Y
+        DEY
+        BPL @clear_byte
+        INX
+        DEC tmp
+        BNE @clear_row
+        LDA #0
         STA pix_x
-        PLA
-        TAX
-        DEX
-        BPL @clr
-        ; reset pix_x to start of line
+        LDA #'>'
+        JSR text_blit_glyph
         LDA #8
         STA pix_x
+        LDX #0
+        LDA line_idx
+        CMP #ED_COLS+1
+        BCC @paint
+        LDX #ED_COLS              ; second page of the replacement line
+@paint: CPX line_idx
+        BEQ @in_loop
+        TXA
+        PHA
+        LDA line_buf,X
+        JSR @glyph
+        PLA
+        TAX
+        INX
+        BNE @paint
 @in_loop:
         JSR wait_key
         CMP #$0D
@@ -416,35 +470,36 @@ ed_replace_line:
         BNE @not_esc2
         RTS                        ; abort: body unchanged
 @not_esc2:
+        CMP #KC_LEFT
+        BEQ @bs
+        CMP #$7F
+        BEQ @bs
         CMP #$5F                   ; '_' = backspace
         BEQ @bs
         CMP #$20
         BCC @in_loop               ; ignore other ctrl
         ; printable: store and blit
         LDX line_idx
-        CPX #<BUFED_LINE_MAX
+        CPX #<BUFED_LINE_MAX-1     ; leave room for CR when executed
         BCS @in_loop               ; full
         STA line_buf,X
         INC line_idx
+        CPX #ED_COLS
+        BEQ @repaint
+        JSR @glyph
+        JMP @in_loop
+@bs:
+        LDX line_idx
+        BEQ @in_loop
+        DEC line_idx
+        JMP @repaint
+@glyph:
         JSR text_blit_glyph
         LDA pix_x
         CLC
         ADC #8
         STA pix_x
-        JMP @in_loop
-@bs:
-        LDX line_idx
-        BEQ @in_loop               ; already empty
-        DEC line_idx
-        ; erase last cell on bitmap
-        LDA pix_x
-        SEC
-        SBC #8
-        STA pix_x
-        LDA #' '
-        JSR text_blit_glyph
-        ; don't advance pix_x (user types here next)
-        JMP @in_loop
+        RTS
 @commit:
         ; line_buf[0..line_idx-1] = new content. Splice into body.
         ; Old line is at arg_lo..arg_lo+arg_hi (excl CR), CR at arg_lo+arg_hi.
@@ -455,16 +510,20 @@ ed_replace_line:
         LDA (shape_pat_lo),Y
         STA tmp                    ; old body_len
         ; new_len = old + line_idx - arg_hi
-        SEC
+        CMP #1                     ; empty body needs its first CR
+        BCS @has_cr
+        LDA #1
+@has_cr: SEC
         SBC arg_hi
         CLC
         ADC line_idx
-        STA tmp2                   ; new body_len
+        BCS @too_big
         ; check overflow
         CMP #<BUFED_BODY_MAX + 1
         BCC @ok_size
-        RTS                        ; silently abort (body would overflow)
+@too_big: RTS                      ; leave the existing body intact
 @ok_size:
+        PHA                        ; memmoves use tmp2 for the destination
         ; --- shift trailing bytes via forward / backward memmove ---
         LDA line_idx
         CMP arg_hi
@@ -503,7 +562,7 @@ ed_replace_line:
         LDA #$0D
         STA (shape_pat_lo),Y
         ; update body_len
-        LDA tmp2
+        PLA
         LDY #<BUFED_BODYLEN_OFF
         STA (shape_pat_lo),Y
         RTS
@@ -668,7 +727,7 @@ ed_insert_line:
         BCC @ok
         RTS                        ; full, abort
 @ok:
-        STA tmp                    ; tmp = body_len (old)
+        PHA                        ; ed_find_line_offset uses tmp
         JSR ed_find_line_offset    ; arg_lo = cur_line start, arg_hi = its length
         ; --- insertion point = AFTER current line = arg_lo + arg_hi + 1
         LDA arg_lo
@@ -678,7 +737,8 @@ ed_insert_line:
         ADC #1
         STA tmp2                   ; tmp2 = insert offset (body-relative)
         ; If body was empty, force insert_pos to 0
-        LDA tmp
+        PLA
+        STA tmp
         BNE @have_body
         LDA #0
         STA tmp2

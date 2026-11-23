@@ -118,10 +118,11 @@ Machines:
     $0050-$0092  zero page (saved on entry, restored by BYE and Ctrl-RESET)
     $0400-$07FF  text page (40 or 80 columns)
     $0800-$0FFF  HELLO program, kept by DOS
-    $1000-$1E55  PROCBSS: control stack, variable and procedure tables
+    $1000-$1F84  PROCBSS: nine control frames, variable and procedure tables
     $2000-$3FFF  HGR page 1: the turtle screen
-    $4000-$8B6F  CODE: the BRUN file (19,312 bytes, 18.9 KB), then
-                 LINEBUF ($8B70-$8BD9) and BSS ($8BDA-$91C0)
+    $4000-$8B6F  CODE and RODATA: the BRUN file (19,312 bytes), then
+                 LINEBUF ($8B70-$8BD9) and BSS ($8BDA-$95C7),
+                 including the other seven control frames
     $9600-$BFFF  DOS 3.3
 
 ### Why HGR page 2 is unused

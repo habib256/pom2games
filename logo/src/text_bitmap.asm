@@ -27,7 +27,7 @@
 
 .ifdef CODETANK_BUILD
 
-.export text_blit_glyph
+.export text_blit_glyph, text_blit_glyph_wide
 
 .import plot_mode, hgr_lo, hgr_hi, pen_hi_tbl, emote_plot_background
 .importzp pix_x, pix_xh, pix_y, pix_mask, pix_addr_lo, pen_color
@@ -36,6 +36,9 @@
 
 .code
 text_blit_glyph:
+        LDX #0
+text_blit_glyph_wide:
+        STX hg_x+1
         AND #$7F
         STA tmp
         LDA #0
@@ -58,7 +61,6 @@ text_blit_glyph:
         LDA pix_y
         STA hg_y
         LDA #0
-        STA hg_x+1
         STA pix_xh
         STA plot_mode
         JSR hgr_glyph8_or

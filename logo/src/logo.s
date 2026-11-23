@@ -53,7 +53,7 @@
 ;     CS/CLEARSCREEN               clear screen + HOME
 ;     SETXY x y, SETH n            absolute placement
 ;     PRINT "WORD or PRINT N       Apple-1 screen text output
-;     WAIT N                       pause N seconds
+;     WAIT N                       pause ~0.6 s per unit
 ;     BYE                          return to Woz Monitor
 ;     HELP                         in-app reference
 ;   -- Control flow / variables --
@@ -133,7 +133,7 @@
 ; afford the 1 KB charmap, so the .o assembles empty there). LOGO's
 ; blit_glyph wraps text_blit_glyph to copy tx_lo/ty_lo -> pix_x/pix_y.
 .ifdef CODETANK_BUILD
-.import   text_blit_glyph
+.import   text_blit_glyph, text_blit_glyph_wide
 .import   draw_bubble       ; bubble.asm
 .import   bufed_run         ; buffer_editor.asm
 .endif
@@ -177,7 +177,6 @@ MAX_PROCS         = 10
 PROC_SLOT         = 244   ; V2.0 slot: 6 name + 1 nparams + 12 (2x6) param names + 1 body_len + 224 body
 PROC_BODY_MAX     = 224   ; comfortable headroom (V1.8 had 154 = exactly THING's longform)
 CTRL_STACK_DEPTH  = 16    ; max non-tail proc-invocation depth (frames of CTRL_FRAME bytes each)
-CTRL_FRAME        = 64    ; per-frame: 60 B line_buf + 1 B line_idx + 1 B body_cursor + 1 B body_total + 1 B pad
 MAX_PARAMS        = 2
 PROC_NPARAMS_OFF  = 6     ; slot offset of n_params byte
 PROC_PARAMS_OFF   = 7     ; slot offset of param-names block (2 x NAME_LEN)
@@ -315,19 +314,6 @@ lfsr_hi:    .res 1
 ; --- User-procedure storage --------------------------------------------------
 ; MAX_PROCS slots, layout per slot above (PROC_SLOT bytes).
 .segment "PROCBSS"
-; -- Control stack (V2.0). Replaces V1.8's pair of 60-byte save buffers.
-; Each non-tail nested proc_invoke pushes one CTRL_FRAME-byte frame:
-;     bytes 0..59   line_buf snapshot (LINE_MAX = 60)
-;     byte  60      line_idx
-;     byte  61      proc_body_cursor of caller (so caller's @line_loop resumes)
-;     byte  62      proc_body_total  of caller
-;     byte  63      reserved
-; Tail-call optimisation pushes nothing; the stack only grows for
-; non-tail calls (proc invoked mid-line, e.g. inside a REPEAT slice).
-; CTRL_STACK_DEPTH frames = 16 → enough for THING1 = REPEAT 4 [THING],
-; deeply nested REPEAT/proc combos, and recursion that mixes tail and
-; non-tail calls.
-ctrl_stack:  .res 1024        ; CTRL_STACK_DEPTH (16) x CTRL_FRAME (64)
 ctrl_sp:     .res 1           ; frame count, 0..CTRL_STACK_DEPTH
 
 ; -- variable table -- MAX_VARS entries x (NAME_LEN name + 2 byte value).
@@ -335,13 +321,32 @@ var_table:   .res 48
 proc_table:  .res 2440        ; MAX_PROCS (10) x PROC_SLOT (244)
 ; V1.5 procedure parameters -- 2 named slots layered on top of var_table.
 ; var_lookup checks these first, so :SIZE in a proc body resolves to its
-; param even if a global named SIZE also exists. After RTS we restore
-; values via PHA/PLA on the 6502 stack (caller's stack frame).
+; param even if a global named SIZE also exists.
+; This contiguous block is saved in the caller's control frame.
+proc_context:
 param_slot0_name:  .res 6
 param_slot0_value: .res 2
 param_slot1_name:  .res 6
 param_slot1_value: .res 2
 n_params_active:   .res 1    ; 0..MAX_PARAMS, valid params currently live
+proc_body_cursor:  .res 1    ; proc_invoke: cursor into slot body across line_loop
+proc_body_total:   .res 1    ; proc_invoke: total body_len
+active_proc_lo:    .res 1    ; slot containing the currently executing body
+active_proc_hi:    .res 1
+CONTEXT_SIZE = * - proc_context
+; Suspended IF/REPEAT handlers also have return addresses and local bytes
+; on the 6502 stack. Move that slice into the frame while its callee runs.
+FRAME_SP = LINE_MAX + 1 + CONTEXT_SIZE
+FRAME_HW = FRAME_SP + 1
+FRAME_HW_MAX = 64
+CTRL_FRAME = FRAME_HW + FRAME_HW_MAX
+ctrl_base_sp: .res 1
+; Split the frames across the two free RAM regions on either side of HGR.
+PROC_FRAMES = 9
+ctrl_stack: .res PROC_FRAMES * CTRL_FRAME
+.segment "BSS"
+ctrl_stack_upper: .res (CTRL_STACK_DEPTH - PROC_FRAMES) * CTRL_FRAME
+.segment "PROCBSS"
 ; --- Arrow background buffer (see option B notes above). 16 cells × 8
 ;     pattern bytes per cell = 128 bytes. The box is 4x4 (32x32 px) to
 ;     guarantee tip coverage at any heading -- a 3x3 box is just shy of
@@ -355,15 +360,14 @@ in_proc_save = ctrl_sp
 def_mode:          .res 1    ; 0 = REPL, 1 = currently collecting body lines for a new proc
 cur_proc_lo:       .res 1    ; -> current proc slot during definition
 cur_proc_hi:       .res 1
-proc_body_cursor:  .res 1    ; proc_invoke: cursor into slot body across line_loop
-proc_body_total:   .res 1    ; proc_invoke: total body_len
 err_save_lo:       .res 1    ; print_err: outer mptr_lo around the message walk
 err_save_hi:       .res 1
+repeat_forever:    .res 1    ; saved around each nested REPEAT body
 if_a_lo:           .res 1    ; cmd_if: latched LHS value across @scan_block
 if_a_hi:           .res 1
 if_op_save:        .res 1    ; cmd_if: comparison operator char
-tail_p0_lo:        .res 1    ; tail-call trampoline: latched param-0 value
-tail_p0_hi:        .res 1
+call_p0_lo:        .res 1    ; first argument, evaluated in the caller
+call_p0_hi:        .res 1
 ; mptr_save_lo/hi MUST live in zero page so the (zp),Y indirect addressing
 ; mode in ctrl_push / ctrl_pop works. Declared up in ZEROPAGE (search for
 ; "ctrl_frame pointer").
@@ -441,6 +445,7 @@ repl:
         JMP repl
 @do_parse:
         LDA #0
+        STA stop_flag         ; a top-level STOP only ends the submitted line
         STA line_idx
         STA cmd_status
         JSR parse_and_exec
@@ -658,7 +663,7 @@ help_p7:
         .byte "  PRINT N", $0D
         .byte "    print decimal", $0D
         .byte "  WAIT N", $0D
-        .byte "    pause N seconds", $0D
+        .byte "    pause ~0.6 s per unit", $0D
         .byte "  DEMO", $0D
         .byte "    built-in slideshow", $0D
 .ifdef CODETANK_BUILD
@@ -727,11 +732,11 @@ help_p9:
         .byte "  Q / ESC  save and return", $0D
         .byte $0D
         .byte "INSIDE E MODE:", $0D
-        .byte "  type new line, _ erases", $0D
+        .byte "  type new line, <- erases", $0D
         .byte "  last char, CR commits,", $0D
         .byte "  ESC aborts the change.", $0D
         .byte $0D
-        .byte "Limits: 224 B body, 60 char", $0D
+        .byte "Limits: 224 B body, 59 char", $0D
         .byte "per line. Saving is in RAM", $0D
         .byte "only -- power-cycle wipes it.", $0D
         .byte $0D
@@ -841,7 +846,7 @@ help_msg_unused_remove:
         .byte "  PRINT N", $0D
         .byte "    print decimal number", $0D
         .byte "  WAIT N", $0D
-        .byte "    pause N seconds", $0D
+        .byte "    pause ~0.6 s per unit", $0D
         .byte "  HELP", $0D
         .byte "    this reference", $0D
         .byte "  DEMO", $0D
@@ -927,27 +932,27 @@ read_line:
         JMP ECHO
 
 ; ============================================================================
-; poll_break: non-blocking check of $D011 for ESC ($1B) or Ctrl-G ($07).
-;             If found, set break_flag = 1. Any other key consumed (the
-;             one-keystroke cost of polling -- accept since users press
-;             ESC/Ctrl-G to abort, not data keys).
-;             ESC works for GUI keyboard input. Ctrl-G works over telnet
-;             where the TerminalCard intercepts a bare ESC as a sequence
-;             prefix.
+; poll_break: handle running-program hotkeys, leaving ordinary input in the
+; Apple II keyboard latch for the next prompt. Preserves X and interpreter ZP.
 ; ============================================================================
 poll_break:
-        JSR poll_key            ; A = key (bit 7 stripped) or 0 if no key
-        BEQ @done               ; lib/apple2/kbd.asm sets Z when none pending
-        JSR scr_hotkey          ; Apple II: TS / SS / FS keys work mid-run too
-        BCS @done
-        CMP #$1B                ; ESC
-        BEQ @set
-        CMP #$07                ; Ctrl-G (BEL) -- classic LOGO interrupt
-        BNE @done
-@set:   LDA #1
+        LDA KBD
+        BPL @done
+        AND #$7F
+        CMP #$1B
+        BEQ @break
+        CMP #$07
+        BEQ @break
+        JSR scr_hotkey
+        BCC @done
+        BIT KBDSTRB
+        RTS
+@break: LDA #1
         STA break_flag
+        BIT KBDSTRB
 @done:  RTS
 
+; ============================================================================
 ; ============================================================================
 ; parse_and_exec: tokenize from line_idx, dispatch each command, advance.
 ;                 Stops on CR or ']' (REPEAT block end), or break_flag.
@@ -1019,7 +1024,6 @@ parse_and_exec:
         STA arg2_hi
         JMP @dispatch
 @repeat:
-        JSR parse_dec_arg
         JSR mark_ok
         JSR cmd_repeat        ; consumes [...] and reruns parse_and_exec inside
         JMP @loop
@@ -1057,26 +1061,6 @@ parse_and_exec:
         JSR find_proc
         BCS @err
         JSR mark_ok
-        ; --- tail call optimisation ---
-        ; If we're already inside a proc (in_proc_save > 0), and the parent
-        ; proc has no more body lines after the current one, and the current
-        ; line has no more commands after this proc's args (next char is CR
-        ; or ']'), then this is a tail call. Reuse the parent's frame:
-        ; rebind params, point to the new slot's body, and return -- the
-        ; outer parse_and_exec @loop will see the CR and unwind, and the
-        ; outer proc_invoke @line_loop will iterate on the new slot.
-        ; This makes deep tail recursion (e.g. spiral :size :angle) cost
-        ; zero stack growth.
-        LDA in_proc_save
-        BEQ @full_call
-        LDA proc_body_cursor
-        CMP proc_body_total
-        BCC @full_call           ; more body lines pending → not tail
-        JSR peek_check_tail
-        BCC @full_call           ; not at end-of-line after args → not tail
-        JSR do_tail_trampoline
-        JMP @loop                ; @loop sees CR, RTS to outer proc_invoke
-@full_call:
         JSR proc_invoke
         JMP @loop
 @err:   LDA #ERR_UNK_CMD
@@ -1473,24 +1457,35 @@ parse_dec_term:
         CLC
         ADC #6
         STA line_idx
-        ; recursively parse the modulo argument
-        JSR parse_dec_arg     ; arg_lo:hi = N
-        ; roll the LFSR (16-bit Fibonacci taps 16,14,13,11)
-        JSR roll_lfsr
-        ; arg = lfsr mod N (16-bit / 16-bit, but we only support N <= 256)
-        ;   if arg_hi != 0 (N > 255), we treat arg as lfsr_lo modulo arg_lo only
-        LDA arg_lo
-        BNE @rmod
-        ; N == 0 or low byte zero -> just return 0
-        LDA #0
-        STA arg_hi
-        RTS
-@rmod:  STA tmp               ; tmp = N
+        ; RANDOM takes one term. The outer expression handles trailing +/-.
+        JSR parse_dec_term     ; arg_lo:hi = N
+        ; Cap the bound at 255, as documented for the 8-bit generator.
+        LDA arg_hi
+        BEQ @bound
+        LDA #255
+        STA arg_lo
+@bound: LDA arg_lo
+        BNE @nonzero
+        JMP roll_lfsr             ; RANDOM 0 still advances once and returns 0
+@nonzero:
+        STA tmp
+        ; Across an LFSR period each nonzero mixed byte occurs 256 times.
+        ; Accept 1 + (255 mod N) through 255: a whole number of buckets.
+        LDA #255
+@tail:  CMP tmp
+        BCC @cutoff
+        SBC tmp
+        JMP @tail
+@cutoff:
+        STA tmp2
+@draw:  JSR roll_lfsr
         LDA lfsr_lo
-        EOR lfsr_hi           ; mix halves for better dispersion
+        EOR lfsr_hi
+        CMP tmp2
+        BCC @draw
+        BEQ @draw
 @rsub:  CMP tmp
         BCC @rdone
-        SEC
         SBC tmp
         JMP @rsub
 @rdone: STA arg_lo
@@ -1649,6 +1644,8 @@ cmd_help:
         CMP #']'
         BEQ @toc
         JSR parse_dec_arg
+        LDA arg_hi
+        BNE @toc
         LDA arg_lo
         BEQ @toc
         CMP #1
@@ -1711,7 +1708,7 @@ cmd_help:
 print_ptr_lo = mptr_lo
 print_ptr_hi = mptr_hi
 .include "print.asm"
-.include "kbd.asm"                ; dev/lib/apple2: wait_key + poll_key (after
+.include "kbd.asm"                ; dev/lib/apple2: wait_key (after
                                   ; their callers: the lib assembles on reference)
 .include "screen.asm"             ; Apple II: TS / SS / FS, 40 / 80 columns
 .include "exit.asm"               ; Apple II: ZP snapshot, BYE / RESET to DOS
@@ -2199,7 +2196,10 @@ cmd_list:
                                  ; tmp was stale, line_idx fell back to the start
                                  ; of the line and LIST NAME re-ran forever
         JSR find_proc            ; mptr_lo:hi -> slot, C=1 if not found
-        BCS @bad
+        BCC :+
+        LDA #ERR_BAD_NAME
+        JMP print_err
+:
         ; preserve slot pointer in shape_pat (blit_glyph clobbers mptr)
         LDA mptr_lo
         STA shape_pat_lo
@@ -2210,19 +2210,20 @@ cmd_list:
         JSR disable_sprites
         LDA #0
         STA sprite_mode
-        STA tx_lo
-        STA ty_lo
+        STA turtle_visible
+        STA pix_x
+        STA pix_y
         ; --- print proc name on row 0. blit_glyph clobbers tmp/tmp2,
         ;     so we round-trip Y through the 6502 stack instead.
         LDY #0
 @nm:    TYA
         PHA
         LDA (shape_pat_lo),Y
-        JSR blit_glyph
-        LDA tx_lo
+        JSR text_blit_glyph
+        LDA pix_x
         CLC
         ADC #8
-        STA tx_lo
+        STA pix_x
         PLA
         TAY
         INY
@@ -2230,9 +2231,9 @@ cmd_list:
         BNE @nm
         ; --- skip a blank row, then iterate the body ---
         LDA #0
-        STA tx_lo
+        STA pix_x
         LDA #16
-        STA ty_lo
+        STA pix_y
         LDY #PROC_BODYLEN_OFF
         LDA (shape_pat_lo),Y
         STA arg_lo               ; body_len -- arg_lo survives blit_glyph
@@ -2246,7 +2247,7 @@ cmd_list:
         CMP arg_lo
         BCS @done
         ; off-screen guard: ty >= 192 -> stop
-        LDA ty_lo
+        LDA pix_y
         CMP #192
         BCS @done
         TYA
@@ -2255,30 +2256,37 @@ cmd_list:
         AND #$7F
         CMP #$0D
         BEQ @newline
-        JSR blit_glyph
-        LDA tx_lo
+        JSR text_blit_glyph
+        LDA pix_x
         CLC
         ADC #8
-        STA tx_lo
+        STA pix_x
         PLA
         TAY
         INY
+        LDA pix_x
+        BNE @body
+        ; A full row wraps only if the source line continues.
+        LDA (shape_pat_lo),Y
+        CMP #$0D
+        BEQ @body
+        LDA pix_y
+        CLC
+        ADC #8
+        STA pix_y
         JMP @body
 @newline:
         LDA #0
-        STA tx_lo
-        LDA ty_lo
+        STA pix_x
+        LDA pix_y
         CLC
         ADC #8
-        STA ty_lo
+        STA pix_y
         PLA
         TAY
         INY
         JMP @body
 @done:  RTS
-@bad:   LDA #ERR_BAD_NAME
-        JMP print_err  ; tail-call (was JSR+RTS; -1 B, juillet 2026 bank squeeze)
-
 ; --- LIST (no arg) -- list every proc name on the Apple-1 character
 ;     display via ECHO. No graphics; text output is more practical for
 ;     a quick directory check (and lets the user scroll back through
@@ -2289,9 +2297,9 @@ cmd_list:
         RTS
 @any:
         LDA #<proc_table
-        STA shape_pat_lo
+        STA mptr_lo
         LDA #>proc_table
-        STA shape_pat_hi
+        STA mptr_hi
         LDA n_procs
         STA arg_lo               ; remaining count
         ; print a leading CR for visual separation from the prompt
@@ -2299,7 +2307,7 @@ cmd_list:
         JSR ECHO
 @aloop:
         LDY #0
-@anm:   LDA (shape_pat_lo),Y
+@anm:   LDA (mptr_lo),Y
         ORA #$80                 ; ECHO requires bit 7 set
         JSR ECHO
         INY
@@ -2307,14 +2315,14 @@ cmd_list:
         BNE @anm
         LDA #$0D | $80
         JSR ECHO
-        ; advance shape_pat by PROC_SLOT (244)
+        ; advance to the next procedure slot
         CLC
-        LDA shape_pat_lo
+        LDA mptr_lo
         ADC #PROC_SLOT
-        STA shape_pat_lo
-        LDA shape_pat_hi
+        STA mptr_lo
+        LDA mptr_hi
         ADC #0
-        STA shape_pat_hi
+        STA mptr_hi
         DEC arg_lo
         BNE @aloop
         RTS
@@ -2491,353 +2499,105 @@ find_proc:
         RTS
 
 ; ============================================================================
-; peek_check_tail: non-destructive look-ahead for tail-call eligibility.
-;   On entry: mptr_lo:hi -> new proc's slot. line_idx just past proc name.
-;   Save line_idx, parse N decimal args (where N = slot's nparams), then
-;   skip_spaces and inspect the next char. If CR or ']' → tail-call site.
-;   Restore line_idx in either case (caller will re-parse for real).
-;   Result: C=1 → tail; C=0 → not tail.
-; ============================================================================
-peek_check_tail:
-        LDA line_idx
-        PHA
+; Control frames hold the caller's line, parse position and procedure context.
+ctrl_frame_table:
+.repeat PROC_FRAMES, I
+        .word ctrl_stack + CTRL_FRAME * I
+.endrepeat
+.repeat CTRL_STACK_DEPTH - PROC_FRAMES, I
+        .word ctrl_stack_upper + CTRL_FRAME * I
+.endrepeat
+
+ctrl_frame_addr:
+        LDA ctrl_sp
+        ASL
+        TAX
+        LDA ctrl_frame_table,X
+        STA mptr_save_lo
+        LDA ctrl_frame_table+1,X
+        STA mptr_save_hi
+        RTS
+
+; Evaluate actual arguments once, while the caller's bindings are active.
+; parse_dec_arg preserves mptr (the target slot) across variable lookup.
+proc_invoke:
         LDY #PROC_NPARAMS_OFF
         LDA (mptr_lo),Y
-        STA tmp                  ; nparams (0..MAX_PARAMS)
-        LDX #0
-@pl:    CPX tmp
-        BEQ @check
-        ; preserve mptr, X, AND tmp across parse_dec_arg.
-        ; parse_dec_arg's @dec scratches `tmp`, so nparams would vanish.
-        LDA tmp
-        PHA
-        LDA mptr_lo
-        PHA
-        LDA mptr_hi
-        PHA
-        TXA
-        PHA
+        BEQ @args_done
         JSR parse_dec_arg
-        PLA
-        TAX
-        PLA
-        STA mptr_hi
-        PLA
-        STA mptr_lo
-        PLA
-        STA tmp
-        INX
-        JMP @pl
-@check: JSR skip_spaces
+        LDA arg_lo
+        STA call_p0_lo
+        LDA arg_hi
+        STA call_p0_hi
+        LDY #PROC_NPARAMS_OFF
+        LDA (mptr_lo),Y
+        CMP #2
+        BNE @args_done
+        JSR parse_dec_arg
+@args_done:
+        LDA ctrl_sp
+        BEQ @full_call
+        LDA proc_body_cursor
+        CMP proc_body_total
+        BCC @full_call
+        JSR skip_spaces
         LDX line_idx
         LDA line_buf,X
         AND #$7F
-        CMP #$0D
-        BEQ @tail
-        ; Note: ']' is NOT a tail terminator. Inside REPEAT [...], hitting
-        ; ']' just ends the current iteration -- the loop will re-enter the
-        ; slice. Treating it as tail would replace the parent's frame with
-        ; the callee, breaking REPEAT-based scenarios like
-        ; FLOWER = REPEAT 36 [RIGHT 10 SQUARE].
-        PLA
-        STA line_idx             ; restore (not tail)
-        CLC
-        RTS
-@tail:  PLA
-        STA line_idx             ; restore (will re-parse via trampoline)
-        SEC
-        RTS
-
-; ============================================================================
-; do_tail_trampoline: commit the tail call into the parent's frame.
-;   On entry: mptr_lo:hi -> new slot, line_idx at args, peek confirmed tail.
-;   Effect: re-parses args, overwrites param_slot{0,1} with new bindings,
-;   sets proc_body_cursor=0 / proc_body_total=new slot's body_len, leaves
-;   line_idx at the trailing CR/']'. No stack push. After RTS, the outer
-;   parse_and_exec @loop sees CR and returns to the parent's @line_loop,
-;   which iterates afresh against the new slot via mptr_lo:hi.
-;   Memory cost: zero -- spiral 4 90 → 49 logical levels in 1 frame.
-; ============================================================================
-do_tail_trampoline:
-        LDY #PROC_NPARAMS_OFF
-        LDA (mptr_lo),Y
-        STA tmp                  ; nparams
-        LDA tmp
-        BEQ @tt_no_args
-        ; --- parse arg 0 (preserving tmp across parse_dec_arg) ---
-        LDA tmp
-        PHA
-        LDA mptr_lo
-        PHA
-        LDA mptr_hi
-        PHA
-        JSR parse_dec_arg
-        PLA
-        STA mptr_hi
-        PLA
-        STA mptr_lo
-        PLA
-        STA tmp
-        LDA arg_lo
-        STA tail_p0_lo
-        LDA arg_hi
-        STA tail_p0_hi
-        LDA tmp
-        CMP #2
-        BCC @tt_bind
-        ; --- parse arg 1 ---
-        LDA tmp
-        PHA
-        LDA mptr_lo
-        PHA
-        LDA mptr_hi
-        PHA
-        JSR parse_dec_arg
-        PLA
-        STA mptr_hi
-        PLA
-        STA mptr_lo
-        PLA
-        STA tmp
-        ; arg_lo:hi = param 1 value
-@tt_bind:
-        ; copy slot[PARAMS..PARAMS+NAME_LEN-1] -> param_slot0_name
-        LDY #PROC_PARAMS_OFF
-        LDX #0
-@ttcn0: LDA (mptr_lo),Y
-        STA param_slot0_name,X
-        INY
-        INX
-        CPX #NAME_LEN
-        BNE @ttcn0
-        LDA tail_p0_lo
-        STA param_slot0_value
-        LDA tail_p0_hi
-        STA param_slot0_value+1
-        LDA tmp
-        CMP #2
-        BCC @tt_bind_done
-        LDY #(PROC_PARAMS_OFF+NAME_LEN)
-        LDX #0
-@ttcn1: LDA (mptr_lo),Y
-        STA param_slot1_name,X
-        INY
-        INX
-        CPX #NAME_LEN
-        BNE @ttcn1
-        LDA arg_lo
-        STA param_slot1_value
-        LDA arg_hi
-        STA param_slot1_value+1
-@tt_bind_done:
-        LDA tmp
-        STA n_params_active
-@tt_no_args:
-        ; Reset body cursor/total so outer @line_loop walks the new slot.
-        LDY #PROC_BODYLEN_OFF
-        LDA (mptr_lo),Y
-        STA proc_body_total
-        LDA #0
-        STA proc_body_cursor
-        RTS
-
-; ============================================================================
-; ctrl_frame_addr: compute mptr_save = ctrl_stack + ctrl_sp * CTRL_FRAME (64).
-;   Used by both push and pop in proc_invoke. CTRL_STACK_DEPTH=16 so sp
-;   fits in 4 bits; sp*64 spans 0..960 = 0x000..0x3C0, so the high byte
-;   adds at most 3 to ctrl_stack's high byte.
-; ============================================================================
-ctrl_frame_addr:
-        LDA ctrl_sp
-        LSR
-        LSR                       ; sp >> 2 -> high byte of sp*64
-        CLC
-        ADC #>ctrl_stack
-        STA mptr_save_hi
-        LDA ctrl_sp
-        AND #$03                  ; (sp & 3) -> bits 6..7 of low byte
-        ASL
-        ASL
-        ASL
-        ASL
-        ASL
-        ASL                       ; *64
-        CLC
-        ADC #<ctrl_stack
-        STA mptr_save_lo
-        BCC @done
-        INC mptr_save_hi
-@done:  RTS
-
-; proc_invoke (V2.0): bind params, then run a (possibly multi-line) body.
-;   Replaces V1.8's pair of 60 B save buffers with a 16-frame control
-;   stack in PROCBSS, so non-tail nested calls (e.g. THING1 = REPEAT 4
-;   [THING] inside SPIRAL inside FLOWER ...) go up to 16 deep.
-;   Tail calls still bypass the stack entirely via do_tail_trampoline,
-;   so deep tail recursion is free.
-;
-;   Steps:
-;     1. Refuse if ctrl_sp == CTRL_STACK_DEPTH -> ERR_FULL.
-;     2. Push outer body cursor/total + 17 B param state on the 6502
-;        stack so we can scratch them during arg parsing.
-;     3. Read nparams from slot. Parse N decimal args under OUTER scope.
-;     4. Copy param names from the slot, values from the parsed args,
-;        into param_slotN. Activate them by setting n_params_active.
-;     5. Push line_buf+line_idx into the next control-stack frame and
-;        INC ctrl_sp.
-;     6. Walk the body line by line through parse_and_exec.
-;     7. DEC ctrl_sp, pop line_buf+line_idx from the same frame, pop the
-;        outer param state, pop outer cursor/total.
-proc_invoke:
+        CMP #$0D                  ; ']' still has an enclosing block to resume
+        BNE @full_call
+        JMP bind_procedure        ; old body loop continues with the new slot
+@full_call:
         LDA ctrl_sp
         CMP #CTRL_STACK_DEPTH
-        BCC @ok_to_call
-        ; control stack full -- non-tail recursion exceeded depth limit
-        LDA #ERR_FULL
-        JMP print_err  ; tail-call (was JSR+RTS; -1 B, juillet 2026 bank squeeze)
-@ok_to_call:
-        ; --- 2. push outer body cursor/total (so they're free to scratch) ---
-        LDA proc_body_cursor
-        PHA
-        LDA proc_body_total
-        PHA
-        ; --- 3. push outer param state (13 bytes) ---
-        LDA n_params_active
-        PHA
-        LDA param_slot0_name
-        PHA
-        LDA param_slot0_name+1
-        PHA
-        LDA param_slot0_name+2
-        PHA
-        LDA param_slot0_name+3
-        PHA
-        LDA param_slot0_name+4
-        PHA
-        LDA param_slot0_name+5
-        PHA
-        LDA param_slot0_value
-        PHA
-        LDA param_slot0_value+1
-        PHA
-        LDA param_slot1_name
-        PHA
-        LDA param_slot1_name+1
-        PHA
-        LDA param_slot1_name+2
-        PHA
-        LDA param_slot1_name+3
-        PHA
-        LDA param_slot1_name+4
-        PHA
-        LDA param_slot1_name+5
-        PHA
-        LDA param_slot1_value
-        PHA
-        LDA param_slot1_value+1
-        PHA
-        ; --- 4. read nparams from slot ---
-        LDY #PROC_NPARAMS_OFF
-        LDA (mptr_lo),Y
-        STA tmp                  ; tmp = nparams (0..MAX_PARAMS)
-        ; --- parse arg(s) under OUTER scope ---
-        LDA tmp
-        BEQ @args_done
-        ; preserve mptr_lo:hi AND tmp across parse_dec_arg. parse_dec_arg
-        ; calls @dec which uses `tmp` as scratch for the arg<<10 multiply,
-        ; so nparams in `tmp` would be lost otherwise (silent skip-bind bug).
-        LDA tmp
-        PHA
-        LDA mptr_lo
-        PHA
-        LDA mptr_hi
-        PHA
-        JSR parse_dec_arg
-        PLA
-        STA mptr_hi
-        PLA
-        STA mptr_lo
-        PLA
-        STA tmp
-        LDA arg_lo
-        STA proc_body_cursor     ; scratch -- param 0 lo (saved to stack at top)
-        LDA arg_hi
-        STA proc_body_total      ; scratch -- param 0 hi
-        LDA tmp
-        CMP #2
-        BCC @args_done
-        LDA tmp
-        PHA
-        LDA mptr_lo
-        PHA
-        LDA mptr_hi
-        PHA
-        JSR parse_dec_arg
-        PLA
-        STA mptr_hi
-        PLA
-        STA mptr_lo
-        PLA
-        STA tmp
-        ; param 1 value already in arg_lo:arg_hi
-@args_done:
-        ; --- 5. bind names + values into param slots ---
-        LDA tmp
-        BEQ @bind_done
-        ; copy slot[PARAMS..PARAMS+NAME_LEN-1] -> param_slot0_name
-        LDY #PROC_PARAMS_OFF
-        LDX #0
-@cn0:   LDA (mptr_lo),Y
-        STA param_slot0_name,X
-        INY
-        INX
-        CPX #NAME_LEN
-        BNE @cn0
-        LDA proc_body_cursor     ; latched param-0 lo
-        STA param_slot0_value
-        LDA proc_body_total      ; latched param-0 hi
-        STA param_slot0_value+1
-        LDA tmp
-        CMP #2
-        BCC @bind_done
-        LDY #(PROC_PARAMS_OFF+NAME_LEN)
-        LDX #0
-@cn1:   LDA (mptr_lo),Y
-        STA param_slot1_name,X
-        INY
-        INX
-        CPX #NAME_LEN
-        BNE @cn1
-        LDA arg_lo
-        STA param_slot1_value
-        LDA arg_hi
-        STA param_slot1_value+1
-@bind_done:
-        LDA tmp
-        STA n_params_active
-        ; --- 6. push current line_buf+line_idx onto control stack ---
-        ; Frame layout (CTRL_FRAME=64): 0..59 = line_buf, 60 = line_idx,
-        ; 61..63 = reserved (proc_body_cursor/total are pushed to the
-        ; 6502 stack at @ok_to_call top, so we don't need to repeat them
-        ; here). Address: ctrl_stack + ctrl_sp * 64.
-        JSR ctrl_frame_addr      ; mptr_save_lo:hi -> ctrl_stack + sp*64
+        BCS @full
+        TSX
+        LDA ctrl_sp
+        BNE @measure
+        STX ctrl_base_sp         ; retain the outermost return address in place
+@measure:
+        STX tmp
+        LDA ctrl_base_sp
+        SEC
+        SBC tmp
+        CMP #FRAME_HW_MAX+1
+        BCC @push
+@full:  LDA #ERR_FULL
+        JMP print_err
+@push:  JSR ctrl_frame_addr
         LDY #0
-@ctrl_push:
+@push_line:
         LDA line_buf,Y
         STA (mptr_save_lo),Y
         INY
         CPY #LINE_MAX
-        BNE @ctrl_push
+        BNE @push_line
         LDA line_idx
-        STA (mptr_save_lo),Y     ; Y = LINE_MAX = 60
-        INC ctrl_sp
-        ; total body length + cursor (live across body parse_and_exec)
-        LDY #PROC_BODYLEN_OFF
-        LDA (mptr_lo),Y
-        STA proc_body_total
-        LDA #0
-        STA proc_body_cursor
+        STA (mptr_save_lo),Y
+        LDX #0
+@push_context:
+        INY
+        LDA proc_context,X
+        STA (mptr_save_lo),Y
+        INX
+        CPX #CONTEXT_SIZE
+        BNE @push_context
+        INY                      ; FRAME_SP
+        TSX
+        TXA
+        STA (mptr_save_lo),Y
+@save_hw:
+        CPX ctrl_base_sp
+        BEQ @enter
+        PLA
+        INX
+        INY
+        STA (mptr_save_lo),Y
+        JMP @save_hw
+@enter: INC ctrl_sp
+        JSR bind_procedure
 @line_loop:
+        JSR poll_break
         LDA break_flag
         BNE @body_done           ; ESC during proc body -- unwind cleanly
         LDA stop_flag
@@ -2845,6 +2605,10 @@ proc_invoke:
         LDA proc_body_cursor
         CMP proc_body_total
         BCS @body_done
+        LDA active_proc_lo
+        STA mptr_lo
+        LDA active_proc_hi
+        STA mptr_hi
         ; copy [body_cursor..next CR] from slot into line_buf[0..]
         LDX #0                   ; X = line_buf cursor
 @cp:    LDA proc_body_cursor
@@ -2869,25 +2633,16 @@ proc_invoke:
         BNE @cp
 @run:   LDA #0
         STA line_idx
-        ; preserve mptr (slot ptr) across recursive parse_and_exec
-        LDA mptr_lo
-        PHA
-        LDA mptr_hi
-        PHA
         JSR parse_and_exec
-        PLA
-        STA mptr_hi
-        PLA
-        STA mptr_lo
         JMP @line_loop
 @body_done:
         ; STOP only exits this proc; clear before unwinding so the caller
         ; resumes normally. (break_flag flows through to REPL.)
         LDA #0
         STA stop_flag
-        ; --- 8. pop control-stack frame: restore line_buf + line_idx ---
+        ; Restore the caller before resuming its parser.
         DEC ctrl_sp
-        JSR ctrl_frame_addr      ; mptr_save -> ctrl_stack + sp*64
+        JSR ctrl_frame_addr
         LDY #0
 @ctrl_pop:
         LDA (mptr_save_lo),Y
@@ -2897,47 +2652,74 @@ proc_invoke:
         BNE @ctrl_pop
         LDA (mptr_save_lo),Y     ; Y = LINE_MAX = 60
         STA line_idx
-        ; --- pop outer param state (LIFO) ---
-        PLA
-        STA param_slot1_value+1
-        PLA
-        STA param_slot1_value
-        PLA
-        STA param_slot1_name+5
-        PLA
-        STA param_slot1_name+4
-        PLA
-        STA param_slot1_name+3
-        PLA
-        STA param_slot1_name+2
-        PLA
-        STA param_slot1_name+1
-        PLA
-        STA param_slot1_name
-        PLA
-        STA param_slot0_value+1
-        PLA
-        STA param_slot0_value
-        PLA
-        STA param_slot0_name+5
-        PLA
-        STA param_slot0_name+4
-        PLA
-        STA param_slot0_name+3
-        PLA
-        STA param_slot0_name+2
-        PLA
-        STA param_slot0_name+1
-        PLA
-        STA param_slot0_name
-        PLA
-        STA n_params_active
-        ; --- pop outer body cursor/total ---
-        PLA
+        LDX #0
+@pop_context:
+        INY
+        LDA (mptr_save_lo),Y
+        STA proc_context,X
+        INX
+        CPX #CONTEXT_SIZE
+        BNE @pop_context
+        INY                      ; FRAME_SP
+        LDA (mptr_save_lo),Y
+        STA tmp
+        LDA ctrl_base_sp
+        SEC
+        SBC tmp
+        BEQ @return
+        CLC
+        ADC #FRAME_SP
+        TAY                      ; last byte popped from the caller's stack
+@restore_hw:
+        LDA (mptr_save_lo),Y
+        PHA
+        DEY
+        CPY #FRAME_SP
+        BNE @restore_hw
+@return: RTS
+
+bind_procedure:
+        LDA mptr_lo
+        STA active_proc_lo
+        LDA mptr_hi
+        STA active_proc_hi
+        LDY #PROC_BODYLEN_OFF
+        LDA (mptr_lo),Y
         STA proc_body_total
-        PLA
+        LDA #0
         STA proc_body_cursor
-        RTS
+        LDY #PROC_NPARAMS_OFF
+        LDA (mptr_lo),Y
+        STA n_params_active
+        BEQ @done
+        LDY #PROC_PARAMS_OFF
+        LDX #0
+@first: LDA (mptr_lo),Y
+        STA param_slot0_name,X
+        INY
+        INX
+        CPX #NAME_LEN
+        BNE @first
+        LDA call_p0_lo
+        STA param_slot0_value
+        LDA call_p0_hi
+        STA param_slot0_value+1
+        LDA n_params_active
+        CMP #2
+        BNE @done
+        LDX #0
+@second:
+        LDA (mptr_lo),Y
+        STA param_slot1_name,X
+        INY
+        INX
+        CPX #NAME_LEN
+        BNE @second
+        LDA arg_lo
+        STA param_slot1_value
+        LDA arg_hi
+        STA param_slot1_value+1
+@done:  RTS
 
 ; (roll_lfsr moved to math.asm.)
 
@@ -2978,41 +2760,31 @@ cmd_print:
 
 ; (print_decimal + div_arg_by_10 moved to math.asm.)
 
-; cmd_wait: WAIT N -- pause for ~N seconds at 1 MHz emulated speed.
+; cmd_wait: WAIT N -- pause for ~0.6 s per unit at 1 MHz emulated speed.
 ;   Single byte arg used (arg_hi ignored).
 cmd_wait:
-        LDA arg_lo
-        BEQ @done
-@outer: LDX #0
-@x:     LDY #0
-@y:     NOP
-        NOP
-        DEY
-        BNE @y
-        DEX
-        BNE @x
-        DEC arg_lo
-        BNE @outer
-@done:  RTS
+        LDA #0                    ; 256 delay slices per WAIT unit
+        BEQ timed_delay
 
-; cmd_pause: PAUSE N -- ~100 ms per arg unit. About 1/8 of WAIT N, fine
-;   enough for animation timing. Single byte arg.
-;
-;   Inner loop is the same NOP-NOP-DEY busy-wait as WAIT (~3 072 cycles
-;   per X iter at 1 MHz), but X starts at 32 instead of 0 so each arg
-;   unit is 32 * 3 072 = 98 304 cycles ≈ 96 ms. PAUSE 5 ≈ 0.5 s,
-;   PAUSE 10 ≈ 1 s. For visible bird-flap pacing: PAUSE 2 (~0.2 s).
+; PAUSE uses 44 slices per unit. Both delays service the keyboard between
+; slices so screen hotkeys and interrupts also work during a long hold.
 cmd_pause:
+        LDA #44
+timed_delay:
+        STA tmp2
         LDA arg_lo
         BEQ @done
-@outer: LDX #32
-@x:     LDY #0
+@outer: LDX tmp2
+@slice: JSR poll_break
+        LDA break_flag
+        BNE @done
+        LDY #0
 @y:     NOP
         NOP
         DEY
         BNE @y
         DEX
-        BNE @x
+        BNE @slice
         DEC arg_lo
         BNE @outer
 @done:  RTS
@@ -3152,10 +2924,12 @@ cmd_setxy:
         LDA arg_lo
         STA tx_lo
 .endif
+        LDA arg2_hi
+        BNE @ymax
         LDA arg2_lo
         CMP #192
         BCC @yok
-        LDA #191
+@ymax:  LDA #191
 @yok:   STA ty_lo
         JMP draw_turtle  ; tail-call (was JSR+RTS; -1 B, juillet 2026 bank squeeze)
 
@@ -3376,11 +3150,32 @@ fd_common:
 ;  moved to math.asm.)
 
 ; ============================================================================
-; cmd_repeat: arg_lo:arg_hi = count.  Expect '[' next, find matching ']',
+; cmd_repeat: parse the count or FOREVER. Expect '[' next, find matching ']',
 ;             loop count times re-running parse_and_exec on the slice.
 ;             Supports 1 nesting level.
 ; ============================================================================
 cmd_repeat:
+        ; Only a bare FOREVER before the bracket is indefinite. Numeric
+        ; 65535 and expressions involving FOREVER retain their 16-bit value.
+        JSR skip_spaces
+        CMP #'F'
+        BNE @counted
+        TXA
+        PHA
+        JSR parse_dec_term
+        JSR skip_spaces
+        CMP #'['
+        BEQ @indefinite
+        PLA
+        STA line_idx
+@counted:
+        JSR parse_dec_arg
+        LDA #0
+        BEQ @mode
+@indefinite:
+        PLA
+        LDA #1
+@mode:  STA repeat_forever
         JSR skip_spaces
         LDX line_idx
         LDA line_buf,X
@@ -3417,6 +3212,8 @@ cmd_repeat:
         BNE @end
         LDA stop_flag
         BNE @end
+        LDA repeat_forever
+        BNE @body
         ; if count == 0 -> done
         LDA arg_lo
         ORA arg_hi
@@ -3427,6 +3224,8 @@ cmd_repeat:
         DEC arg_hi
 @no_borrow:
         DEC arg_lo
+@body:  LDA repeat_forever
+        PHA
         ; save count + bracket bounds on stack (parse_and_exec may recurse)
         LDA arg_lo
         PHA
@@ -3450,6 +3249,8 @@ cmd_repeat:
         STA arg_hi
         PLA
         STA arg_lo
+        PLA
+        STA repeat_forever
         JMP @loop
 @end:   ; advance line_idx past the ']'
         LDA rep_end
@@ -3558,12 +3359,15 @@ cmp_eval:
         STA tmp                     ; result lo
         LDA if_a_hi
         SBC arg_hi
-        STA tmp2                    ; result hi
-        ; Pick the actual sign-bit
-        LDA tmp2
+        BVC @in_range
+        ; Signed overflow reverses the subtraction's sign and excludes equality.
+        BPL @sign_neg
+        BMI @sign_pos
+@in_range:
         BMI @sign_neg
         ORA tmp
         BEQ @sign_zero
+@sign_pos:
         LDA #OK_POS
         JMP @check
 @sign_neg:
@@ -4810,7 +4614,7 @@ cmd_say:
         STA tx_lo                 ; left margin inside bubble
         LDA #88
         STA ty_lo                 ; first text row, just below top border
-        JSR cmd_label             ; reuse scan/blit logic to render text
+        JSR bubble_label          ; wrap and clip to the bubble interior
         ; --- proportional pause: WAIT (lines * 4) units, ~2.4 s per line
         ;     at native 1 MHz. lines = (ty_lo - 88)/8 + 1, capped by the
         ;     bubble-bottom truncation in cmd_label's scan loop. Compute
@@ -4841,7 +4645,19 @@ cmd_say:
 .endif
         JMP cmd_wait              ; tail-call -- cmd_wait RTS returns to
                                   ;   parse_and_exec for us
+.bss
+label_layout: .res 1             ; 0 = bubble, 1 = LABEL, 2 = reached right edge
+.code
 cmd_label:
+        JSR erase_turtle          ; the glyph cursor advances the turtle
+        LDA #1
+        JSR render_label
+        JMP draw_turtle
+
+bubble_label:
+        LDA #0
+render_label:
+        STA label_layout
         JSR scr_gfx               ; Apple II: bitmap text wants the HGR shown
         JSR skip_spaces
 @scan:  LDX line_idx
@@ -4860,6 +4676,29 @@ cmd_label:
         ; A holds char. Save it in X across the wrap math (which
         ; clobbers A repeatedly).
         TAX
+        LDA label_layout
+        BEQ @bubble
+        CMP #1
+        BNE @consume
+        TXA
+        LDX tx_hi
+        JSR blit_glyph
+        CLC
+        LDA tx_lo
+        ADC #8
+        STA tx_lo
+        BCC :+
+        INC tx_hi
+:       LDA tx_hi
+        BEQ @consume
+        LDA tx_lo
+        CMP #24                  ; x >= 280: consume remaining text
+        BCC @consume
+        LDA #23
+        STA tx_lo
+        INC label_layout
+        BNE @consume
+@bubble:
         ; If we already pushed ty past the bubble bottom on a previous
         ; wrap, swallow the rest of the text without blitting.
         LDA ty_lo
@@ -4881,6 +4720,7 @@ cmd_label:
         JMP @consume
 @blit_now:
         TXA                       ; restore A = char
+        LDX #0                    ; bubble cells start below x=256
         JSR blit_glyph
         LDA tx_lo
         CLC
@@ -4907,7 +4747,7 @@ blit_glyph:
         LDA ty_lo
         STA pix_y
         PLA
-        JMP text_blit_glyph
+        JMP text_blit_glyph_wide
 
 ; --- draw_bubble (~85 B) lives in bubble.asm (here in src/).
 ;     The bitmap blit core lives in text_bitmap.asm (here in src/; it reads
