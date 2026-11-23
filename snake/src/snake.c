@@ -91,11 +91,11 @@ static const unsigned char wall_first[LEVELS + 1u] = { 0u, 0u, 8u, 24u, 56u, 72u
 static const unsigned int start_spins[3] = { 3565u, 2565u, 1565u };
 
 /* --- Time spent outside throttle(), in throttle spins --- */
-/* One throttle spin with its keyboard poll is ~91 cycles (3565 spins = a tick
- * every 18-20 frames at 1 MHz). Tones and the stick read keep the CPU, so
+/* One throttle spin with its keyboard poll is ~116 cycles (3565 spins = a tick
+ * every 25 frames at 1 MHz). Tones and the stick read keep the CPU, so
  * their spins are taken off the next throttle: the pace stays the same. */
-#define TONE_SPINS(f, p) ((unsigned int)((unsigned long)(f) * (12u + 5u * (p)) / 91u))
-#define STICK_SPINS      66u    /* a2_read_stick: 256 turns of ~23 cycles       */
+#define TONE_SPINS(f, p) ((unsigned int)((unsigned long)(f) * (12u + 5u * (p)) / 116u))
+#define STICK_SPINS      53u    /* a2_read_stick: 256 turns of ~23 cycles       */
 
 /* --- Direction codes --- */
 #define DIR_UP    1
@@ -176,7 +176,8 @@ static unsigned char new_record;   /* 1 = the game just over beat the record */
 static void detect_stick(void)
 {
     stick = a2_stick_present();
-    stick_last = A2_JOY_NONE;
+    /* A held direction at detection is the baseline for the first move. */
+    if (stick) stick_last = a2_read_stick();
 }
 
 /* Fill / erase the 6x6 block of grid cell (cx, cy) in ONE asm call. hgr_cell
@@ -193,35 +194,31 @@ static void erase_cell(unsigned char cx, unsigned char cy)
     hgr_cell(cx, cy, 0u);
 }
 
-/* Draw the apple as a SOLID round RED disk. HIRES colour is a byte-pattern
- * artifact: the tint ANDs each byte with a half-density carrier, so it KEEPS
- * only ~half the pixels. A FILLED, symmetric disk stays a full red blob through
- * that; the old "fill block + knock the corners off" left an asymmetric pattern
- * the carrier turned into a half-circle. Built as filled rows (orange = HIRES's
- * warmest tone, the closest it has to red). */
-static void draw_food(unsigned char cx, unsigned char cy)
+/* Paint only the carrier pixels inside the sprite. Two cells can share
+ * an HGR byte, whose other pixels may already belong to a wall or snake. */
+static void draw_sprite(unsigned char cx, unsigned char cy, unsigned char color)
 {
-    unsigned px = (unsigned)cx * CELL;
-    unsigned char py = cy * (unsigned char)CELL;
-    hgr_fill_pixrect(px + 2u, py,                       2u, 1u);  /* ..##.. */
-    hgr_fill_pixrect(px + 1u, (unsigned char)(py + 1u), 4u, 1u);  /* .####. */
-    hgr_fill_pixrect(px,      (unsigned char)(py + 2u), 6u, 2u);  /* ###### */
-    hgr_fill_pixrect(px + 1u, (unsigned char)(py + 4u), 4u, 1u);  /* .####. */
-    hgr_fill_pixrect(px + 2u, (unsigned char)(py + 5u), 2u, 1u);  /* ..##.. */
-    hgr_colorize(px, py, BLOCK, BLOCK, HGR_ORANGE);
+    static const unsigned char disk[6] = { 12, 30, 63, 63, 30, 12 };
+    unsigned char col = cx + cx / 7u;       /* (8 * cx) / 7 */
+    unsigned char shift = cx % 7u;
+    unsigned int mask = 63u << shift;
+    unsigned char phase = color == HGR_GREEN ? 0u : 128u;
+    unsigned char carrier = color == HGR_BLUE ? 0x15u : 0x2Au;
+    unsigned char y;
+    for (y = 0; y < BLOCK; ++y) {
+        unsigned char *p = hgr_row(cy * CELL + y) + col;
+        unsigned int bits = (unsigned int)(carrier &
+            (color == HGR_ORANGE ? disk[y] : 63u)) << shift;
+        *p = (*p & (0x7Fu & ~mask)) | (bits & 0x7Fu) | phase;
+        if (mask >> 7) {
+            ++p;
+            *p = (*p & (0x7Fu & ~(mask >> 7))) | (bits >> 7) | phase;
+        }
+    }
 }
 
-/* Draw the bonus gem as a SOLID GREEN block. The old hollow diamond outline was
- * halved by the tint into a few scattered dots — "not very visible, not a closed
- * figure". A filled cell stays a clearly visible, closed green gem: its GREEN
- * tells it apart from the white snake, and the round RED apple is its own shape. */
-static void draw_bonus(unsigned char cx, unsigned char cy)
-{
-    unsigned px = (unsigned)cx * CELL;
-    unsigned char py = cy * (unsigned char)CELL;
-    hgr_fill_pixrect(px, py, BLOCK, BLOCK);
-    hgr_colorize(px, py, BLOCK, BLOCK, HGR_GREEN);
-}
+#define draw_food(x, y)  draw_sprite((x), (y), HGR_ORANGE)
+#define draw_bonus(x, y) draw_sprite((x), (y), HGR_GREEN)
 
 /* Top and bottom walls only — the left/right sides are OPEN so the snake wraps
  * horizontally (see the wrap in tick()). Each wall is a 1px rule hugging the
@@ -289,11 +286,7 @@ static unsigned char place_bonus(void)
 
 /* A wall cell: a 6x6 block tinted blue (the snake is white, the apple
  * orange, the bonus green). */
-static void draw_wall(unsigned char cx, unsigned char cy)
-{
-    hgr_cell(cx, cy, 1u);
-    hgr_colorize((unsigned)cx * CELL, cy * (unsigned char)CELL, BLOCK, BLOCK, HGR_BLUE);
-}
+#define draw_wall(x, y) draw_sprite((x), (y), HGR_BLUE)
 
 /* The current level's walls: marked in occupied[][] (draw = 0), so collisions
  * and the apple / bonus placement avoid them, or drawn (draw = 1). */
@@ -400,6 +393,16 @@ static void read_stick(void)
     }
 }
 
+/* Called after placing the next apple, on the board where play continues. */
+static unsigned char spawn_bonus(void)
+{
+    if (bonus_active || apples % BONUS_EVERY != 0u || !place_bonus()) return 0u;
+    bonus_active = 1u;
+    bonus_ttl = BONUS_TTL;
+    SFX(0x10u, 0x10u);
+    return 1u;
+}
+
 /* Advance one logical tick: move the head, resolve collisions / food. */
 static void tick(void)
 {
@@ -478,16 +481,11 @@ static void tick(void)
         place_food();
         /* Every BONUS_EVERY apples, drop a time-limited bonus gem (if one is not
          * already out). Drawing is the main loop's job, so just flag it. */
-        if (!bonus_active && (apples % BONUS_EVERY) == 0u && place_bonus()) {
-            bonus_active = 1u;
-            bonus_ttl    = BONUS_TTL;
-            bonus_new    = 1u;
-            SFX(0x10u, 0x10u);        /* a chirp: the gem is out */
-        }
+        bonus_new = spawn_bonus();
     }
 
     /* Age an active bonus; when its timer runs out, flag it for erasure. */
-    if (bonus_active) {
+    if (bonus_active && !bonus_new) {
         --bonus_ttl;
         if (bonus_ttl == 0u) { bonus_active = 0u; bonus_gone = 1u; }
     }
@@ -563,6 +561,7 @@ static void next_level(void)
     a2_tone(0x40u, 0x20u);
     hold(6u);
     start_level();
+    spawn_bonus();             /* a milestone apple can also finish a level */
     redraw();
 }
 
@@ -734,7 +733,7 @@ void main(void)
                     continue;
                 }
             }
-            throttle(1u);
+            if (alive && !won) throttle(1u);
         } else {
             /* Death: show GAME OVER, hold ~4 s, then let a key restart early.
              * The full-width band of grid rows 8..13 (y=64..111) is wiped first
@@ -756,6 +755,7 @@ void main(void)
             /* Upstream held 40 + up to 50 throttles — ~13 s deaf, ~30 s in
              * all, not the ~4 s its comment promised. */
             hold(12u);                      /* phase 1: ~4 s mandatory hold */
+            apple2_readkey();               /* discard input latched before the restart window */
             for (t = 0; t < 15u; ++t) {     /* phase 2: ~5 s key window */
                 if (apple2_readkey() != 0) break;   /* phase 2: key restarts */
                 throttle(0u);

@@ -103,6 +103,18 @@ def walls(disk, L):
     print(f'PASS walls: alive on row 3, dead on the wall row, death sound ({r.spk[-1]} toggles)')
 
 
+def adjacent_sprites(disk, L):
+    # Level 3: the blue post in column 25 and the apple in column 26
+    # share HGR byte 29. At y=58 their lit pixels are x=204 and x=209.
+    address = 0x2000 + 2 * 0x400 + 7 * 0x80 + 29
+    steps = start(L) + ticks(L, 1) + [
+        L.poke('level', 2), L.poke('foodx', 26), L.poke('foody', 7),
+        f'call:{L["redraw"]:04X}:600', f'peek:{address:04X}:01']
+    value = run(disk, steps).mem(address, 1)[0]
+    assert value == 0xC2, hex(value)
+    print('PASS graphics: adjacent blue wall and apple keep both pixels in their shared byte')
+
+
 def apples(disk, L):
     # the apple right in front, the 4th apple: it grows, scores, speeds up,
     # blips and drops the bonus gem; the gem in front is worth 20
@@ -118,13 +130,13 @@ def apples(disk, L):
     assert after['head'] == (18, 12)
     apples_n, bonus, ttl = (r.mem(L[n], 1, 0)[0] for n in ('apples', 'bonus_active', 'bonus_ttl'))
     spins = int.from_bytes(r.mem(L['tick_spins'], 2), 'little')
-    assert (apples_n, bonus, ttl, spins) == (4, 1, 35, 3365), (apples_n, bonus, ttl, spins)
+    assert (apples_n, bonus, ttl, spins) == (4, 1, 36, 3365), (apples_n, bonus, ttl, spins)
     assert after['spk'] >= 0x18 + 0x10, f'apple blip and bonus chirp: {after["spk"]} toggles'
     assert gem['score'] == 25 and gem['slen'] == after['slen'], gem
     assert r.mem(L['bonus_active'], 1, 1) == b'\0'
     assert gem['spk'] >= 0x20 + 0x30, f'bonus chime: {gem["spk"]} toggles'
     print(f'PASS apples: +1 cell, 5 points, 3565 -> 3365 spins, blip + chirp ({after["spk"]} toggles); '
-          f'bonus out for 35 more ticks, worth 20 ({gem["spk"]} toggles)')
+          f'bonus out for 36 more ticks, worth 20 ({gem["spk"]} toggles)')
 
 
 def joystick(disk, L):
@@ -137,6 +149,11 @@ def joystick(disk, L):
     assert r.mem(L['stick'], 1) == b'\1'
     assert s(0)['head'] == (18, 11), s(0)         # read before tick(): up at once
     assert s(1)['head'] == (20, 10), s(1)         # up, then right, and right again
+    # A stick already held on the title has not changed direction.
+    steps = start(L, pre=['joy:0,-1']) + ticks(L, 2) + snap(L) + [
+        'joy:0,1'] + ticks(L, 2) + snap(L)
+    s = Snaps(run(disk, steps), L, 2)
+    assert s(0)['head'] == (18, 12) and s(1)['head'] == (19, 13), (s(0), s(1))
     r = run(disk, start(L, pre=['joy:9,9']) + [L.peek('stick')] + ticks(L, 2) + snap(L))
     assert r.mem(L['stick'], 1) == b'\0' and Snaps(r, L, 1)(0)['head'] == (18, 12)
     print('PASS joystick: detected, steers up, a held stick does not fight the keyboard; '
@@ -206,6 +223,20 @@ def levels(disk, L):
     assert (s(0)['slen'], s(1)['slen']) == (4, 5), (s(0), s(1))
     print('PASS level 2: an apple grows the snake by two cells, one per move')
 
+    # Apples 20 and 40 end a level and earn a gem on the incoming board.
+    for previous_level in (1, 3):
+        total = (previous_level + 1) * 10
+        steps = level_end(L, previous_level) + [L.poke('apples', total - 1)] + ticks(L, 1) + [
+            L.until('redraw', 600), L.peek('bonus_active'), L.peek('bonus_ttl'),
+            L.peek('bonusx'), L.peek('bonusy'), L.peek('foodx', 2), L.peek('occupied', COLS * ROWS)]
+        r = run(disk, steps)
+        assert r.mem(L['bonus_active'], 1) == b'\1', f'missing bonus after apple {total}'
+        assert r.mem(L['bonus_ttl'], 1)[0] == 36
+        x, y = (r.mem(L[n], 1)[0] for n in ('bonusx', 'bonusy'))
+        assert not r.mem(L['occupied'], COLS * ROWS)[y * COLS + x]
+        assert bytes((x, y)) != r.mem(L['foodx'], 2)
+    print('PASS level transitions: apples 20 and 40 spawn a fresh gem on a free cell')
+
     # level 5: 100 apples placed in a row land on free cells only
     place = L['place_food']
     steps = level_end(L, 3) + ticks(L, 1) + [L.until('redraw', 600), 'wait:1'] + ticks(L, 1) + \
@@ -219,10 +250,19 @@ def levels(disk, L):
           'or the snake')
 
     # the last apple of level 5: YOU WIN
-    r = run(disk, level_end(L, 4) + ticks(L, 1) + ['spk', L.until('keep_record', 300), 'wait:30',
+    r = run(disk, level_end(L, 4) + ticks(L, 1) + ['press:P', 'spk', L.until('keep_record', 300), 'wait:30',
                                                    L.peek('won'), 'spk'])
     assert r.mem(L['won'], 1) == b'\1' and r.spk[-1] >= 0x40 + 0x50 + 0x60, r.spk
     print(f'PASS level 5 done: YOU WIN and its arpeggio ({r.spk[-1]} toggles)')
+
+    # P on the winning move must not also restart the game. The first
+    # throttle after the twelve mandatory waits is inside the key window.
+    steps = level_end(L, 4) + ticks(L, 1) + ['press:P', L.until('hold', 300),
+                                             L.until('throttle', 100)]
+    steps += ['wait:1', L.until('throttle', 200)] * 12
+    r = run(disk, steps + [L.peek('won'), 'press:L', L.until('redraw', 100), L.peek('won')])
+    assert [r.mem(L['won'], 1, i) for i in range(2)] == [b'\1', b'\0']
+    print('PASS restart: only a fresh key in the restart window dismisses YOU WIN early')
 
 
 def periods(r, n):
@@ -245,6 +285,13 @@ def pace(disk, L):
     spin = periods(r, 3)
     assert r.mem(L['vapor'], 1) == b'\0' and r.mem(L['alive'], 1) == b'\1'
     assert all(abs(g - 418200) < 2000 for g in spin), spin
+    # Compare the same straight-line moves at 1 MHz, with and without
+    # the six-millisecond paddle read on every tick.
+    timings = []
+    for joystick in ('joy:9,9', 'joy:0,0'):
+        r = run(disk, start(L, pre=[joystick]) + [L.poke('vapor', 0)] + ticks(L, 5))
+        timings.append(periods(r, 3))
+    assert all(abs(a - b) < 300 for a, b in zip(*timings)), timings
     print('PASS pace: vapor lock, a tick every 25 frames (3 at top speed), exact; '
           f'marker gone: spin throttle ({spin[0]} cycles a tick)')
     if not a2test.have_a2shot('SNAKE pace on POM2 (PAL, //e)'):
@@ -270,6 +317,7 @@ def main():
     wrap(a.disk, L)
     turns(a.disk, L)
     walls(a.disk, L)
+    adjacent_sprites(a.disk, L)
     apples(a.disk, L)
     joystick(a.disk, L)
     pause_quit(a.disk, L)
