@@ -40,7 +40,7 @@ def positions():
     cases=[]
     for moon in (False,True):
         for lat in (-38,0,38):
-            for date in (.1,.34442,.5,.9):
+            for date in (.1,80.01/365,.34442,.5,.9):
                 for hour in (0,5,7,10,12,14,17,19,22):
                     cases.append((lat,date,hour,moon))
                     steps+=poke('s_date',date)+poke('s_hour',hour)
@@ -117,6 +117,28 @@ def moon_scene():
     assert not any(view_rows(result.dumps[-1])),'clouds did not hide moon'
     print('  dated Moon drawn at its own bearing, dark terrain, cloud mask and night rotations: OK')
 
+def clipped_moon():
+    # Equator, Jan 2 at 22h: the partial disk lies entirely in the HUD rows.
+    date = 1.01 / 365
+    bearing, y = model(0, date, 22, True)
+    assert y == 2
+    steps = [L.until('idle', 20000), 'poke:700C:00', L.poke('weather_sky', 0),
+             L.poke('heading', bearing), L.poke('heading', bearing >> 8, 1)]
+    steps += poke('s_date', date) + poke('s_hour', 22) + call(['env_hour', 'show_view'])
+    steps += [f'until:{L["idle"]+6:04X}:20000', L.peek('sky_y'), L.peek('view_dark'),
+              'peek:2000:8192']
+    m = bytearray((HERE / 'build/map.bin').read_bytes())
+    m[64:] = bytes([10]) * 9408
+    m[2:6] = bytes((0, 20, 0, 20))
+    m[16] = 0
+    m[21] = 11
+    with tempfile.TemporaryDirectory() as tmp:
+        result = a2test.run(disk_with(tmp, bytes(m)), steps, emulator=a2test.A2SHOT)
+    height, dark, screen = result.dumps
+    assert abs(height[0] - y) <= 1 and dark == bytes([1]), (height, dark)
+    assert not any(view_rows(screen)), 'clipped Moon paints below its disk'
+
+
 def afternoon_travel():
     # The real clock with forest rendering catches scratch corruption that
     # isolated sky-position calls cannot detect.
@@ -139,4 +161,5 @@ if __name__=='__main__':
     positions()
     scenes()
     moon_scene()
+    clipped_moon()
     afternoon_travel()

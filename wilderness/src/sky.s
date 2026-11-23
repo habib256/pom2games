@@ -107,9 +107,10 @@ sky_position:
         jeq     sky_hidden       ; zenith is outside the forward view
         fop     FDIV, sky_up
         fop     FMULT, sky_48     ; same vertical perspective as terrain
+        lda     FAC             ; projected heights >= 128 are off-screen
+        cmp     #$88
+        jcs     sky_hidden       ; AYINT overflows near the zenith
         jsr     AYINT
-        lda     $A0
-        jne     sky_hidden
         lda     $A1
         cmp     #HORIZON+1
         jcs     sky_hidden
@@ -359,7 +360,9 @@ sky_column:
         sec
         lda     sky_y
         sbc     sky_half
+        bcc     :+              ; upper lit arc is entirely above the screen
         jsr     sky_span
+:
         clc
         lda     sky_y
         adc     sky_half

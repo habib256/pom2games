@@ -73,10 +73,12 @@ def cancellations(disk):
             s.step(f'key:{response}')
             s.step(IDLE)
             assert snapshot(s)==before,response
-        for text in ('STATUS','INVENTORY','TOPO','MAP','HELP'):
+        for text in ('STATUS','INVENTORY','TOPO','MAP',' MAP','MAP ','  MAP  ','HELP'):
             s.step(f'key:{text}')
             s.step('press:\\r')
             s.step(L.until('wait_key',20000))
+            if text.strip() == 'MAP':
+                assert 'MAP P YOU' in screen(s),text
             s.step('key:\\e')
             s.step(IDLE)
             assert snapshot(s)==before,(text,'ESC')
@@ -168,6 +170,28 @@ def nature_inline(disk):
     print('  Inline NATURE 0..100 and spaces; invalid values/units refused atomically; prompted zero preserved OK')
 
 
+def azimuth(disk):
+    with a2test.Session(disk) as s:
+        s.step(IDLE)
+        command(s, 'USE COMPASS')
+        declination = int.from_bytes(s.step('peek:7018:1').data, 'little', signed=True)
+        for answer in ('359', '90', '0', '360', ''):
+            before = s.step(L.peek('heading', 2)).data
+            s.step('key:LOOK AZ')
+            s.step('press:\\r')
+            s.step(NUMBER)
+            s.step(f'key:{answer}\\r')
+            s.step(IDLE)
+            after = s.step(L.peek('heading', 2)).data
+            if answer in ('360', ''):
+                assert after == before, answer
+            else:
+                # Allow the compass's two-degree error and heading quantization.
+                degrees = int.from_bytes(after, 'little') * 360 / 560
+                error = (degrees - int(answer) - declination + 180) % 360 - 180
+                assert abs(error) <= 3, (answer, degrees, declination)
+
+
 def editing(disk):
     for typed,expected in [('1\\<9',9),('12\\<\\<9',9),('123\\<\\<\\<9',9),('65536\\<',6553)]:
         with a2test.Session(disk) as s:
@@ -221,6 +245,7 @@ def main():
         cancellations(disk)
         durations(disk)
         nature_inline(disk)
+        azimuth(disk)
         editing(disk)
     interrupted(m)
     interrupted(m,True)

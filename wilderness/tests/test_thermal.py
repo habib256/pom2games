@@ -29,6 +29,28 @@ def scalar(air, index, metabolic):
     return 0, 0
 
 
+def native_clothing_transfers():
+    from mkmap import FOREST_BYTES
+    from test_input import flat
+    m = flat() + bytes(FOREST_BYTES)
+    m[37] = 1
+    m += bytes([10]) * (224 * 168) + bytes(28 * 168)
+    idle = L.until('idle', 20000)
+    steps = [idle]
+    for destination in ('REMOVE', 'PACK', 'CARRY'):
+        steps += ['key:WEAR PARKA\r', 'wait:1', idle, L.peek('s_insul', 5),
+                  L.poke('health_period', 240), f'key:{destination} PARKA\r',
+                  'wait:1', idle, L.peek('s_insul', 5), L.peek('health_period'),
+                  L.peek('it_place', 1, 2)]
+    with tempfile.TemporaryDirectory() as tmp:
+        r = a2test.run(disk_with(tmp, m), steps, emulator=a2test.A2SHOT)
+    for i, place in enumerate((0, 2, 3)):
+        assert r.mem(L['it_place'] + 2, 1, i) == bytes([place])
+        assert r.mem(L['health_period'], 1, i) == bytes([15])
+        assert r.mem(L['s_insul'], 5, 2*i) != r.mem(L['s_insul'], 5, 2*i+1)
+        assert r.mem(L['s_insul'], 5, 2*i+1) == r.mem(L['s_insul'], 5, 1)
+
+
 def main():
     C = a2test.Checker('THERMAL')
     check = C.check
@@ -154,6 +176,7 @@ def main():
                       r.mem(L['dead'],1)==b'\x01' and fp(r.mem(L['s_health'],5))<.3
                       and fp(r.mem(L['s_elap'],5))<24)
 
+    native_clothing_transfers()
     C.done()
 
 

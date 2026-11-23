@@ -26,6 +26,17 @@ def floats(r, name, occurrence=0):
     return fp(r.mem(L[name], 5, occurrence))
 
 
+def large_meal():
+    # 32 ounces in the pack and 96 on the ground cross the 8-bit minute limit.
+    idle = L.until('idle', 20000)
+    steps = [idle, L.poke('nature_frequency', 0), L.poke('it_gnd_lo', 96, 37),
+             L.poke('it_oz_lo', 128, 37), 'key:EAT APPLES 128 OZ\r', 'wait:1',
+             idle, L.peek('s_elap', 5), L.peek('it_oz_lo', 1, 37)]
+    r = a2test.run(DISK, steps, emulator=a2test.A2SHOT)
+    assert r.mem(L['it_oz_lo'] + 37, 1) == bytes(1)
+    assert abs(floats(r, 's_elap') * 60 - 256) < 1e-5
+
+
 def travel_limits():
     """Reject unrepresentable climbs and travel begun after sunset."""
     mapbin = bytearray(MAP[:64]) + bytearray(112 * 84)
@@ -116,6 +127,7 @@ def main():
     check('  deficits cause death before requested 200 hours', 0 < defw <= elap < 200, (defw,elap))
     lines = text_screen(r.mem(0x400, 1024))
     check('  the death message, not the rest one', any('YOUR JOURNEY ENDED' in l for l in lines), lines[21:23])
+    large_meal()
     travel_limits()
     C.done()
 

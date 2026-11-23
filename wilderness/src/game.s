@@ -293,7 +293,6 @@ s_last:  .repeat 3
 health_minutes: .word 0
 health_period: .byte 15
 health_due: .byte 0
-meal_remaining: .byte 0
 s_health: .byte $83, $7B, $BB, $44, $34        ; saved first journey Hmax
 s_body:  .byte $87, $45, $33, $33, $33  ; 98.6 F
 s_therm_rate: .res 5             ; signed F/hour
@@ -596,13 +595,14 @@ fast_words:
 .segment "RODATA"
 ; Complete input/vocabulary fallback runs at most once per command.
 general_command:
-        lda     linelen
-        cmp     #5
-        bne     :+
+        ldx     linelen
+        beq     @ordinary
         lda     inbuf
-        cmp     #'S'
-        beq     @input          ; SLEEP avoids VOCAB -> INPUT round trip
-:
+        cmp     #' '
+        beq     @input
+        lda     inbuf-1,x
+        cmp     #' '
+        beq     @input
         ldx     #0
 @scan:  lda     inbuf,x
         beq     @ordinary
@@ -1462,7 +1462,9 @@ do_rest:
         lda     #<m_hours
         ldx     #>m_hours
         jsr     get_duration
-        jcs     @out
+        bcc     :+
+        rts
+:
         lda     msgnum+1
         pha
         lda     msgnum
@@ -1471,28 +1473,9 @@ do_rest:
         lda     #3
         jsr     overlay_load
         jsr     module_rest_prepare
-@step:  lda     minutes+1       ; first interval 30; health chooses later ones
-        bne     @full
-        lda     minutes
-        beq     @done
-        cmp     health_period
-        bcc     @last
-@full:  lda     health_period
-@last:  sta     stepmin
-        sec
-        lda     minutes
-        sbc     stepmin
-        sta     minutes
-        lda     minutes+1
-        sbc     #0
-        sta     minutes+1
-        lda     stepmin
         ldx     #0
-        jsr     spend
-        lda     dead
-        ora     fauna_alert
-        beq     @step
-@done:  lda     dead            ; died on the way: just the news
+        jsr     spend_stationary
+        lda     dead            ; died on the way: just the news
         beq     :+
         pla
         pla
@@ -1508,7 +1491,31 @@ do_rest:
         sta     msgnum+1
         jsr     show_view
         jmp     rest_result
-@out:   rts
+
+; Rest and meals share the 16-bit clock and health/encounter cutoffs.
+spend_stationary:
+@step:  lda     minutes+1       ; health chooses the interval
+        bne     @full
+        lda     minutes
+        beq     @done
+        cmp     health_period
+        bcc     @last
+@full:  lda     health_period
+@last:  sta     stepmin
+        sec
+        lda     minutes
+        sbc     stepmin
+        sta     minutes
+        bcs     :+
+        dec     minutes+1
+:
+        lda     stepmin
+        jsr     spend
+        ldx     act
+        lda     dead
+        ora     fauna_alert
+        beq     @step
+@done:  rts
 
 .segment "TEXT"
 ; Resident result printer: the scene may have replaced the shared overlay.
@@ -1542,7 +1549,7 @@ rest_result:
 
 ; EAT food: ounces, from the pack first, then the ground at the item's ground cell.
 ; T12/S00 credits .8*kcal/body weight and the food's water, then spends
-; 16 minutes at metabolic rate 2.31; see module_meal_prepare.
+; two minutes per ounce at metabolic rate 2.31; see module_meal_prepare.
 .segment "GCODE"
 do_eat:
         lda     noun
@@ -1602,25 +1609,12 @@ module_eat: lda     noun
         jsr     message
         lda     msgnum
         asl                     ; T12/S00: two minutes per ounce eaten
-        sta     meal_remaining
-@step:  lda     meal_remaining
-        cmp     health_period
-        bcc     :+
-        lda     health_period
-:       sta     stepmin
-        sec
-        lda     meal_remaining
-        sbc     stepmin
-        sta     meal_remaining
-        lda     stepmin
+        sta     minutes
+        lda     #0
+        rol
+        sta     minutes+1
         ldx     #2              ; meal metabolic rate = 1.4 * base
-        jsr     spend
-        lda     dead
-        ora     fauna_alert
-        bne     @done
-        lda     meal_remaining
-        bne     @step
-@done:
+        jsr     spend_stationary
         jmp     report
 @none:  jmp     no_item
 
@@ -1861,7 +1855,13 @@ module_do_get:
         sta     water_untreated
         lda     #0
         sta     water_ground_untreated
-@result: lda     it_place,x
+@result:
+        lda     saved_item
+        cmp     #1              ; moving a worn item removes a clothing layer
+        bne     :+
+        jsr     native_clothes_changed
+        ldx     noun
+:       lda     it_place,x
         cmp     #3
         beq     @carried
         lda     #<m_taken
@@ -2573,6 +2573,8 @@ at_goal:
         jmp     module_at_goal
 .segment "SITES"
 module_at_goal:
+        lda     dead
+        bne     @no             ; a fatal final step cannot win the journey
         lda     MAP+37
         beq     @legacy
         lda     px

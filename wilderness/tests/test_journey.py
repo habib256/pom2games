@@ -132,6 +132,26 @@ def victory():
     print('  Artificial-map arrival: ending mechanism only, no native adventure parity claim')
 
 
+def fatal_arrival():
+    from test_thermal import poke
+
+    m = flat()
+    m[8:10] = bytes((11, 40))
+    with tempfile.TemporaryDirectory() as tmp, a2test.Session(disk_with(tmp, m)) as s:
+        s.step(IDLE)
+        s.step(L.poke('nature_frequency', 0))
+        for step in poke('s_defw', 200):
+            s.step(step)
+        s.step(L.poke('health_period', 1))
+        s.step('key:WALK 9 MIN')
+        s.step('press:\\r')
+        s.step(L.until('ending_key', 20000))
+        assert s.step(L.peek('dead')).data == bytes((1,))
+        assert s.step(L.peek('won')).data == bytes((0,))
+        assert s.step(L.peek('journey_steps', 2)).data == bytes((1, 0))
+        assert 'LOST IN THE WILDERNESS' in screen(s)
+
+
 def fractional_journey():
     m=flat();m[2]=128;m[8:10]=bytes((20,40))
     with tempfile.TemporaryDirectory() as tmp,a2test.Session(disk_with(tmp,m)) as s:
@@ -151,4 +171,4 @@ def fractional_journey():
     print('  Fractional crash distance and route arithmetic; swim ending reports half a cell without truncation')
 
 if __name__=='__main__':
-    progress();refill();water_quality();wildlife();victory();fractional_journey();print('Journey improvements: OK')
+    progress();refill();water_quality();wildlife();victory();fatal_arrival();fractional_journey();print('Journey improvements: OK')

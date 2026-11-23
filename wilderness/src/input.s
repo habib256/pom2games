@@ -1,8 +1,7 @@
 ; Neowilderness input: no simulation changes until syntax and units pass.
 .segment "INPUT"
 module_input_command:
-        ; The vocabulary ignores leading spaces. Numeric commands and QUIT
-        ; must do the same before checking their first word.
+        ; Strip surrounding spaces before retrying exact command matches.
         ldx     #0
         jsr     input_spaces
         txa
@@ -18,6 +17,18 @@ module_input_command:
 @shifted:
         stx     linelen
 :
+        ldx     linelen
+@trailing:
+        beq     @trimmed
+        lda     inbuf-1,x
+        cmp     #' '
+        bne     @trimmed
+        dex
+        jmp     @trailing
+@trimmed:
+        stx     linelen
+        lda     #0
+        sta     inbuf,x
         ldx     #0
 @quit:  lda     inbuf,x
         cmp     input_quit_word,x
@@ -25,12 +36,8 @@ module_input_command:
         inx
         cpx     #4
         bcc     @quit
-@tail:  lda     inbuf,x
+        lda     inbuf,x
         beq     input_quit
-        cmp     #' '
-        bne     @number
-        inx
-        bne     @tail
 @number:
         ldx     #0
 @scan:  lda     inbuf,x
@@ -219,7 +226,10 @@ input_validate:
         ora     input_value+1
         bne     @unit
         lda     input_mode
-        bne     input_cancel
+        cmp     #1             ; zero duration or quantity cancels the action
+        beq     input_cancel
+        cmp     #2
+        beq     input_cancel
 @unit:  lda     input_mode
         cmp     #1
         beq     @duration
