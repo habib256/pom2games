@@ -34,6 +34,14 @@ def main():
              'wait:300', L.peek('p_potions')])
     assert r.mem(L['p_hp'], 1) == b'\x1e'
     assert r.mem(L['p_potions'], 1, 0) == r.mem(L['p_potions'], 1, 1) == b'\0'
+    # Holding forward while using both buttons must not mask the potion press
+    # or take a second step when the buttons are released.
+    r = run(['joy:0,-1', 'wait:60', 'btn:0,1', 'wait:60', L.peek('view_mode'),
+             'btn:1,1', 'wait:60', L.peek('p_potions'), 'btn:0,0', 'wait:60',
+             'btn:1,0', 'wait:60', L.peek('p_col'), L.peek('view_mode')])
+    assert r.mem(L['p_col'], 1) == b'\1', 'releasing a button repeated a held step'
+    assert r.mem(L['p_potions'], 1) == b'\0', 'held map button masked the potion button'
+    assert r.mem(L['view_mode'], 1, 0) == r.mem(L['view_mode'], 1, 1) == b'\1'
     # Enter a real combat and compare each stick action with its keyboard action,
     # including deterministic fleeing and identical random rolls.
     combat = [L.poke('gstate', 4), L.poke('cur_mob', 0), L.poke('prev_state', 2),

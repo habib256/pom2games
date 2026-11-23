@@ -49,6 +49,7 @@ def main():
     assert dungeon("\x08BEE0\x7fF\r", 0xBEEF) == original  # empty erase and DELETE
     assert dungeon("BE\rEF\r", 0xBEEF) == original  # premature RETURN
     assert dungeon("0001\r", 1) != original
+    dungeon("5500\r", 0x5500)  # fixed point in the placement RNG
     dungeon("FFFF\r", 0xFFFF)
     # Zero stays editable; deleting one digit allows correction to 0001.
     assert dungeon("0000\r\x081\r", 1) == dungeon("0001\r", 1)

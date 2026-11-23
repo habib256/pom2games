@@ -14,7 +14,7 @@ L = a2test.labels(ROOT / 'maze3d/build/maze3d.lbl')
 DISK = ROOT / 'dist/MAZE3D.dsk'
 FIELDS = ('p_col', 'p_row', 'p_face', 'p_hp', 'p_atk', 'p_def', 'p_lvl',
           'p_xp', 'p_gold', 'xp_next', 'p_floor', 'p_relic', 'p_potions',
-          'p_chests', 'p_turns', 'old_col', 'old_row', 'p_guard', 'p_focus',
+          'p_chests', 'p_turns', 'p_turns_hi', 'old_col', 'old_row', 'p_guard', 'p_focus',
           'mob_phase', 'p_seed_lo', 'p_seed_hi', 'gstate', 'cur_mob')
 DUMPS = ['peek:1000:77', 'peek:10a0:32', 'peek:0056:2'] + [L.peek(f) for f in FIELDS]
 
@@ -50,8 +50,13 @@ def main():
                    L.until('apple2_exit'), f'dsk:{unsaved_disk}'])
         assert dos33.read_file(unsaved_disk.read_bytes(), 'MAZESAVE1') == bytes(256)
         saved_disk = work / 'saved.dsk'
-        played = run(DISK, [*start, *keys(movement), 'wait:700', *save_manually(), *DUMPS,
+        played = run(DISK, [*start, L.poke('p_turns', 255), *keys(movement), 'wait:700',
+                            L.poke('prng_lo', 0xcc), L.poke('prng_hi', 0), *keys('L'),
+                            *save_manually(), *DUMPS,
                            L.peek('save_available'), f'dsk:{saved_disk}'])
+        assert played.mem(L['p_turns'], 1) == b'\0'
+        assert played.mem(L['p_turns_hi'], 1) == b'\1'
+        assert played.mem(L['prng_lo'], 2) != bytes(2), 'turning produced an invalid checkpoint RNG'
         state1 = snapshot(played)
         assert played.mem(L['save_available'], 1) == b'\1'
         stored = dos33.read_file(saved_disk.read_bytes(), 'MAZESAVE1')
@@ -68,6 +73,40 @@ def main():
                       emulator=a2test.A2SHOT)
         assert resumed.mem(L['save_available'], 1) == b'\1'
         assert snapshot(resumed) == state1, 'position/stats/RNG/monsters changed after reboot'
+        # Legacy checkpoints could contain a zero RNG after a keyboard turn.
+        legacy = bytearray(stored)
+        rng = 0x51 + L['ev_dmg'] - L['p_col'] + 1
+        legacy[0x9f] ^= legacy[rng] ^ legacy[rng + 1]
+        legacy[rng:rng + 2] = bytes(2)
+        image = bytearray(saved_disk.read_bytes())
+        dos33.replace_file(image, 'MAZESAVE1', legacy)
+        legacy_disk = work / 'legacy-zero.dsk'
+        legacy_disk.write_bytes(image)
+        recovered = run(legacy_disk, [*keys('C'), 'wait:700', *DUMPS, L.peek('active_game')])
+        assert recovered.mem(L['active_game'], 1) == b'\1'
+        assert snapshot(recovered) == state1
+        # A missing slot must not inherit the previously loaded checkpoint.
+        image = saved_disk.read_bytes()
+        name = bytes(c | 0x80 for c in b'MAZESAVE2') + b'\xa0' * 21
+        assert image.count(name) == 1
+        missing = work / 'missing-slot.dsk'
+        missing.write_bytes(image.replace(name, b'\xd8' + name[1:]))
+        switched = run(missing, [*keys('2'), 'wait:700', *keys('C'),
+                                 L.peek('active_profile'), L.peek('save_available'),
+                                 L.peek('active_game')], emulator=a2test.A2SHOT)
+        assert switched.mem(L['active_profile'], 1) == b'\2'
+        assert switched.mem(L['save_available'], 1) == b'\0', 'missing slot inherited a checkpoint'
+        assert switched.mem(L['active_game'], 1) == b'\0'
+        # A zero-length binary reads successfully but contains no checkpoint.
+        short_image = bytearray(image)
+        sector = dos33.file_sectors(short_image, 'MAZESAVE2')[0]
+        short_image[sector + 2:sector + 4] = bytes(2)
+        short = work / 'short-slot.dsk'
+        short.write_bytes(short_image)
+        switched = run(short, [*keys('2'), 'wait:700', *keys('C'),
+                               L.peek('save_available'), L.peek('active_game')])
+        assert switched.mem(L['save_available'], 1) == b'\0'
+        assert switched.mem(L['active_game'], 1) == b'\0'
         # Enter a real fight and guard before saving: resuming must not reset
         # the player's focus or the orc's announced heavy attack.
         combat_disk = work / 'combat.dsk'

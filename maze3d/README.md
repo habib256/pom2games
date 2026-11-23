@@ -141,7 +141,7 @@ configuration menu without losing the typed digits. Incomplete seeds and `0000` 
 zero would lock the random generator. Editing does not change the seed.
 The same seed reproduces the initial floor; later floors and combat rolls
 also depend on the actions taken during play. On victory the score is 100, plus 10 per cache found
-and 5 per level gained, minus one point per four moves. A new record is
+and 5 times the final player level, minus one point per four moves. A new record is
 written to `MAZESCORE` on the disk; a write-protected disk still plays but
 keeps no new record. The title screen shows the best score, the victory
 screen shows score, best and seed.

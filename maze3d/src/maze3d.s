@@ -364,7 +364,10 @@ round_gold: .res 1
 narrator_buffer: .res 32
 narrator_bits: .res 1
 narrator_left: .res 1
-stick_last: .res 1
+floor_seed: .res 2
+placement_tries: .res 1
+placement_batches: .res 1
+p_turns_hi: .res 1
 .code
 
 ; =============================================
@@ -394,7 +397,9 @@ main:
         STA preferences_dirty
         STA active_game
         STA combat_resuming
-        STA stick_last
+        STA stick_key_last
+        STA stick_key_btn
+        STA stick_key_btn+1
         STA quit_flag
         STA view_mode
         ; MUST zero before the first render: color_reset_last reads
@@ -473,7 +478,8 @@ main_loop:
         JMP main_loop
 @new:   CMP #$D2                ; R: replay the best run's maze seed
         BNE @seed_ready
-        LDA SCORE_BASE+4
+        LDA SCORE_BASE+5
+        ORA SCORE_BASE+6
         BEQ @seed_ready
         LDA SCORE_BASE+5
         STA prng_lo
@@ -528,6 +534,7 @@ new_game:
         STA p_gold
         STA p_chests
         STA p_turns
+        STA p_turns_hi
         LDA #1
         STA p_potions
         LDA #10
@@ -539,9 +546,31 @@ new_game:
 
 ; Generate a fresh floor while preserving the hero's stats and gold.
 start_floor:
+        LDA prng_lo
+        STA floor_seed
+        LDA prng_hi
+        STA floor_seed+1
+@generate:
+        LDA #0
+        STA placement_tries
+        LDA #16
+        STA placement_batches
         JSR generate_maze
         JSR decorate_maze
+        BCS @retry
         JSR place_mobs
+        BCC @placed
+@retry: ; A short PRNG cycle can repeat rejected placements forever.
+        INC floor_seed
+        BNE @reseed
+        INC floor_seed+1
+@reseed:
+        LDA floor_seed
+        STA prng_lo
+        LDA floor_seed+1
+        STA prng_hi
+        JMP @generate
+@placed:
         LDA #0
         STA p_col
         STA p_row
@@ -563,8 +592,7 @@ start_floor:
         STA view_mode
         STA last_mob_depth      ; fresh maze: nothing coloured yet
         JSR fill_color_white    ; wipe the title screen's colours
-        LDA #HUD_BOTH
-        STA hud_dirty           ; first 3D frame must build the HUD
+        JSR hush_narrator       ; clear shop feedback and rebuild both HUDs
         LDA #ST_PLAY3D
         STA gstate
         RTS
@@ -752,20 +780,38 @@ score_finish:
         STA score_run
         DEX
         JMP @level_loop
-@turns: LDA p_turns
-        LSR
-        LSR
+@turns: LDA p_turns_hi
+        CMP #4
+        BCS @zero
+        STA tmp
+        LDA p_turns
+        LSR tmp
+        ROR
+        LSR tmp
+        ROR
         STA tmp
         LDA score_run
         SEC
         SBC tmp
         BCS @score_ok
-        LDA #0
+@zero:  LDA #0
 @score_ok:
         STA score_run
         CMP SCORE_BASE+4
         BCC @done
-        BEQ @done
+        BNE @record
+        LDA SCORE_BASE+5        ; an empty record has no seed, even at score zero
+        ORA SCORE_BASE+6
+        BNE @done
+@record:
+        LDX #0
+@backup:
+        LDA SCORE_BASE+4,X
+        PHA
+        INX
+        CPX #4
+        BNE @backup
+        LDA score_run
         STA SCORE_BASE+4
         LDA p_seed_lo
         STA SCORE_BASE+5
@@ -780,6 +826,13 @@ score_finish:
         LDA #<str_score_save
         LDY #>str_score_save
         JSR save_file
+        LDX #3
+@restore:
+        PLA
+        BCC @next               ; keep the new record only after a successful write
+        STA SCORE_BASE+4,X
+@next:  DEX
+        BPL @restore
 @done:  RTS
 
 score_initial:
@@ -1015,10 +1068,12 @@ try_move:
         BEQ @blocked
         DEC p_col
 @arrive:
-        LDA p_turns
-        CMP #$FF
-        BEQ @turn_counted
+        LDA p_turns_hi
+        CMP #4                  ; 1024 moves already exhaust any possible score
+        BCS @turn_counted
         INC p_turns
+        BNE @turn_counted
+        INC p_turns_hi
 @turn_counted:
         LDX p_col
         LDY p_row
@@ -1173,7 +1228,11 @@ find_mob_here:
 ; =============================================
 place_mobs:
         LDX #0
-@lp:    JSR random
+@lp:    JSR placement_attempt
+        BNE @pick
+        SEC
+        RTS
+@pick:  JSR random
         ; pick column 1..NCOLS-1
         AND #$0F
         CMP #NCOLS
@@ -1291,6 +1350,7 @@ place_mobs:
         BEQ @done
         JMP @lp
 @done:
+        CLC
         RTS
 @retry:
         ; reroll without advancing X
@@ -1492,6 +1552,8 @@ decorate_maze:
         LDA #3
         STA num_dirs
 @extra:
+        JSR placement_attempt
+        BEQ @exhausted
         JSR random
         AND #$0F
         CMP #(NCOLS-1)
@@ -1517,6 +1579,8 @@ decorate_maze:
         LDA #3
         STA num_dirs
 @cache:
+        JSR placement_attempt
+        BEQ @exhausted
         JSR random
         AND #$7F
         BEQ @cache
@@ -1531,7 +1595,19 @@ decorate_maze:
         STA grid,X
         DEC num_dirs
         BNE @cache
+        CLC
         RTS
+@exhausted:
+        SEC
+        RTS
+
+; Z set after 4096 candidates. Even very uneven working seeds can take
+; hundreds of attempts, so allow them to finish on their original sequence.
+placement_attempt:
+        INC placement_tries
+        BNE @done
+        DEC placement_batches
+@done:  RTS
 
 ; =============================================
 ; random: 16-bit Galois LFSR
@@ -1578,7 +1654,7 @@ wait_key:
         BIT KBDSTRB
         JSR key_fold
         CMP #KEY_ESC
-        BNE @entropy
+        BNE mix_key_entropy
         JSR configuration_menu
         LDA quit_flag
         BNE @quit
@@ -1587,30 +1663,20 @@ wait_key:
         RTS
 @stick: JSR joystick_key
         BEQ @spin
-@entropy:
+mix_key_entropy:
         PHA
         EOR prng_lo
         STA prng_lo
-        PLA
+        ORA prng_hi
+        BNE @done
+        INC prng_lo             ; zero is a fixed point and invalid in checkpoints
+@done:  PLA
         RTS
 
 ; Convert a new stick direction or button to the context's keyboard action.
 ; A held input produces only one event. Neutral rearms the same direction.
 joystick_key:
-        JSR read_stick
-        JSR stick_dir
-        LDX BUTN1
-        BPL @button0
-        LDA #6
-@button0:
-        LDX BUTN0
-        BPL @sample
-        LDA #5
-@sample:
-        CMP stick_last
-        BEQ @none
-        STA stick_last
-        TAX
+        JSR stick_key           ; independent direction and button edges, X = event
         BEQ @none
         LDA gstate
         CMP #ST_COMBAT
@@ -1620,8 +1686,7 @@ joystick_key:
 @combat:
         LDA stick_combat_keys-1,X
         RTS
-@none:  LDA #0
-        RTS
+@none:  RTS
 
 stick_explore_keys:
         .byte KEY_FWD, KEY_BACK, KEY_LEFT, KEY_RIGHT, KEY_M, KEY_P
@@ -1636,18 +1701,12 @@ wait_key_real:
         BIT KBDSTRB
         JSR key_fold
         CMP #KEY_ESC
-        BNE @entropy
+        BNE mix_key_entropy
         JSR configuration_menu
         LDA quit_flag
         BNE @quit
         JMP wait_key_real
 @quit:  LDA #KEY_ESC
-        RTS
-@entropy:
-        PHA
-        EOR prng_lo
-        STA prng_lo
-        PLA
         RTS
 
 ; key_fold: Apple II keyboard -> the Apple-1 key codes the game compares
@@ -4495,7 +4554,7 @@ str_profile: .byte "PROFILE",0
 str_saved: .byte "SAVED",0
 str_empty_save: .byte "EMPTY",0
 str_profile_keys: .byte "C CONTINUE  N NEW  1-3 PROFILE",0
-str_profile_new: .byte  "RETURN NEW GAME  1-3 PROFILE ",0
+str_profile_new: .byte  " RETURN NEW GAME  1-3 PROFILE ",0
 str_title_load: .byte "MAZETITLE",0       ; binary files: fm_bload at their address
 str_text_load: .byte "MAZETEXT",0
 str_disk_error: .byte "CANNOT READ THE DISK.",13,"CHECK IT, THEN PRESS A KEY.",0

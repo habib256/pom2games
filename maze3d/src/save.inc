@@ -89,7 +89,34 @@ profile_load:
         STA save_name+8
         LDA #<save_name
         LDY #>save_name
-        JSR fm_bload
+        LDX #FM_MUST_EXIST
+        JSR fm_open
+        BCS @invalid
+        LDA #4
+        STA fm_len
+        LDA #0
+        STA fm_len+1
+        LDA #<fm_hdr
+        LDY #>fm_hdr
+        JSR fm_read
+        BCS @reject_file
+        LDX #3
+@header:
+        LDA fm_hdr,X
+        CMP checkpoint_header,X
+        BNE @reject_file
+        DEX
+        BPL @header
+        LDA #<$100
+        STA fm_len
+        LDA #>$100
+        STA fm_len+1
+        LDA #<grid
+        LDY #>grid
+        JSR fm_read
+        BCS @reject_file
+        JSR fm_close
+        BCS @invalid
         LDA SAVE_MAGIC
         CMP #'M'
         BNE @invalid
@@ -105,6 +132,8 @@ profile_load:
         JSR checkpoint_sum
         BNE @invalid
         JMP @validate
+@reject_file:
+        JMP fm_close
 @invalid:
         RTS
 @validate:
@@ -131,9 +160,6 @@ profile_load:
         BCC @done
         CMP #ST_COMBAT+1
         BCS @done
-        LDA SAVE_PRNG
-        ORA SAVE_PRNG+1
-        BEQ @done
         LDX #NUM_MOBS-1
 @mobs:  LDA mob_col,X
         CMP #NCOLS
@@ -175,9 +201,14 @@ resume_game:
         STA prng_lo
         LDA SAVE_PRNG+1
         STA prng_hi
+        ORA prng_lo
+        BNE @rng_ready
+        INC prng_lo             ; older games could save zero after a key press
+@rng_ready:
+        LDA quit_flag           ; legacy saves always stored zero here
+        STA p_turns_hi
         LDA #0
         STA quit_flag
-        LDA #0
         STA combat_resuming
         LDA gstate
         CMP #ST_COMBAT
@@ -224,7 +255,7 @@ manual_save:
         STA SAVE_PLAYER,X
         DEX
         BPL @player
-        LDA #0
+        LDA p_turns_hi          ; quit_flag is transient and reset on resume
         STA SAVE_PLAYER+(quit_flag-p_col)
         LDA prng_lo
         STA SAVE_PRNG
@@ -301,5 +332,6 @@ checkpoint_sum:
         RTS
 
 save_name:     .byte "MAZESAVE1",0
+checkpoint_header: .word grid, $100
 prefs_name:    .byte "MAZEPREFS",0
 str_resumed:   .byte "YOUR JOURNEY CONTINUES",0

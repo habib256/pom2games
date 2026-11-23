@@ -83,6 +83,11 @@ def feedback():
                            emulator=a2test.A2SHOT)
         assert expected in row(title, 22), row(title, 22)
 
+    switched = a2test.run(DISK, [L.until('title_footer'), L.poke('save_available', 1),
+                                 'wait:60', 'key:2', 'wait:700'] + DUMP,
+                          emulator=a2test.A2RUN, wp=True)
+    assert row(switched, 22).strip() == 'RETURN NEW GAME  1-3 PROFILE', row(switched, 22)
+
     for prefix, expected in (([L.poke('p_relic', 1)], 'REACH STAIRS'),
                              ([L.poke('p_relic', 1), L.poke('p_floor', 3)], 'SLAY DRAGON'),
                              ([L.poke('p_relic', 1), L.poke('p_floor', 3), 'poke:10b7:ff'], 'REACH STAIRS')):
@@ -139,6 +144,9 @@ def feedback():
                                   ([L.poke('p_potions', 9)], 'P', 'POTION BAG FULL')):
         r = run(shop + prefix + ['key:' + key, 'wait:60'] + DUMP)
         assert expected in row(r, 22), row(r, 22)
+    descended = run(shop + ['key:A', 'wait:60', 'key:C', 'wait:60'] + DUMP)
+    assert 'F2 E' in row(descended, 1)
+    assert not row(descended, 23).strip(), row(descended, 23)
     # Purchase effects are visible without leaving the shop or opening help.
     r = run(shop + [L.poke('p_gold', 24), 'key:A', 'wait:60', 'key:D', 'wait:60']
             + DUMP + [L.peek('p_atk'), L.peek('p_def')])
