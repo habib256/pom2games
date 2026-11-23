@@ -154,13 +154,12 @@ for index, value in enumerate((4, 3, 2, 1, 0, 4)):
     if 1 <= index <= 4:
         assert r.mem(L['lives'], 1, index-1) == bytes([value])
     expected_header = bytearray(8192)
-    for text, left in [('LIGHT3D L  LIVES:', 7), ('1', 77), (str(value), 135)]:
-        for position, char in enumerate(text):
-            glyph = font[(ord(char)-32)*8:(ord(char)-31)*8]
-            for y, bits in enumerate(glyph):
-                for x in range(7):
-                    if bits & (1 << x):
-                        paint(expected_header, left+position*8+x, 160+y, True)
+    for position, char in enumerate(f'LIGHT3D L1 LIVES:{value}'):
+        glyph = font[(ord(char)-32)*8:(ord(char)-31)*8]
+        for y, bits in enumerate(glyph):
+            for x in range(7):
+                if bits & (1 << x):
+                    paint(expected_header, 7+position*8+x, 160+y, True)
     for x in range(184, 249):
         paint(expected_header, x, 165, True)
     for y in range(160, 163):

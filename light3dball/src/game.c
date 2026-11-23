@@ -51,15 +51,14 @@ unsigned char aperture_l, aperture_r;
 extern void __fastcall__ load_level(unsigned char number);
 extern void __fastcall__ opening(unsigned char slot);
 
-static unsigned char quit, mouse_old, page_door[2], page_hud[2];
+static unsigned char mouse_old, page_door[2], page_hud[2];
+static unsigned char last_mouse_x, last_mouse_y;
 static unsigned page_camera[2];
 static unsigned char keyboard_advance;
 static unsigned char dirty_hud;
 static unsigned char hud_status;
 static unsigned char sound_period, muted;
-static char lives_text[2]={'4',0};
-static char level_text[2]={'1',0};
-static const char level_title[]="LIGHT3D L  LIVES:";
+static char level_title[]="LIGHT3D L1 LIVES:4";
 extern void __fastcall__ game_sound(unsigned char period);
 extern void step_xy(void);
 extern unsigned char paddle_contact(void);
@@ -108,22 +107,36 @@ static void position_waiting_ball(void)
  * touches launched, and controls cannot recapture a ball that is in flight. */
 static void prepare_ball(void)
 {
-    launched=0; advancing=0; keyboard_advance=0;
+    launched=0; advancing=0; keyboard_advance=0; blocked=0;
     position_waiting_ball();
     vel_x=0; vel_y=0; vel_z=1;
 }
 
+/* Within ten units of a panel the serve position (camera + 8) already
+ * reaches its near face. Check the launch path before starting flight. */
+static unsigned char serve_blocked(void)
+{
+    if ((camera_z&127)<118) return 0;
+    opening(camera_z>>7);
+    if (paddle_x<aperture_l+2) return 2;
+    if (paddle_x>aperture_r-2) return 1;
+    return 0;
+}
+
 static void serve(void)
 {
-    if (!launched) { position_waiting_ball(); launched=1; sound_period=64; }
+    if (launched || serve_blocked()) return;
+    position_waiting_ball();
+    blocked=0; launched=1; sound_period=64;
 }
 
 static void reset(void)
 {
     load_level(level);
     end_contact=level_length-2; camera_limit=level_length-32;
+    last_mouse_x=last_mouse_y=255;
     camera_z=0; paddle_x=64; paddle_y=64; lives=4;
-    paused=0; won=0; quit=0; ticks=0; door_phase=0;
+    paused=0; won=0; ticks=0; door_phase=0;
     frame_count=0; hits=0; wall_hits=0; blocked=0;
     page_camera[0]=page_camera[1]=0xFFFFu;
     page_door[0]=page_door[1]=255;
@@ -132,12 +145,12 @@ static void reset(void)
     prepare_ball();
 }
 
-static void input(void)
+static unsigned char input(void)
 {
     unsigned char k=apple2_readkey();
     if (k>='a' && k<='z') k-=32;
+    if (k==KC_ESC || k=='Q') return 0;
     if (k>='1' && k<='5') { level=k-'1'; reset(); }
-    if (k==KC_ESC || k=='Q') quit=1;
     if (k=='R') { if (won && level==4) level=0; reset(); }
     if (k=='P') { paused=!paused; ++dirty_hud; }
     if (k=='M') muted=!muted;
@@ -147,28 +160,27 @@ static void input(void)
     if (won && level<4 && (k==KC_RET || k==' ' ||
         ((mouse_buttons&128) && !(mouse_old&128)))) { ++level; reset(); }
     if (!paused && !won && lives) {
-        if ((k=='J' || k==KC_LEFT) && paddle_x>10) paddle_x-=3;
-        if ((k=='L' || k==KC_RIGHT) && paddle_x<117) paddle_x+=3;
-        if ((k=='I' || k==KC_UP) && paddle_y>12) paddle_y-=4;
-        if ((k=='K' || k==KC_DOWN) && paddle_y<115) paddle_y+=4;
-        if (k==' ' && launched) { keyboard_advance=!keyboard_advance; advancing=keyboard_advance; }
         if (mouse_enabled) {
-            paddle_x=mouse_map_x[mouse_x];
-            paddle_y=mouse_map_y[mouse_y];
-            if ((mouse_buttons & 128) && !(mouse_old & 128)) {
-                serve();
-            }
-            if (launched && advancing!=((mouse_buttons & 128)!=0)) {
-                advancing=(mouse_buttons & 128)!=0;
-            }
+            /* An idle mouse must leave keyboard movement on each axis intact. */
+            if (mouse_x!=last_mouse_x) paddle_x=mouse_map_x[mouse_x];
+            if (mouse_y!=last_mouse_y) paddle_y=mouse_map_y[mouse_y];
+            last_mouse_x=mouse_x; last_mouse_y=mouse_y;
         }
+        if (k=='J' || k==KC_LEFT) paddle_x-=3;
+        if (k=='L' || k==KC_RIGHT) paddle_x+=3;
+        if (k=='I' || k==KC_UP) paddle_y-=4;
+        if (k=='K' || k==KC_DOWN) paddle_y+=4;
         if (paddle_x<8) paddle_x=8;
         if (paddle_x>120) paddle_x=120;
         if (paddle_y<12) paddle_y=12;
         if (paddle_y>116) paddle_y=116;
+        if (k==' ' && launched) keyboard_advance=!keyboard_advance;
+        if (mouse_enabled && (mouse_buttons&128) && !(mouse_old&128)) serve();
+        advancing=keyboard_advance || (launched && mouse_enabled && (mouse_buttons & 128));
         if (k==KC_RET || (k==' ' && !launched)) serve();
     }
     if (mouse_enabled) mouse_old=mouse_buttons;
+    return 1;
 }
 
 void physics(void)
@@ -179,7 +191,7 @@ void physics(void)
     ++ticks;
     /* Door changes every eight simulation ticks, independent of page parity. */
     door_phase=(ticks>>3)&31;
-    if (!launched) { position_waiting_ball(); return; }
+    if (!launched) { position_waiting_ball(); blocked=serve_blocked(); return; }
     old_wall_hits=wall_hits;
     for (step=0; step<4; ++step) {
         step_xy();
@@ -357,17 +369,15 @@ static void sprite(unsigned char pg, unsigned char id, unsigned char x,
 
 static void hud(unsigned char pg)
 {
-    unsigned char status=won ? 5 : !lives ? 4 : paused ? 3 : !launched ? 0 :
-        blocked ? blocked+8 : 1;
+    unsigned char status=won ? 5 : !lives ? 4 : paused ? 3 : blocked ? blocked+8 :
+        !launched ? 0 : 1;
     if (hud_status!=status) { hud_status=status; ++dirty_hud; }
     if (page_hud[pg]==dirty_hud) return;
     if (!pg) hud_rows();
     hgr_fill_rect(160,32,0,40,0);
+    level_title[9]='1'+level;
+    level_title[17]='0'+lives;
     hgr_puts8(7,160,level_title);
-    level_text[0]='1'+level;
-    hgr_puts8(77,160,level_text);
-    lives_text[0]='0'+lives;
-    hgr_puts8(135,160,lives_text);
     hgr_puts8(7,170,status==5 ? (level<4 ? "TARGET HIT! CLICK/RETURN" : "FINAL CLEAR! R:NEW GAME") : status==4 ? "GAME OVER  R:RESTART" :
         status==3 ? "PAUSED  P:RESUME" : status==0 ?
         (mouse_enabled ? "CLICK:SERVE  MOVE MOUSE" : "RETURN:SERVE  IJKL:MOVE") :
@@ -437,6 +447,7 @@ void main(void)
     unsigned char i;
     /* Before hgr_init: the AppleMouse INITMOUSE firmware selects TEXT and LORES. */
     mouse_enabled=mouse_init();
+    mouse_old=mouse_buttons;
     hgr_init();
     hgr_build_tables(); /* Native wireframe renderer reads the shared X tables. */
     /* Leaves _hgr_rowhi on page 2 for good: select_page relies on it. */
@@ -444,6 +455,6 @@ void main(void)
     a2_frame_init(); a2_frame_set_delay(1);
     old_shape[0][0]=old_shape[0][1]=old_shape[1][0]=old_shape[1][1]=0;
     draw_page=2; reset();
-    while (!quit) { input(); physics(); render(); }
+    while (input()) { physics(); render(); }
     mouse_close(); hgr_text_restore();
 }

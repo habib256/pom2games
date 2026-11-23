@@ -155,6 +155,19 @@ z, vz, hits = scenario(base + [('ball_z', 126, True), ('vel_z', -1, False),
                        [('ball_z', True), ('vel_z', False), ('wall_hits', False)])
 assert z == 122 and vz == 255 and hits == 0, ('repeated contact', z, vz, hits)
 
+# After a miss near a wall, serving must not place the ball through the panel.
+for plane, cases in [(128, ((46, 0), (47, 1), (100, 1))),
+                     (256, ((81, 2), (82, 0)))]:
+    for camera in range(plane-10, plane, 2):
+        for x, hint in cases:
+            steps = ['wait:1100', L.until('frame_mark')]
+            steps += setv('camera_z', camera, True) + setv('paddle_x', x)
+            steps += ['key:\\r', L.until('physics'), L.until('frame_mark'),
+                      L.peek('launched'), L.peek('blocked')]
+            r = checked_run(DISK, steps)
+            assert (r.mem(L['launched'], 1)[0], r.mem(L['blocked'], 1)[0]) == \
+                (int(hint == 0), hint), ('serve at panel', camera, x, hint)
+
 # The camera cannot push the paddle through a solid barrier.
 camera, blocked = scenario(base + [('camera_z', 118, True), ('ball_z', 160, True),
                                   ('vel_z', 1, False), ('advancing', 1, False),
@@ -247,6 +260,40 @@ cam0 = int.from_bytes(r.mem(L['camera_z'], 2, 0), 'little')
 cam1 = int.from_bytes(r.mem(L['camera_z'], 2, 1), 'little')
 assert cam1-cam0 == 2, ('mouse advance speed', cam0, cam1)
 assert r.mem(L['lives'], 1) == b'\x04'
+
+# A button already down at mouse initialization is not a new click.
+steps = [L.until('mouse_init')] + a2test.pokes(L['mouse_init'], [0xA9, 1, 0xA2, 0, 0x60])
+steps += [f'poke:{L["mouse_poll"]:04X}:60', L.poke('mouse_x', 70), L.poke('mouse_y', 96)]
+for button in (128, 0, 128):
+    steps += [L.poke('mouse_buttons', button), L.until('physics'), L.until('frame_mark'),
+              L.peek('launched')]
+r = checked_run(DISK, steps)
+assert [r.mem(L['launched'], 1, i)[0] for i in range(3)] == [0, 0, 1]
+
+# Both devices can steer. A stationary mouse axis leaves keyboard input in place.
+steps = ['wait:1100', L.until('frame_mark'), L.poke('mouse_enabled', 1),
+         f'poke:{L["mouse_poll"]:04X}:60', L.poke('mouse_x', 70), L.poke('mouse_y', 96)]
+for inputs in ([], ['key:J'], ['key:I'], [], [L.poke('mouse_y', 191)],
+               [L.poke('mouse_x', 0)], ['key:J'], [L.poke('mouse_x', 137)], ['key:L']):
+    steps += inputs + [L.until('physics'), L.until('frame_mark'), L.peek('paddle_x'),
+                       L.peek('paddle_y')]
+r = checked_run(DISK, steps)
+positions = [(r.mem(L['paddle_x'], 1, i)[0], r.mem(L['paddle_y'], 1, i)[0]) for i in range(9)]
+assert positions == [(64, 64), (61, 64), (61, 60), (61, 60), (61, 116),
+                     (8, 116), (8, 116), (118, 116), (120, 116)], positions
+
+# Space toggles camera movement even when an AppleMouse is present and idle.
+steps = ['wait:1100', L.until('frame_mark'), L.poke('mouse_enabled', 1),
+         f'poke:{L["mouse_poll"]:04X}:60', L.poke('mouse_buttons', 0),
+         'key:\\r', L.until('physics'), L.until('frame_mark')]
+for key in ('key: ', None, 'key: ', None):
+    if key:
+        steps.append(key)
+    steps += [L.until('physics'), L.until('frame_mark'), L.peek('camera_z', 2)]
+r = checked_run(DISK, steps)
+positions = [int.from_bytes(r.mem(L['camera_z'], 2, i), 'little') for i in range(4)]
+assert positions[0] > 0 and positions[1:] == [positions[0] + 2] * 3, \
+    ('Space with idle mouse', positions)
 
 # Repeated paddle contacts keep the ball free, including fresh clicks. Moving
 # the mouse and pressing Return after a contact must not move/re-serve it.

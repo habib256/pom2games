@@ -58,6 +58,8 @@ par un obstacle. Sans vie restante, ce repère disparaît.
 Lorsqu'une ouverture bloque la raquette, `MOVE LEFT` ou `MOVE RIGHT` indique
 le déplacement nécessaire. Un service utilise la position actuelle de la
 raquette, y compris lorsqu'on déplace la souris et clique dans la même image.
+Après un raté au ras d’un panneau, le message indique de quel côté
+placer la balle pour pouvoir servir dans l’ouverture.
 
 Le joueur avance seulement si la balle est suffisamment devant lui et si
 la raquette passe entièrement dans l'ouverture. Les ouvertures mesurent au

@@ -121,6 +121,15 @@ for index in range(5):
         assert r.mem(L['camera_z'],2,index) == b'\0\0'
 assert r.mem(L['won'],1,5) == b'\0' and r.mem(L['level'],1,9) == b'\0'
 
+# A click to continue on the victory screen must yield to either DOS exit key.
+for exit_key in ('Q', '\\e'):
+    steps = ['wait:1100', L.until('frame_mark'), L.poke('won',1),
+             L.poke('mouse_enabled',1), L.poke('mouse_poll',0x60),
+             L.poke('mouse_buttons',128), f'key:{exit_key}', 'wait:30', L.peek('level'), 'text']
+    result = a2test.run(DISK, steps)
+    assert result.mem(L['level'],1) == b'\0', ('advanced while quitting', exit_key)
+    assert any('|]' in screen for screen in result.text_screens()), ('exit on victory', exit_key)
+
 # Complete all five levels by steering only simulated mouse input. The
 # production ball, lives, obstacles, timing and win conditions stay intact.
 with tempfile.TemporaryDirectory(prefix='light3d-pilot-') as tmp:
