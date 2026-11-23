@@ -192,6 +192,33 @@ def editing(disk):
     print('  One, two and three backspaces remove only the last digit; unit entry and ESC remain usable OK')
 
 
+def spinner_units(disk):
+    with a2test.Session(disk) as s:
+        s.step(IDLE)
+        for typed, arrow, expected, minutes in (
+                ('5 MIN', r'\^', '6 MIN', 6),
+                ('2 H', r'\v', '1 H', 60)):
+            elapsed = fp(s.step(L.peek('s_elap', 5)).data)
+            s.step('key:REST')
+            s.step(r'press:\r')
+            s.step(L.until('keyboard_wait', 20000))
+            s.step(f'key:{typed}{arrow}')
+            assert f'> {expected}' in screen(s), screen(s)
+            s.step(r'press:\r')
+            s.step(IDLE)
+            spent = (fp(s.step(L.peek('s_elap', 5)).data) - elapsed) * 60
+            assert abs(spent - minutes) < 1e-6, (typed, spent)
+        water = s.step(L.peek('it_pack_lo', 1, 22)).data[0]
+        s.step('key:DRINK WATER')
+        s.step(r'press:\r')
+        s.step(NUMBER)
+        s.step(r'key:3 OZ\^')
+        assert '> 4 OZ' in screen(s), screen(s)
+        s.step(r'press:\r')
+        s.step(IDLE)
+        assert s.step(L.peek('it_pack_lo', 1, 22)).data[0] == water - 4
+
+
 def interrupted(m, swimming=False, button=False):
     if swimming:
         m=bytearray(m)
@@ -225,6 +252,7 @@ def main():
         durations(disk)
         nature_inline(disk)
         editing(disk)
+        spinner_units(disk)
     interrupted(m)
     interrupted(m,True)
     print('Neowilderness input lot 1: OK')

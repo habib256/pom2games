@@ -53,6 +53,7 @@ do_save:
 ; do_save_view -- (module_save, tail) a game was restored: its view, then
 ; "GAME n RESTORED." (resident: show_view may load modules).
 do_save_view:
+        jsr     load_totals     ; travel uses the weight of the restored inventory
         jsr     show_view
         lda     sl_slot
         sta     msgnum
@@ -299,6 +300,12 @@ sv_restore:
         bcs     sv_fail
         jsr     sv_close_file
         bcs     sv_error
+        lda     sv_read+6       ; ProDOS can return success for a short read
+        cmp     sv_read+4
+        bne     @damaged
+        lda     sv_read+7
+        cmp     sv_read+5
+        bne     @damaged
         jsr     sv_taken
         beq     :+
         lda     #<sv_m_empty

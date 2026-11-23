@@ -35,12 +35,12 @@
 ; Keys. The read cannot be interrupted inside a block (the first one takes
 ; up to 1 s on a 5.25-inch disk: motor and seek; 0.01 s on a 3.5-inch one)
 ; and the keyboard latch keeps one key: the read starts only after a quiet
-; keyboard (FIRE_SOON, about 1 s, after a prompt; 1.4 to 2.4 s after a
+; keyboard (FIRE_SOON, about 1 s, after a prompt; 1 to 2 s after a
 ; key), and a key waiting between two blocks cuts it (disk_fetch, df_kbd):
 ; the key is read, the fire comes back after the next quiet spell.
 ;
 ; Resident: fire_tick, fire_hide, fire_dly, fire_st and in menu.s
-; fire_idle, STA fire_dly+1 at each key and two JSR fire_hide (MENUCODE);
+; fire_idle, STX fire_dly+1 at each key and two JSR fire_hide (MENUCODE);
 ; fire_light, fire_fetch and sim_fetch (forage.s) in WILDGAME; the fire's
 ; place and bearing in GDATA (saved).
 ; ============================================================================
@@ -48,15 +48,16 @@ RDTEXT      = $C01A             ; bit 7: text shown (no view on screen)
 FIRE_DIR    = 18                ; directory entry (the alias of 17 is
                                 ; overlay_load's, which never fetches 18)
 FIRE_RUN    = $9600             ; the module's jump table
-FIRE_PERIOD = 14                ; frames: 14 x 256 idle turns (about 5 Hz)
-FIRE_SOON   = 96                ; the read: 96 x 256 idle turns after the
+FIRE_PERIOD = 5                 ; groups of 256 polls with game-port input
+FIRE_TYPING = 7                 ; the shorter keyboard-only poll
+FIRE_SOON   = 32                ; groups of 256 idle turns after the
                                 ; prompt (about 1 s of quiet keyboard)
 FB_BG       = $9D00             ; saved background, row * 20 + k (640 bytes)
 
 .segment "MENUCODE"
 ; fire_tick -- menu.s fire_idle: one turn of the idle loop, no key waiting.
 ; The fire appears after fire_dly turns of 256 without a key (FIRE_SOON at
-; a prompt; a key sets the count to its code, 128 to 218: about 1.4 to 2.4
+; a prompt; a keyboard or game-port event sets the count to 64: about 1 to 2
 ; s), so that the read of the module never meets a key typed in a burst.
 fire_tick:
         lda     fire_st
@@ -181,10 +182,10 @@ fm_show:
         lda     #0
         sta     fm_frame
         sta     fm_dirty
+        sta     fm_cnt          ; fresh low byte for the first interval
         sta     fm_vis
         inc     fire_st         ; the module is in its window, drawn or not
-        lda     #FIRE_PERIOD
-        sta     fm_cnt+1
+        jsr     fm_set_period
         jsr     fm_frameptr
         ; d = fire_bear - heading, 0..559; in view when ang = d (d < 280)
         ; or d - 560 is in -83..83. A = L = first column + 35 = 91 + ang.
@@ -306,6 +307,19 @@ fm_show:
         lda     #FIRE_ROWS
         jmp     fm_rows
 
+; Match the two idle paths in ui_prompt_poll.
+fm_set_period:
+        lda     mn_mode
+        bne     @joystick
+        lda     linelen
+        beq     @joystick
+        lda     #FIRE_TYPING
+        bne     @set
+@joystick:
+        lda     #FIRE_PERIOD
+@set:   sta     fm_cnt+1
+        rts
+
 ; fm_tick -- countdown; at its end the next frame, its changed rows only.
 fm_tick:
         bit     fm_vis
@@ -314,8 +328,7 @@ fm_tick:
         bne     fm_rts
         dec     fm_cnt+1
         bne     fm_rts
-        lda     #FIRE_PERIOD
-        sta     fm_cnt+1
+        jsr     fm_set_period
         lda     fm_frame
         clc
         adc     #1

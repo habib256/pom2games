@@ -293,6 +293,7 @@ def remembered_pages():
                 if page == 1:
                     before = snapshot(s)
                     s.step('press:\\v'); s.step(IDLE)
+                    s.step('key:ABC')  # UP replaces a partially typed command
                     s.step('press:\\^'); s.step(READY)
                     assert s.step(L.peek('pg_cur')).data == b'\1'
                     assert s.step(L.peek('pg_focus')).data == b'\0'

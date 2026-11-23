@@ -53,7 +53,7 @@ ROWS, COLS, PAGE_ROWS = 160, 140, 192
 SHEET_X = 14                    # screen x of cell column 0 (centred: 14 + 112 + 14)
 STRIP_X = SHEET_X + GW          # right margin
 QB = 1                          # fraction bits of the vertical position (half cells)
-LEGEND = ('TOPO, NORTH UP. ARROW: YOU             | UP/ESC: VIEW',
+LEGEND = ('TOPO, TRUE N UP. ARROW: YOU            | UP/ESC: VIEW',
           'C CRASH, H CABIN, R RANGERS            | LEFT/RIGHT: THE TEXT MAP',
           'CONTOURS 400 FT, BOLD 2000 FT          |',
           'STRIP: ALTITUDE KFT, BAR 4 MI          |')

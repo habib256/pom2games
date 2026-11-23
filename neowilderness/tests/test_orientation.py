@@ -97,6 +97,28 @@ def main():
     C = a2test.Checker('ORIENTATION', flush=True)
     check = C.check
 
+    with a2test.Session(DISK) as session:
+        session.step(L.until('idle', 20000))
+        session.step(r'key:USE COMPASS\r')
+        session.step(L.until('idle', 20000))
+        heading = session.step(L.peek('heading', 2)).data
+        session.step(r'key:LOOK AZ\r')
+        session.step(L.until('keyboard_wait', 20000))
+        session.step(r'key:90 OZ\r')
+        session.step(L.until('keyboard_wait', 20000))
+        assert session.step(L.peek('heading', 2)).data == heading
+        session.step(r'key:\e')
+        session.step(L.until('idle', 20000))
+        session.step(r'key:USE WATCH\r')
+        session.step(L.until('idle', 20000))
+        session.step(r'key:LOOK N\r')
+        session.step(L.until('keyboard_wait', 20000))
+        session.step('key:N')
+        session.step(L.until('keyboard_wait', 20000))
+        session.step(r'key:\<')
+        session.step(L.until('keyboard_wait', 20000))
+        assert any('> 359' in row for row in text_screen(session.step('peek:0400:1024').data))
+
     # 1. Day at the crash site (7 h, clear): the rule, the watch, the stick.
     script = ['LOOK N\r', 'USE WATCH\r', 'USE COMPASS\r', 'USE WATCH\r', 'USE ALTIMETER\r', 'LOOK AZ\r',
               'LOOK SUN\r', 'LOOK STARS\r', 'USE WATCH\r', 'LOOK E\r', 'N', '30\r', 'LOOK N\r', 'Y',

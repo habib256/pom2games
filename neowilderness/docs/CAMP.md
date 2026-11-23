@@ -444,16 +444,16 @@ octet, chacune avec sa palette de trois couleurs :
 vue affichée (`RDTEXT` = graphique), pas en LOOK UP (`tilt` = 1). Le
 `BPL` de `idle` saute à `fire_idle` (`JSR fire_tick`, `JMP idle`) ; les
 tests qui s'arrêtent à `idle` ou qui y posent des `JSR` sont inchangés.
-Le feu apparaît après `fire_dly` tours de 256 sans touche : 96 (≈ 1 s)
-après chaque invite, et une touche remet le compte à son code (128 à
-218 : ≈ 1,4 à 2,4 s), pour que la lecture du module ne tombe pas au
+Le feu apparaît après `fire_dly` tours de 256 sans touche : 32 (≈ 1 s)
+après chaque invite, et une touche remet le compte à 64 (≈ 1 à 2 s), pour que la lecture du module ne tombe pas au
 milieu d'une frappe. Un bloc lu ne s'interrompt pas (le premier prend
 jusqu'à 1 s sur 5,25 pouces : moteur et déplacement de la tête ; 0,01 s
 sur 3,5 pouces) et le verrou du clavier garde une touche : `disk_fetch`
 regarde le clavier entre deux blocs (`df_kbd`) et s'arrête ; la touche
 est lue, la commande tapée ensuite l'est entière, le feu revient après
 le silence suivant (`test_fire.py`). Ensuite une image toutes les
-`FIRE_PERIOD` = 14 × 256 tours (≈ 4,6 Hz). Pas de VBL
+5 × 256 tours avec lecture du joystick, ou 7 × 256 pendant la saisie
+au clavier (environ 4 à 5 images/s, dessin compris). Pas de VBL
 (le IIc et le IIe ne lisent pas `$C019` de la même façon) : un compteur
 de tours de boucle.
 

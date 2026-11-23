@@ -179,6 +179,7 @@ test-long:
 # The XL suite runs in parallel (dev/tools/run_tests.py, one a2shot per test,
 # longest first from build/test_times.json); TEST_JOBS=1 runs it in sequence.
 XL_TESTS := \
+	'tests/test_fire.py --cadence' \
 	'tests/test_transfers.py' \
 	'tests/test_pack_boot.py' \
 	'tests/test_textbank.py' \
@@ -187,6 +188,7 @@ XL_TESTS := \
 	'tests/test_navigation.py' \
 	'tests/test_menu_bar.py' \
 	'tests/test_route_planning.py' \
+	'tests/test_restore_state.py' \
 	'tests/test_travel_resume.py' \
 	'tests/test_context_actions.py' \
 	'tests/test_primary_context.py' \

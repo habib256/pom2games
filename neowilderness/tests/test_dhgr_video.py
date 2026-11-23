@@ -71,7 +71,7 @@ def main():
         s.step('wait:1')
         s.step(L.until('graphical_topo_key', 20000))
         check(s, TOPO, 'TOPO')
-        assert text_screen(s.step('peek:0400:1024').data)[20].startswith('TOPO, NORTH UP')
+        assert text_screen(s.step('peek:0400:1024').data)[20].startswith('TOPO, TRUE N UP')
         s.step('key:\\r')
         s.step('wait:1')
         s.step(idle)

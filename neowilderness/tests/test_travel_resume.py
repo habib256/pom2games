@@ -43,6 +43,7 @@ def main():
             s.step(L.poke('travel_next_minutes', 0))
             s.step(L.poke('fauna_alert', 1))
             animal = s.step(L.peek('animal_kind')).data
+            health_period = s.step(L.peek('health_period')).data
             s.step('key:SWIM\r')
             s.step(ready)
             s.step('press:\\r')
@@ -54,6 +55,7 @@ def main():
             assert s.step(L.peek('travel_reason')).data == bytes((9,))
             assert s.step(L.peek('fauna_alert')).data == bytes((0,))
             assert s.step(L.peek('animal_kind')).data == animal
+            assert s.step(L.peek('health_period')).data == health_period, health_period
             s.step('key:SWIM\r')
             s.step(ready)
             screen = '\n'.join(text_screen(s.step('peek:0400:1024').data))

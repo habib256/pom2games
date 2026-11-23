@@ -495,14 +495,7 @@ fr_hours:
 @inline_end:
         rts
 @prompted:
-        lda     #<fr_hour_hint
-        ldx     #>fr_hour_hint
-        jsr     message
-@again: jsr     prompt
-        ldx     #0
-        stx     fr_t            ; length
-        stx     fr_min          ; arrow entry is an exact number of minutes
-        stx     fr_min+1
+        jsr     fr_hour_prompt
 @key:   jsr     wait_key
         jsr     kbd_upcase
         cmp     #KC_ESC
@@ -544,8 +537,6 @@ fr_hours:
         bne     :+
         pha
         jsr     fr_hour_prompt
-        ldx     #0
-        stx     fr_t
         pla
 :       ldx     fr_t
         cpx     #8
@@ -595,7 +586,8 @@ fr_hours:
         fop     FADD, fr_r
 @next:  ldx     fr_i
         jmp     @digit
-@beep:  jmp     @again          ; (the original beeps)
+@beep:  jsr     fr_empty_prompt ; (the original beeps)
+        jmp     @key
 @value: lda     fr_u
         cmp     #3
         bcs     @long
@@ -626,12 +618,9 @@ fr_hours:
 @long:  lda     #<ol_long_msg   ; "TOO LONG!"
         ldx     #>ol_long_msg
         jsr     message
-        jmp     @again
+        jmp     @beep
 
-@clear: jsr     fr_hour_prompt
-        lda     #0
-        sta     fr_t
-        jmp     @key
+@clear: jmp     @prompted
 @preset:
         ldx     #0
 @preset_next:
@@ -693,7 +682,13 @@ fr_hour_prompt:
         lda     #<fr_hour_hint
         ldx     #>fr_hour_hint
         jsr     message
-        jmp     prompt
+fr_empty_prompt:
+        jsr     prompt
+        ldx     #0
+        stx     fr_t
+        stx     fr_min          ; a fresh field also resets the minute wheel
+        stx     fr_min+1
+        rts
 fr_hour_hint: .byte "SPECIFY TIME IN HOURS.|RIGHT: 10/20/30/60/120/240/480 MIN.|UP/DOWN: +/-1 MIN. RETURN CONFIRM.",0
 
 ; fr_source -- the pile eaten or cooked: b1 0 ground, 2 pack, 4 msg 71 (P

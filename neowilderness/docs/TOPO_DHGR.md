@@ -185,7 +185,7 @@ reviennent à la vue, gauche ou droite affiche MAP par-dessus la feuille
 (retour à TOPO par `topo_frame` : mode mixte et légende, sans recalcul).
 
 ```
-TOPO, NORTH UP. ARROW: YOU             | UP/ESC: VIEW
+TOPO, TRUE N UP. ARROW: YOU            | UP/ESC: VIEW
 C CRASH, H CABIN, R RANGERS            | LEFT/RIGHT: THE TEXT MAP
 CONTOURS 400 FT, BOLD 2000 FT          |
 STRIP: ALTITUDE KFT, BAR 4 MI          |

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """CATCH durations: arrow-only queue, inline syntax and original hour prompt."""
-from common import L, DISK, DISK140, a2test
+from common import L, DISK, DISK140, a2test, fp
 from test_input import command, snapshot, screen, IDLE
 from test_menu_bar import choose, press, move_to, selected, grid_cells, RET, ESC
 
@@ -59,6 +59,24 @@ def durations(disk):
     print(f'  {disk.name}: CATCH GAME/FISH, 10 MIN to 8 H; grid queue = inline = decimal prompt; ESC atomic: OK')
 
 
+def clear_duration(disk):
+    for erase in (r'\<', r'5\<'):
+        with a2test.Session(disk) as s:
+            setup(s, 'GAME')
+            command(s, 'USE BAIT')
+            command(s, 'USE TRAP')
+            before = fp(s.step(L.peek('s_elap', 5)).data)
+            s.step(r'key:CATCH GAME\r')
+            s.step(L.until('keyboard_wait', 40000))
+            s.step(r'key:\>' + erase + r'\^')
+            prompt = screen(s).splitlines()[-1].split('▏')[0].strip()
+            assert prompt == '> 1', (erase, prompt)
+            s.step(r'press:\r')
+            s.step(IDLE)
+            minutes = 60 * (fp(s.step(L.peek('s_elap', 5)).data) - before)
+            assert abs(minutes - 1) < 1e-6, (erase, minutes)
+
+
 def invalid(disk):
     with a2test.Session(disk) as s:
         setup(s, 'GAME')
@@ -105,5 +123,6 @@ def peek(s, name):
 if __name__ == '__main__':
     for disk in (DISK,):
         durations(disk)
+        clear_duration(disk)
         invalid(disk)
         prerequisites(disk)

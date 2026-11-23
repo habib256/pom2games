@@ -138,6 +138,7 @@ module_number:
         lda     #0
         sta     input_value+1
         sta     linelen
+        sta     input_unit
         sta     dep_running    ; prefill once; RETURN still validates it
         jmp     input_spin_draw
 input_read:
@@ -205,8 +206,8 @@ input_validate:
         ora     input_value+1
         bne     @unit
         lda     input_mode
-        cmp     #3              ; lot 7: azimuth 0 is north, not a cancel
-        beq     @unit
+        cmp     #3              ; forage accepts zero, as do bearings (north)
+        bcs     @unit
         cmp     #0
         bne     input_cancel
 @unit:  lda     input_mode
@@ -217,11 +218,12 @@ input_validate:
         cmp     #3
         bne     input_invalid
         lda     input_mode
-        cmp     #2              ; OZ: quantities, and FORAGE's (mode 3)
-        bcc     input_invalid
+        lsr                     ; modes 2 and 3 accept ounces
+        cmp     #1
+        bne     input_invalid
 @byte:  lda     input_mode
-        cmp     #3             ; azimuth caller validates the complete 0..359 range
-        beq     @accept
+        cmp     #3              ; forage and bearings use the full word
+        bcs     @accept
         lda     input_value+1
         bne     input_invalid
         beq     @accept
@@ -458,6 +460,7 @@ input_spin_start:
         sta     inbuf,x
         sta     input_value
         sta     input_value+1
+        sta     input_unit
         txa
         beq     input_spin_change
         ldx     #0
@@ -512,26 +515,41 @@ input_spin_emit:  tya
         beq     input_spin_next
         tya
 input_spin_put:   ora     #'0'
+        jsr     input_spin_append
+input_spin_next:  dex
+        dex
+        bpl     input_spin_place
+        ; RETURN reparses the displayed line, including its original unit.
+        ldy     input_unit
+        ldx     input_suffix_offset,y
+@suffix:
+        lda     input_suffix,x
+        jeq     input_number_idle
+        jsr     input_spin_append
+        inx
+        bne     @suffix
+
+input_spin_append:
         ldy     linelen
         sta     inbuf,y
         inc     linelen
         ora     #$80
-        jsr     COUT
-input_spin_next:  dex
-        dex
-        bpl     input_spin_place
-        jmp     input_number_idle
+        jmp     COUT
+
+input_suffix_offset:
+        .byte 0, input_hours-input_suffix, input_minutes-input_suffix, input_ounces-input_suffix
+input_suffix:  .byte 0
+input_hours:   .byte " H",0
+input_minutes: .byte " MIN",0
+input_ounces:  .byte " OZ",0
 
 ; Degree dialogs use the same editable number as the keyboard: fine horizontal
 ; steps, ten-degree vertical steps, and circular 0..359 limits. Other callers
 ; (FORAGE also uses input_mode 3) keep their quantity spinner unchanged.
 input_angle_mode:
         lda     input_mode
-        cmp     #3
-        bne     :+
-        lda     noun
-        cmp     #155
-:       rts
+        cmp     #4
+        rts
 input_angle_change:
         lda     input_value
         cmp     #<360

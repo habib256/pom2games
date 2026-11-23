@@ -145,7 +145,8 @@ get_line_body:
         jsr     redraw
 idle:   jsr     ui_prompt_poll         ; keyboard and game-port navigation
         jeq     fire_idle
-        sta     fire_dly+1      ; a key: the fire waits (src/fire.s)
+        ldx     #64             ; quiet interval after any key or joystick event
+        stx     fire_dly+1
         and     #$7F
         jsr     kbd_upcase
         ldx     mn_mode
@@ -187,11 +188,10 @@ prompt_key:
         jmp     idle
 @status:
         dec     pg_open         ; $FF: reopen the last top page (CARE uses 1)
-        lda     #<str_status
-        sta     gp2
-        lda     #>str_status
-        sta     gp2+1
-        jsr     append_str
+        lda     #'S'            ; replace any partial command with the STATUS shortcut
+        sta     inbuf
+        ldx     #1
+        stx     linelen
         jmp     done_typed
 @left:  ldx     linelen
         beq     @turnl

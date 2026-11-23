@@ -1323,17 +1323,11 @@ do_walk:
         and     #$7F
         sta     g1
         jsr     walk_step
+        jmp     @step_ready
+@swim:  jsr     swim_step
+@step_ready:
         bcc     @time
         jmp     @pace
-@swim:  lda     used
-        ora     used+1
-        bne     :+
-        lda     #15             ; T08/S07 $5AEE: first swimming health interval
-        sta     health_period
-:       jsr     swim_step
-        bcc     :+
-        jmp     @pace
-:       jmp     @time
 @time:  jsr     travel_short_budget
         bne     @go
         lda     stepmin
@@ -1341,7 +1335,15 @@ do_walk:
         bcc     @go
         beq     @go
         jmp     @time_end
-@go:    sec
+@go:    ldx     verb
+        cpx     #V_SWIM
+        bne     :+
+        lda     used
+        ora     used+1
+        bne     :+
+        lda     #15             ; first paid swimming step starts the health interval
+        sta     health_period
+:       sec
         lda     minutes
         sbc     stepmin
         sta     minutes

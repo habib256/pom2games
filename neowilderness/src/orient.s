@@ -131,7 +131,7 @@ oa_zero: .byte 'N','E'
 ; replaces ORIENT in $5800, then ORIENT again; returns to orient_ask's caller
 ; in the restored image.
 orient_number:
-        ldy     #3              ; degrees (0 is north)
+        ldy     #4              ; degrees (0 is north)
         cpx     #OA_HOURS
         beq     :+
         cpx     #OA_TIME

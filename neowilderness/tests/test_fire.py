@@ -320,7 +320,7 @@ def burns(disk):
         say(s, 'LOOK AHEAD')
         night = b(s, 'sky_mood') >= G.NIGHT_MOOD
         bare = banks(s)
-        ok = shown(s) and word(s, 'fm_cnt') >> 8 == 14
+        ok = shown(s)
         frames = []
         for _ in range(4):
             frames.append(b(s, 'fm_frame'))
@@ -343,6 +343,30 @@ def burns(disk):
               and b(s, 'fire_on') == 0 and not shown(s, 20) and same_view(banks(s), view))
 
 
+def cadence():
+    with a2test.Session(DISK) as s:
+        s.step(IDLE)
+        say(s, 'USE MATCHES')
+        say(s, 'MAKE FIRE')
+        start = cycles(s.step(IDLE))
+        fetch = cycles(s.step(L.until('disk_fetch', 10000)))
+        quiet = (fetch - start) / MHZ
+        assert .8 <= quiet <= 1.3, ('prompt to fire fetch', quiet)
+        for key in (None, 'A'):
+            if key:
+                s.step('key:' + key)
+            times = []
+            for _ in range(6):
+                times.append(cycles(s.step(L.until('fm_frameptr', 10000))))
+                s.step('wait:1')
+            # The first draw also captures the background. After a key, the
+            # first countdown may still use the previous polling interval.
+            gaps = [(b - a) / MHZ for a, b in zip(times[2:], times[3:])]
+            assert all(.18 <= gap <= .26 for gap in gaps), (key, gaps)
+            print(f'Fire frame intervals (partial command={bool(key)}): {gaps}')
+        print(f'Fire fetch after {quiet:.3f} s of idle time')
+
+
 def main():
     edition(DISK, 'NeoWildernessXL')
     edition(DISK140, 'Neowilderness 140 KB')
@@ -351,4 +375,7 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    if sys.argv[1:] == ['--cadence']:
+        cadence()
+    else:
+        main()
