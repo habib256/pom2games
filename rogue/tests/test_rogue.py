@@ -178,6 +178,37 @@ def main():
         check(p.returncode == 0 and 'NO E-Z COLOR CARD: DHGR' in row0,
               'launcher, //c: chains to ROGUE.DHGR')
 
+    # A command key is acknowledged when read, even if the next page is
+    # still being drawn when the player presses the next key.
+    r = run(BOOT + ['key:S', 'wait:30', L.peek('snd_on'), 'text'] + a2test.VDP_SHOT_STEPS)
+    check(r.dumps[0] == bytes([0]) and 'SOUND: OFF' in screen(r)[22]
+          and b'ROGUE' in r.vram[0x1800:0x1B00], 'S at the title mutes and stays at the title')
+    r = run(BOOT + ['key:XX', 'wait:80'] + a2test.VDP_SHOT_STEPS)
+    check(b'DEPTH 001' in r.vram[0x1A80:0x1AA0], 'quick briefing acknowledgement starts the game')
+
+    # A sword in A. The second key arrives during the bag repaint.
+    sword = START + L.poke('inventory', [1, 0, 1, 2])
+    r = run(sword + ['key:BA', 'wait:40', L.peek('weapon_timer'), L.peek('inventory')] + a2test.VDP_SHOT_STEPS)
+    check(r.dumps[0][0] > 0 and r.dumps[1][0] == 0 and b'DEPTH 001' in r.vram[0x1A80:0x1AA0],
+          'quick B,A uses the sword and closes the bag')
+    r = run(START + ['key:HX', 'wait:40'] + a2test.VDP_SHOT_STEPS)
+    check(b'DEPTH 001' in r.vram[0x1A80:0x1AA0], 'quick H,X closes help')
+    r = run(START + L.poke('inventory', [5, 0, 1, 0])
+            + ['key:B', 'wait:15', 'key:AX', 'wait:40', L.peek('inventory')])
+    check(r.dumps[0][0] == 0, 'quick scroll acknowledgement consumes the scroll')
+
+    quiver = sword + a2test.keys('BA', 40) + [L.poke('dagger_qty', 1), 'key:T', 'wait:15']
+    r = run(quiver + [L.peek('weapon_timer')] + a2test.VDP_SHOT_STEPS)
+    timer = r.dumps[0][0]
+    counters = r.vram[0x1AE0:0x1B00]
+    check(b'DIRECTION?' in r.vram[0x1A80:0x1A9C] and timer > 0
+          and counters[2:4] == f'{timer:02d}'.encode(), 'throw prompt stays clear of active buff icons')
+    r = run(quiver + ['key:X', 'wait:15', L.peek('weapon_timer'), L.peek('dagger_qty')]
+            + a2test.VDP_SHOT_STEPS)
+    check(r.dumps[:2] == [bytes([timer]), bytes([1])] and r.vram[0x1AE0:0x1B00] == counters
+          and b'XP:000' in counters and b'DEPTH 001' in r.vram[0x1A80:0x1AA0],
+          'cancelled throw restores the depth and preserves counters, ammo and turn')
+
     # --- ESC at the title: back to DOS, card picture blanked --------------
     r = run(BOOT + ['key:\x1b', 'wait:60', 'text', 'vregs'])
     check(any(row.startswith('|]') for row in screen(r)) and not r.vregs[1] & 0x40,
@@ -185,7 +216,7 @@ def main():
 
     # --- ESC in play: N stays, Y leaves -----------------------------------
     r = run(START + ['key:\x1b', 'wait:5', 'key:N', 'wait:5', 'key:\x1b', 'wait:5'] + a2test.VDP_SHOT_STEPS)
-    check(b'QUIT TO DOS? Y OR N' in r.vram[0x1AE0:0x1B00] and r.vregs == GAME_REGS,
+    check(b'QUIT TO DOS? Y OR N' in r.vram[0x1A80:0x1A9C] and r.vregs == GAME_REGS,
           'ESC in play: asks, N keeps playing')
     r = run(START + ['key:\x1b', 'key:Y', 'wait:60', 'text'])
     check(any(row.startswith('|]') for row in screen(r)), 'ESC then Y in play: DOS prompt')
@@ -208,9 +239,58 @@ def main():
     check(r.spk[3] == 0, 'sound off (S): the bump is silent')
 
     # --- POM1's hidden B at the title: the demon's room, its sound --------
-    r = run(BOOT + ['key:B', 'wait:30', 'spk', 'key:X', 'wait:120', 'spk'] + a2test.VDP_SHOT_STEPS)
+    boss_room = BOOT + ['key:B', 'wait:30', 'spk', 'key:X', 'wait:120', 'spk']
+    r = run(boss_room + a2test.VDP_SHOT_STEPS)
     check(b'DEPTH 013' in r.vram[0x1A80:0x1AA0] and r.spk[1] > 100 and r.vdp_fast == 0,
           f'B at the title: depth 13, the boss sound ({r.spk[1]} flips)')
+
+    r = run(boss_room + [L.poke('monsters', 6, offset=3), L.peek('hp'), 'key:.',
+                         'wait:60', L.peek('hp'), 'spk'])
+    check(r.dumps[1][0] < r.dumps[0][0] and r.spk[-1] > 0, "the demon's bite sounds")
+
+    # Finish the wounded demon with a northward throw from the arena entrance.
+    r = run(boss_room + [L.poke('monsters', 2, offset=1), L.poke('dagger_qty', 1),
+                         'key:T', 'wait:6', 'key:I', 'wait:120',
+                         L.peek('player_xp'), L.peek('dagger_qty')] + a2test.VDP_SHOT_STEPS)
+    check(r.dumps[:2] == [bytes([1]), bytes([0])] and b'DUNGEON CONQUERED' in r.vram[0x1800:0x1B00],
+          'lethal dagger: consumes the dagger, counts the demon once and wins the game')
+
+    check(r.vram[0x1B00] == 0xD0, 'victory screen hides the arena sprites')
+
+    # The arena supplies an open floor with the hero at (7,8).
+    arena = boss_room + [L.poke('monsters', 0)]
+    r = run(arena + L.poke('inventory', [6, 0, 255, 3]) + L.poke('items', [6, 8, 8, 0])
+            + a2test.keys('L', 20) + [L.peek('inventory', offset=2), L.peek('items')])
+    check(r.dumps == [b'\xff', b'\x06'], 'full ration stack: preserves all 255 and leaves the pickup')
+
+    rest = a2test.keys('.', 20)
+    r = run(arena + [L.poke('hp', 2)] + L.poke('inventory', [3, 0, 1, 1]) + a2test.keys('BA', 60)
+            + (rest + [L.peek('hp')]) * 16)
+    check([d[0] for d in r.dumps] == [3] * 5 + [4] * 5 + [5] * 6,
+          'amulet heals on turns 1, 6 and 11 and expires before turn 16')
+
+    r = run(arena + L.poke('monsters', [1, 3, 6, 8, 0, 0, 4, 0, 4, 3, 8, 8, 0, 0, 1, 0])
+            + [L.poke('hp', 2)] + rest + [L.peek('last_attacker')])
+    check(r.dumps == [b'\x01'], 'two bites: the undead that dealt the lethal hit is the killer')
+
+    r = run(arena + L.poke('inventory', [8, 0, 1, 0]) + a2test.keys('BA', 60)
+            + [L.peek('fov_r'), L.poke('torch_timer', 1)] + rest
+            + [L.peek('torch_timer'), L.peek('fov_r')])
+    check([d[0] for d in r.dumps] == [7, 0, 3], 'torch going out at rest restores normal sight')
+
+    # The next LFSR low byte is seed >> 1 for these even seeds.
+    for seed, drop, death_col in [(8, 6, 4), (2, 0, 5)]:
+        seeded = arena + L.poke('prng_lo', [seed, 0])
+        r = run(seeded + L.poke('monsters', [1, 1, 8, 8]) + a2test.keys('L', 20)
+                + [L.peek('items')])
+        check(r.dumps == [bytes([drop])], f'melee kill: correct ration drop for seed {seed}')
+        r = run(seeded + L.poke('monsters', [5, 3, 4, 8]) + rest
+                + [L.peek('monsters', offset=2)])
+        check(r.dumps == [bytes([death_col])], f'DEATH skips or chases according to seed {seed}')
+
+    r = run(BOOT + ['press:X', L.until('key_xlate')] + L.poke('prng_lo', [ord('X') | 0x80, 0])
+            + [L.until('draw_briefing'), L.peek('prng_lo', 2)])
+    check(len(r.dumps) == 1 and any(r.dumps[0]), 'title key cannot seed the LFSR with zero')
 
     # --- scripted 200-key game: no fast VDP access ---------------------------
     rnd = random.Random(1982)

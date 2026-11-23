@@ -742,7 +742,6 @@ start:
 
         JSR clear_screen    ; second title page = mission briefing
         JSR draw_briefing       ; lore + mechanics primer
-        BIT     KBDSTRB                 ; drain the start-key strobe
         JSR wait_key_stir       ; APPLE II: explicit ack, its delay stirs the PRNG
 
         LDA #1                  ; first level — new_level INCs from here
@@ -758,6 +757,7 @@ start:
         ; the spawn sprite in COL_HURT for one frame. Clear explicitly.
         LDA #0
         STA player_hurt
+        STA sfx_req             ; discard the previous game's final turn sound
         STA last_attacker       ; no killer yet → death screen renders
                                 ; "KILLED BY UNKNOWN" if hp ever hits 0
                                 ; before any monster lands a bite.
@@ -957,31 +957,27 @@ main_loop:
         JMP main_loop
 
 @do_sound:
-        ; APPLE II: S toggles the speaker (free action). Row 23 says which,
+        ; APPLE II: S toggles the speaker (free action). The HUD says which,
         ; like NO DAGGER, until the next turn repaints the HUD.
         JSR     sound_toggle    ; A/Y = "SOUND ON" / "SOUND OFF"
         STA     vdp_src_lo
         STY     vdp_src_hi
-        LDA     #23
-        JSR     print_msg_row
+        JSR     print_hud_message
         SFX     SND_PICKUP      ; heard only when the sound is now on
         JMP     main_loop
 
 @do_quit:
-        ; APPLE II: ESC asks "QUIT TO DOS? Y/N" on row 23; Y leaves.
+        ; APPLE II: ESC asks "QUIT TO DOS? Y/N" on the HUD; Y leaves.
         LDA     #<msg_quit_q
         STA     vdp_src_lo
         LDA     #>msg_quit_q
         STA     vdp_src_hi
-        LDA     #23
-        JSR     print_msg_row
-        BIT     KBDSTRB
+        JSR     print_hud_message
         JSR     wait_key
         CMP     #('Y' | $80)
         BNE     @stay
         JMP     plat_quit
-@stay:  JSR     clear_msg_rows
-        JSR     update_hud
+@stay:  JSR     hud_row20
         JMP     main_loop
 
 @do_rest:
@@ -2569,6 +2565,9 @@ try_pickup_item:
         ; folding them in tightens the inventory display too.
         JSR     find_inv_stack          ; C clear → matching slot in X
         BCS     @find_empty
+        LDA     inventory+INV_QTY,X
+        CMP     #$FF
+        BEQ     @bag_full               ; leave the pickup on the floor
         INC     inventory+INV_QTY,X
         JMP     @consume
 @find_empty:
@@ -3015,7 +3014,7 @@ player_attack_monster:
         STA     tgt_row
         LDA     monsters+MON_TYPE,X
         CMP     #MON_TYPE_BOSS
-        BEQ     @boss_killed
+        BEQ     boss_killed
         SFX     SND_KILL                ; APPLE II
         LDA     #0
         STA     monsters+MON_TYPE,X
@@ -3024,11 +3023,18 @@ player_attack_monster:
         ; drop. rand_mod preserves X (it touches A + tmp only).
         LDA     #4
         JSR     rand_mod
+        CMP     #0                      ; rand_mod leaves flags from its modulus comparison
         BNE     @no_drop
         JMP     spawn_item              ; tail-call (RTS from spawn_item)
 @no_drop:
         RTS
-@boss_killed:
+@hurt_flash:
+        SFX     SND_HIT                 ; APPLE II
+        LDA     #1
+        STA     monsters+MON_HURT,X
+        RTS
+
+boss_killed:
         ; Boss kill = run win. Free the slot so the in-progress redraw
         ; doesn't paint a 32x32 corpse, count the kill, and JMP into
         ; the victory takeover. win_screen handles its own stack reset
@@ -3039,11 +3045,6 @@ player_attack_monster:
         STA     monsters+MON_TYPE,X
         JSR     award_xp                ; one final +1 for the trophy kill
         JMP     win_screen
-@hurt_flash:
-        SFX     SND_HIT                 ; APPLE II
-        LDA     #1
-        STA     monsters+MON_HURT,X
-        RTS
 
 
 ; ----------------------------------------------------------------------------
@@ -3249,6 +3250,7 @@ ai_skeleton:
 ai_death:
         LDA     #2
         JSR     rand_mod                ; A in {0, 1}; preserves X
+        CMP     #0
         BEQ     @skip
         JMP     ai_undead               ; tail-call greedy
 @skip:
@@ -3482,6 +3484,7 @@ apply_boss_step:
         CMP     #2
         BCS     @sweep
         ; Player is in the new footprint → bite, no move.
+        SFX     SND_HURT
         LDA     monsters+MON_DMG,X
         SEC
         SBC     player_def
@@ -3676,6 +3679,8 @@ apply_step:
         LDA     tgt_row
         CMP     player_row
         BNE     @check_pass
+        LDA     hp
+        BEQ     @bite_done              ; keep the cause of the fatal hit this turn
         ; --- Player overlap → bite. Effective damage = max(0,
         ; MON_DMG - player_def). Armor / ring of protection thus
         ; reduce every hit by their summed value, with a hard floor
@@ -3699,6 +3704,7 @@ apply_step:
         STA     player_hurt
         LDA     monsters+MON_TYPE,X     ; cache attacker for death screen
         STA     last_attacker
+@bite_done:
         CLC                             ; counts as the monster's action
         RTS
 @check_pass:
@@ -5078,7 +5084,7 @@ finish_turn:
         BEQ     @no_regen
         LDA     regen_tick
         BNE     @regen_dec
-        LDA     #RING_REGEN_PERIOD
+        LDA     #(RING_REGEN_PERIOD - 1) ; intervening turns before the next pulse
         STA     regen_tick
         LDA     hp
         CMP     hp_max                  ; runtime cap, not literal
@@ -5091,8 +5097,7 @@ finish_turn:
         ; --- Buff timers: weapon / armor / torch ---
         ; Each ticks down by 1 per turn. Weapon + armor expiries call
         ; recompute_player_stats so player_dmg / player_def drop the
-        ; boost cleanly. Torch expiry doesn't need a recompute (FOV is
-        ; recomputed on the next move from compute_fov).
+        ; boost cleanly. Torch expiry also changes visibility while resting.
         LDA     weapon_timer
         BEQ     @no_weapon_tick
         DEC     weapon_timer
@@ -5108,6 +5113,10 @@ finish_turn:
         LDA     torch_timer
         BEQ     @no_torch_tick
         DEC     torch_timer
+        BNE     @no_torch_tick
+        JSR     compute_fov
+        JSR     render_map
+        JSR     place_all_sprites
 @no_torch_tick:
         ; Ring expiry clears the active RING_F_* bit out of ring_flags.
         ; AND-with-complement of ring_boost so a future second-bit
@@ -5141,7 +5150,7 @@ finish_turn:
 ; hud_paint (APPLE II): finish_turn's clear_msg_rows + update_hud, written
 ; only where it changes something. hud_ok = 1: rows 20..23 hold the paint of
 ; the values in hud_last (nothing else wrote there since: clear_screen,
-; draw_text, clear_msg_rows / row23, update_hud and redraw_game clear it);
+; draw_text, clear_msg_rows, update_hud and redraw_game clear it);
 ; then only the rows whose values differ are repainted (row 22 / 23's blank
 ; columns are spaces already). Same names as POM1's full repaint.
 ; ----------------------------------------------------------------------------
@@ -5215,12 +5224,7 @@ hud_paint:
         RTS
 
 ; ----------------------------------------------------------------------------
-; clear_msg_rows: blank rows 22 and 23 (64 chars total) by writing
-; ' ' across them via auto-increment from VRAM $1AC0. render_map only
-; touches rows 0-19, so transient messages parked on row 23 by
-; print_msg_row would otherwise persist forever — finish_turn now
-; calls this on every accepted action, which is the natural moment to
-; clear "stale prompt residue" before the new turn's HUD repaints.
+; clear_msg_rows: fill rows 22 and 23 with spaces before a full HUD repaint.
 ; ----------------------------------------------------------------------------
 clear_msg_rows:
         LDA     #0
@@ -5233,25 +5237,6 @@ clear_msg_rows:
         DEX
         BNE     @lp
         RTS
-
-; ----------------------------------------------------------------------------
-; clear_msg_row23: blank just row 23 (32 chars) — used by transient-prompt
-; cancellers (handle_throw cancel) that need to wipe the on-screen prompt
-; without disturbing row 22's HP line. Same VDP-write recipe as
-; clear_msg_rows but starts at $1AE0 (row 23 col 0) and emits 32 spaces.
-; ----------------------------------------------------------------------------
-clear_msg_row23:
-        LDA     #0
-        STA     hud_ok
-        LDA     #$E0
-        LDX     #$5A                    ; $1A | $40
-        JSR     vid_addr                ; APPLE II: back-end call
-        LDX     #32
-@lp:    WRT_DATA_VAL ' '
-        DEX
-        BNE     @lp
-        RTS
-
 
 ; ----------------------------------------------------------------------------
 ; death_screen: full GAME OVER takeover screen. Wipes the playfield,
@@ -5314,6 +5299,7 @@ death_screen:
         JSR     draw_text
         ; Detailed stats + footer
         JSR     paint_scores
+        JSR     vid_idle                ; show scores before the tune and restart delay
         JSR     music_death     ; APPLE II: the dirge
         JMP     wait_for_restart
 
@@ -5331,6 +5317,7 @@ death_screen:
 ;   row 16:           PRESS ANY KEY
 ; ----------------------------------------------------------------------------
 win_screen:
+        JSR     vid_sprites_off
         JSR     clear_screen
         ; "CONGRATULATIONS" (15 chars) — row 3 col 8 → $1868
         LDA     #<msg_congrats
@@ -5350,6 +5337,7 @@ win_screen:
         JSR     draw_text
         ; Detailed stats + footer
         JSR     paint_scores
+        JSR     vid_idle                ; show scores before the tune and restart delay
         JSR     music_win       ; APPLE II: the fanfare
         JMP     wait_for_restart
 
@@ -5724,10 +5712,7 @@ show_inventory:
         LDA     vdp_lo
         LDX     vdp_hi
         JSR     draw_text
-        ; Drain any pending key from the 'I' press, then wait for a
-        ; fresh keypress (drain mirrors death_screen's pattern so a held
-        ; 'I' doesn't insta-close the modal).
-        BIT     KBDSTRB
+        ; wait_key acknowledged B. A second key may already be latched.
         JSR     wait_key
         ; If the player typed an in-range letter pointing at a non-empty
         ; slot, jump straight into the use/equip/throw dispatch — no
@@ -5964,20 +5949,15 @@ draw_inv_utility:
 
 
 ; ----------------------------------------------------------------------------
-; print_msg_row: render the $FF-terminated string at (vdp_src_lo, hi)
-; on row A, col 0. Used by the equip / remove / use / throw handlers
-; to flash a one-line prompt or error on row 23 (or row 22 for results
-; that should survive the next redraw_game). Clobbers A, X.
+; print_hud_message: transient prompts replace the depth at the left of
+; row 20. The dagger icon starts at column 28, clear of every message.
+; The buff icons cover both lower rows, including the timer digits' row.
 ; ----------------------------------------------------------------------------
-print_msg_row:
-        STA     vdp_row
-        LDA     #0
-        STA     vdp_col
-        JSR     name_at_rc
-        LDA     vdp_lo
-        LDX     vdp_hi
-        JSR     draw_text
-        RTS
+print_hud_message:
+        JSR     hud_row20               ; erase any longer previous message
+        LDA     #$80                    ; row 20, column 0
+        LDX     #$5A
+        JMP     draw_text               ; also invalidates the HUD cache
 
 
 ; ----------------------------------------------------------------------------
@@ -6035,8 +6015,7 @@ dispatch_use_slot:
         STA     vdp_src_lo
         LDA     #>msg_not_use
         STA     vdp_src_hi
-        LDA     #23
-        JSR     print_msg_row
+        JSR     print_hud_message
         LDA     #0
         RTS
 
@@ -6175,10 +6154,8 @@ dispatch_use_slot:
         JSR     render_map
         JSR     place_all_sprites
         JSR     update_hud
-        ; Wait for any key — drain first so the killing 'E' press doesn't
-        ; insta-close the modal.
+        JSR     vid_idle                ; present the reveal before playing its sound
         SFX_NOW SND_SCROLL              ; APPLE II: while the map shows
-        BIT     KBDSTRB
         JSR     wait_key
         LDX     map_ptr
         JSR     consume_inv_slot
@@ -6261,10 +6238,9 @@ delay_throw_frame:
 ; Streamlined fire-and-forget design (per project spec):
 ;   1. Check dagger_qty — daggers are ammo, not inventory slots.
 ;      Silent-fail with "NO DAGGER" + free action if the quiver is empty.
-;   2. Print "DIRECTION? " on row 23, wait for a movement key.
+;   2. Print "DIRECTION? " on the HUD, wait for a movement key.
 ;   3. parse_direction → throw_dx/dy. Cancel returns silently with the
-;      dagger count unchanged (free action, prompt persists until the
-;      next turn — visual reminder that the throw didn't happen).
+;      dagger count unchanged (free action).
 ;   4. Decrement dagger_qty.
 ;   5. Animate flight cell-by-cell at ~80 ms/frame, range THROW_RANGE.
 ;      The dagger ALWAYS vanishes on stop — monster hit (deal throw_dmg,
@@ -6289,8 +6265,7 @@ handle_throw:
         STA     vdp_src_lo
         LDA     #>msg_no_dagger
         STA     vdp_src_hi
-        LDA     #23
-        JSR     print_msg_row
+        JSR     print_hud_message
         LDA     #0
         RTS
 @have_dagger:
@@ -6302,16 +6277,12 @@ handle_throw:
         STA     vdp_src_lo
         LDA     #>msg_dir_q
         STA     vdp_src_hi
-        LDA     #23
-        JSR     print_msg_row
-        BIT     KBDSTRB                     ; drain T strobe
+        JSR     print_hud_message
         JSR     wait_key
         JSR     parse_direction
         BCC     @have_dir
-        ; Cancelled — non-direction key. Wipe row 23 so the prompt
-        ; doesn't linger ("DIRECTION? " confused players into thinking
-        ; the game was still waiting), bag stays intact, free action.
-        JSR     clear_msg_row23
+        ; Restore the depth immediately. Cancelling costs no turn or ammo.
+        JSR     hud_row20
         LDA     #0
         RTS
 @have_dir:
@@ -6400,6 +6371,13 @@ handle_throw:
 @hp_save:
         STA     monsters+MON_HP,X
         BNE     @hurt
+        LDA     monsters+MON_TYPE,X
+        CMP     #MON_TYPE_BOSS
+        BNE     @ordinary_kill
+        LDA     #0
+        STA     throw_active
+        JMP     boss_killed
+@ordinary_kill:
         SFX     SND_KILL                ; APPLE II
         LDA     #0
         STA     monsters+MON_TYPE,X
@@ -6435,7 +6413,7 @@ handle_throw:
 ; dispatch. Hides every gameplay sprite (Y=$D0 chain terminator at
 ; SAT[0] via disable_sprites), wipes the name table, paints a static
 ; reference card from `help_table` (same str_lo/hi + vram_lo/hi tuple
-; layout as draw_title), drains the '?' strobe, waits for any key,
+; layout as draw_title), waits for any key,
 ; then redraws the playfield. Always a free action — caller does NOT
 ; tick monsters or call finish_turn.
 ;
@@ -6469,9 +6447,6 @@ show_help:
         TAX
         CPX     #(help_table_end - help_table)
         BCC     @lp
-        ; Drain the '?' strobe so a held key can't insta-close, then
-        ; wait for an explicit ack press.
-        BIT     KBDSTRB
         JSR     wait_key
         JSR     redraw_game
         RTS
@@ -6510,7 +6485,7 @@ hlp_tip_bump:   .byte "BUMP MONSTER TO ATTACK", $FF
 hlp_tip_pick:   .byte "PICKUP IS AUTOMATIC", $FF
 hlp_tip_down:   .byte "STAIRS DOWN: DESCEND", $FF
 hlp_tip_warp:   .byte "EDGE DOOR: WARP LEVEL", $FF
-hlp_tip_win:    .byte "REACH DEPTH 13 TO WIN", $FF
+hlp_tip_win:    .byte "BEAT THE DEMON ON DEPTH 13", $FF
 
 
 ; ----------------------------------------------------------------------------
@@ -6609,14 +6584,14 @@ briefing_table_end:
 ; avoided (broken Quale glyphs); brackets + dashes render
 ; cleanly. Reuses msg_press_key (death/win/help shared pool). ---
 brf_title:      .byte "MISSION", $FF
-brf_goal:       .byte "[AMULET] FIND IT", $FF
+brf_goal:       .byte "[AMULET] REGENERATE HP", $FF
 brf_stairs:     .byte "[STAIRS] GO DOWN 12 FLOORS", $FF
 brf_sword:      .byte "[SWORD] BUMP MONSTERS", $FF
 brf_bag:        .byte "[BAG] PICK UP ITEMS", $FF
 brf_torch:      .byte "[TORCH] LIGHT THE DARK", $FF
 brf_pit:        .byte "[PIT] WATCH YOUR STEP", $FF
 brf_skull:      .byte "[SKULL] ONE LIFE", $FF
-brf_win:        .byte "DEPTH 13 = ESCAPE", $FF
+brf_win:        .byte "BEAT THE DEMON TO ESCAPE", $FF
 
 
 ; ----------------------------------------------------------------------------
@@ -6660,9 +6635,18 @@ wait_kb_choice:
         BNE     @not_esc
         JMP     plat_quit
 @not_esc:
+        CMP     #('S' | $80)
+        BNE     @start_key
+        JSR     sound_toggle
+        JMP     @lp
+@start_key:
         PHA                     ; preserve the raw key for the cheat CMP
         EOR     prng_lo
         STA     prng_lo         ; mix keypress into the seed
+        ORA     prng_hi
+        BNE     @seed_ready
+        INC     prng_lo         ; zero is an absorbing LFSR state
+@seed_ready:
         PLA
         CMP     #('B' | $80)    ; hidden code — jump straight to boss room
         BNE     @bind

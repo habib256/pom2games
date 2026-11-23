@@ -76,7 +76,7 @@ et `multiply.asm` (son `umul4`) n'est plus utile, ni copié.
 **Changé** : titre (« APPLE II E-Z COLOR ROGUELIKE », « MOVE IJKL OR
 ARROWS », ligne « [S] SOUND [ESC] QUIT ») ; flèches → IJKL (←/→ sur tout
 Apple II, ↑/↓ sur //e), minuscules repliées ; `S` = son, `ESC` = quitter
-(question sur la ligne 23) ; sons ; graine.
+(en jeu, la confirmation remplace temporairement la profondeur sur la ligne 20) ; sons ; graine.
 
 ### Le back-end DHGR (`src/video_dhgr.asm`, `src/video_x2.asm`, `src/rogue_dhgr.s`)
 

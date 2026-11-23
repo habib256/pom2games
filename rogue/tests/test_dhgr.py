@@ -502,6 +502,20 @@ def test_iic(shots):
         return 1
 
 
+def test_sound_frames():
+    """Check the physical page at the first note of each modal sound."""
+    L = a2test.labels(LBL)
+    start = [L.until('music_title', 3000), 'wait:100', 'key:X', 'wait:100', 'key:X', 'wait:200']
+    scroll = L.poke('inventory', [5, 0, 1, 0]) + ['key:B', 'wait:100', 'press:A']
+    for tag, steps, sound in [('scroll', scroll, 'sfx_play'),
+                              ('death', [f'go:{L["death_screen"]:04X}'], 'music_death'),
+                              ('victory', [f'go:{L["win_screen"]:04X}'], 'music_win')]:
+        r = a2test.run(DISK, start + steps + [L.until(sound, 600)] + screen_steps(L), iie=True)
+        _, _, sat, *_ = oracle(r.out, L, tag, record=False, hidden=False)
+        if tag != 'scroll':
+            check(sat[0] == 0xD0, f'{tag}: gameplay sprites hidden on score screen')
+
+
 def test_disk():
     """dist/ROGUE.dsk on a //e 128 KB without the card: the launcher chains to
     ROGUE.DHGR; ESC at the title reboots; HELLO sees the mark and ends."""
@@ -593,6 +607,7 @@ def main():
     golden(args.golden)
     test_iic(args.shots)
     test_disk()
+    test_sound_frames()
     if FAIL:
         print(f'{len(FAIL)} failure(s)')
         sys.exit(1)

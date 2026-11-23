@@ -108,8 +108,8 @@ def main():
 
     # --- the demon's room (B at the title): its sound, then S mutes -----------
     boss = BOOT + ['key:B', 'wait:30', 'key:X', 'wait:20', L.peek('ays_base', 2)]
-    r = run(boss + ['wait:40', 'key:S', 'wait:10', L.peek('ays_mutem'), L.peek('mb_shadow', 16),
-                    'key:S', 'wait:10', L.peek('ays_mutem')] + a2test.VDP_SHOT_STEPS)
+    r = run(boss + ['wait:40', 'vpeek:1A80:32', 'key:S', 'wait:10', L.peek('ays_mutem'), L.peek('mb_shadow', 16),
+                    'key:S', 'wait:10', L.peek('ays_mutem')])
     check(b'DEPTH 013' in r.vram[0x1A80:0x1AA0], 'B at the title: depth 13')
     check(word(r.dumps[-4]) == L['ays_sfx_boss'], "the demon's room: its AYS sound plays")
     check(not speaker(BOOT + ['key:B', 'wait:30', 'key:X'], 120), "the demon's room: speaker silent")
