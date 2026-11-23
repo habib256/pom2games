@@ -63,16 +63,24 @@ $(BUILD)/dirtbike.bin: $(BUILD)/dirtbike.o src/dirtbike.cfg
 	$(LD65) -C src/dirtbike.cfg -m $(BUILD)/dirtbike.map -Ln $(BUILD)/dirtbike.lbl -o $@ \
 		$(BUILD)/dirtbike.o
 
-$(DISK): $(BUILD)/dirtbike.bin $(TRACKS) $(BUILD)/TITLE.bin $(BUILD)/hof.bin $(DOS33_DEPS) $(DOS33PATCH_DEPS)
+$(BUILD)/boot.o: $(BUILD)/dirtbike.bin src/boot.s $(APPLE2)/rwts.asm
+	$(CA65) -t none -g -I $(APPLE2) -D GAME_BYTES=$$(wc -c < $< | tr -d ' ') -o $@ src/boot.s
+
+$(BUILD)/boot.bin: $(BUILD)/boot.o
+	$(LD65) -t none -S 0x1000 -Ln $(BUILD)/boot.lbl -o $@ $<
+
+$(DISK): $(BUILD)/boot.bin $(BUILD)/dirtbike.bin $(TRACKS) $(BUILD)/TITLE.bin $(BUILD)/hof.bin $(DOS33_DEPS) $(DOS33PATCH_DEPS)
 	@mkdir -p $(DIST)
-	$(DOS33) --bin DIRTBIKE=$(BUILD)/dirtbike.bin@$(LOAD) \
+	$(DOS33) --bin BOOT=$(BUILD)/boot.bin@0x1000 --bin DIRTBIKE=$(BUILD)/dirtbike.bin@$(LOAD) \
 		--bin TITLE=$(BUILD)/TITLE.bin@0x9600 --bin DIRTHOF=$(BUILD)/hof.bin@0xB500 \
 		$(foreach t,$(TRACKS),--bin $(basename $(notdir $(t)))=$(t)@0x9600)
+	$(DOS33PATCH) $@ BOOT $(BUILD)/boot.lbl --sectors RWTS_SEC_T RWTS_SEC_S DIRTBIKE
 	$(DOS33PATCH) $@ DIRTBIKE $(BUILD)/dirtbike.lbl \
 		--tslist trackdir_t trackdir_s $(basename $(notdir $(TRACKS))) \
 		--tslist titledir_t titledir_s TITLE --sectors hof_t hof_s DIRTHOF
 
 test: all $(A2RUN)
+	$(PYTHON) tests/test_boot.py
 	$(PYTHON) tools/trackcheck.py
 	$(PYTHON) tests/test_physics.py
 	$(PYTHON) tests/test_input.py

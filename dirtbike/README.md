@@ -296,7 +296,7 @@ partial bytes share a pool (783 bytes at most). Each track is a file
 `T01`..`T30`: a header, two LZ4FH streams and the demo ride (from 869 bytes to
 3.0 KB, 59 KB in all).
 
-**Loading** (`src/loader.inc`). Once started, the game keeps only DOS's
+**Loading.** At startup, `HELLO` runs a small RWTS loader (`src/boot.s`). It reads the sectors of `DIRTBIKE` into the graphics pages and copies the program to $6000. The disk build supplies the sector addresses. Once started, the game keeps only DOS's
 RWTS disk driver (`$B700-$BFFF`). The chosen track is read sector by sector
 into the freed area, then decompressed: heights at `$9600`, patterns at
 `$A600`. The position of each file's sector list is written into the game

@@ -135,7 +135,7 @@ def main():
                                      'btn:0,1', 'wait:6'] + look() + ['btn:0,0', 'wait:100', f'dsk:{saved}'])
         hof = dos33.read_file(saved.read_bytes(), 'DIRTHOF')
         pref = hof[L['inp_pref'] - L['hof_img']]
-        r2 = a2test.run(saved, ['wait:600', L.until('attract', 3000), L.peek('inp_dev', 1)])
+        r2 = a2test.run(saved, [L.until('attract', 3000), L.peek('inp_dev', 1)])
         inp = r.mem(IN, 3, 0)
         ok = (r.dumps[0][0] == INP_STICK and r.dumps[1][0] == INP_KEYS and inp == bytes(3)
               and pref == INP_KEYS and r2.dumps[0][0] == INP_KEYS)
@@ -168,7 +168,7 @@ def main():
         ok &= seen[0] == 0 and seen[10] == m and seen[-1] == -m and set(seen) >= {-m, 0, m}
         hof = dos33.read_file(saved.read_bytes(), 'DIRTHOF')
         pref = hof[L['inp_pref'] - L['hof_img']]
-        r2 = a2test.run(saved, ['wait:600', L.until('attract', 3000), L.peek('inp_dev', 1)])
+        r2 = a2test.run(saved, [L.until('attract', 3000), L.peek('inp_dev', 1)])
         ok &= pref == INP_PADDLES and r2.dumps[0][0] == INP_PADDLES
         print(f'paddles: device {dev}, lean centre {j0[5]} (mid-travel), lean over the dial {seen}, '
               f'saved ({pref}), next boot: device {r2.dumps[0][0]}: ' + ('ok' if ok else 'DIFF'))

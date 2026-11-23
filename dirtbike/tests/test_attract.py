@@ -73,7 +73,7 @@ def main():
     bad = 0
 
     # the title
-    r = a2test.run(DISK, ['wait:600', L.until('tick_wait', 3000), 'peek:2000:8192'])
+    r = a2test.run(DISK, [L.until('tick_wait', 3000), 'peek:2000:8192'])
     page, want = r.mem(0x2000, 8192), (GAME / 'build/title.hgr').read_bytes()
     rows = [y for y in range(192) if y not in PROMPT and
             page[a2test.hgr_offset(y):a2test.hgr_offset(y) + 40] != want[a2test.hgr_offset(y):a2test.hgr_offset(y) + 40]]
@@ -87,7 +87,7 @@ def main():
     for i, k in enumerate(packtrack.DEMOS):
         h, fin = tracks.build(k)
         _, t = tricks.ride(h, sols[k], fin)
-        steps = ['wait:600', L.until('tick_wait', 3000), L.poke('demo_next', i), L.until('demo_start', 3000),
+        steps = [L.until('tick_wait', 3000), L.poke('demo_next', i), L.until('demo_start', 3000),
                  L.until('new_race', 900), L.until('demo_end', 9000), L.peek('score', 3), L.peek('state', 1),
                  L.peek('crashed', 1)]
         if i == 0:
@@ -115,7 +115,7 @@ def main():
         print(f'record saved, then on to track 2: time {rec_min}:{hof[4 + NT]:02x}.{hof[4 + 2 * NT] >> 4} {ini.decode()}, '
               f'points {pts[2]:02x}{pts[1]:02x}{pts[0]:02x} {pini.decode()}: ' + ('ok' if ok else 'DIFF'))
         bad += not ok
-        r = a2test.run(saved, ['wait:600', L.until('tick_wait', 3000), L.peek('rec_ini', 3), L.peek('rec_pts', 3)])
+        r = a2test.run(saved, [L.until('tick_wait', 3000), L.peek('rec_ini', 3), L.peek('rec_pts', 3)])
         ok = r.mem(L['rec_ini'], 3) == b'XYZ' and r.mem(L['rec_pts'], 3) == bytes([0x00, 0x12, 0x00])
         print('next boot reads it back: ' + ('ok' if ok else 'DIFF'))
         bad += not ok
@@ -138,7 +138,7 @@ def main():
         bad += not ok
     # the title tune plays once; the demo starts when it ends
     T = sum(music.tune(music.TITLE, 8)[0::3])
-    r = a2test.run(DISK, ['wait:600', L.until('tick_wait', 3000), f'wait:{T - 60}', L.peek('tune_ptr', 2),
+    r = a2test.run(DISK, [L.until('tick_wait', 3000), f'wait:{T - 60}', L.peek('tune_ptr', 2),
                           'wait:120', L.peek('tune_ptr', 2)])
     ok = r.dumps[0][1] != 0 and r.dumps[1][1] == 0
     print(f'title tune ({T} ticks), then the demo: ' + ('ok' if ok else f'DIFF {[d.hex() for d in r.dumps]}'))
